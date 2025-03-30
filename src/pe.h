@@ -1,12 +1,11 @@
 #pragma once
 
-#include "common.h"
+#include "data_objects.h"
 #include "idriver.h"
 #include "prl.h"
 #include "utils/atomic_bits.h"
 
 #include <etl/fsm.h>
-#include <etl/vector.h>
 
 namespace pd {
 

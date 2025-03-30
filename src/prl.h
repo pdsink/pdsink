@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "data_objects.h"
 #include "idriver.h"
 #include "utils/atomic_bits.h"
 

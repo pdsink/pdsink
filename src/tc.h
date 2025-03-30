@@ -6,7 +6,7 @@
 //
 #pragma once
 
-#include "common.h"
+#include "data_objects.h"
 #include "idriver.h"
 
 #include <etl/fsm.h>

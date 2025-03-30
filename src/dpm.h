@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "data_objects.h"
 
 #include <etl/fsm.h>
 
