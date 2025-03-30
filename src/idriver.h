@@ -3,10 +3,10 @@
 #include "common.h"
 #include "utils/atomic_bits.h"
 
-#include <etl/utility.h>
-#include <etl/vector.h>
 #include <etl/delegate.h>
 #include <etl/message_router.h>
+#include <etl/utility.h>
+#include <etl/vector.h>
 
 namespace pd {
 

@@ -1,6 +1,8 @@
 #include "pd_conf.h"
-#include "tc.h"
 #include "sink.h"
+#include "tc.h"
+
+#include <etl/array.h>
 
 namespace pd {
 
@@ -12,14 +14,15 @@ enum TC_State {
 };
 
 namespace {
-    constexpr const char* const tc_state_names[] = {
-        [TC_DETACHED] = "TC_DETACHED",
-        [TC_DETECTING] = "TC_DETECTING",
-        [TC_SINK_ATTACHED] = "TC_SINK_ATTACHED"
-    };
-
-    static_assert(sizeof(tc_state_names) / sizeof(tc_state_names[0]) == TC_STATE_COUNT, "TC state names array size mismatch");
-}
+    constexpr auto tc_state_to_desc(TC_State state) -> const char* {
+        switch (state) {
+            case TC_DETACHED: return "TC_DETACHED";
+            case TC_DETECTING: return "TC_DETECTING";
+            case TC_SINK_ATTACHED: return "TC_SINK_ATTACHED";
+            default: return "Unknown TC state";
+        }
+    }
+} // namespace
 
 //
 // Macros to quick-create common methods
@@ -31,7 +34,7 @@ auto on_enter_state() -> etl::fsm_state_id_t override { \
 }
 
 #define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(const etl::imessage& event) -> etl::fsm_state_id_t { \
+auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -52,7 +55,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         if (tc.tcpc.get_state().test(TCPC_FLAG::REQ_CC_BOTH)) {
@@ -96,7 +99,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         if (tc.tcpc.get_state().test(TCPC_FLAG::REQ_CC_BOTH)) {
@@ -149,7 +152,7 @@ class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State,
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         // If active CC become zero => cable detached
@@ -166,28 +169,24 @@ public:
 TC::TC(Sink& sink, ITCPC& tcpc) : etl::fsm(0), sink{sink}, tcpc{tcpc} {
     sink.tc = this;
 
-    static etl::ifsm_state* tc_state_list[TC_State::TC_STATE_COUNT] = {
+    static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{
         new TC_DETACHED_State(),
         new TC_DETECTING_State(),
         new TC_SINK_ATTACHED_State()
-    };
+    }};
 
-    set_states(tc_state_list, TC_State::TC_STATE_COUNT);
+    set_states(tc_state_list.data(), TC_State::TC_STATE_COUNT);
 };
 
 void TC::log_state() {
-    TC_LOG("TC state => %s", tc_state_names[get_state_id()]);
+    TC_LOG("TC state => %s", tc_state_to_desc(get_state_id()));
 }
 
 void TC::dispatch(const MsgPdEvents& events) {
-    if (!events.has_timeout() && !(events.value & PD_EVENT::DRV_UPDATE)) {
-        return;
-    }
-
     receive(events);
 }
 
-bool TC::is_connected() {
+auto TC::is_connected() -> bool {
     return is_started() && get_state_id() == TC_SINK_ATTACHED;
 }
 

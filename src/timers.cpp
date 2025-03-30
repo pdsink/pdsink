@@ -19,7 +19,7 @@ void Timers::stop_range(const PD_TIMEOUT::Type& range) {
     }
 }
 
-bool Timers::is_expired(int timer_id) {
+auto Timers::is_expired(int timer_id) -> bool {
     if (active.test(timer_id)) {
         if (get_time_us() >= expire_at[timer_id]) {
             deactivate(timer_id);
@@ -39,7 +39,7 @@ void Timers::cleanup() {
     }
 }
 
-int32_t Timers::get_next_expiration() {
+auto Timers::get_next_expiration() -> int32_t {
     constexpr int32_t MAX_EXPIRE = 0x7FFFFFFF;
     constexpr int32_t NO_EXPIRE = -1;
 
@@ -48,11 +48,11 @@ int32_t Timers::get_next_expiration() {
 
     for (auto i = 0; i < PD_TIMER::PD_TIMER_COUNT; i++) {
         if (active.test(i)) {
-            uint64_t exp = expire_at[i];
-            if (exp <= now) return 0;
+            const uint64_t exp = expire_at[i];
+            if (exp <= now) { return 0; }
 
-            int32_t diff = exp - now;
-            if (diff < min) min = diff;
+            const auto diff = static_cast<int32_t>(exp - now);
+            if (diff < min) { min = diff; }
         }
     }
 

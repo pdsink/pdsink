@@ -1,8 +1,8 @@
-#include "sink.h"
-#include "tc.h"
 #include "dpm.h"
 #include "pe.h"
 #include "prl.h"
+#include "sink.h"
+#include "tc.h"
 
 namespace pd {
 

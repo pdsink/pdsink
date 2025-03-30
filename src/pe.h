@@ -90,11 +90,11 @@ public:
     void send_data_msg(PD_DATA_MSGT::Type msgt);
     void send_ext_msg(PD_EXT_MSGT::Type msgt);
 
-    bool is_in_epr_mode() { return flags.test(PE_FLAG::IN_EPR_MODE); }
-    bool is_in_spr_contract();
-    bool is_in_pps_contract();
-    bool is_epr_mode_available();
-    bool is_rev_2_0();
+    bool is_in_epr_mode() const { return flags.test(PE_FLAG::IN_EPR_MODE); }
+    bool is_in_spr_contract() const;
+    bool is_in_pps_contract() const;
+    bool is_epr_mode_available() const;
+    bool is_rev_2_0() const;
 
     void check_request_progress_enter();
     auto check_request_progress_run() -> PE_REQUEST_PROGRESS::Type;
@@ -107,7 +107,7 @@ public:
 
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
 
-    AtomicBits<PE_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<PE_FLAG::FLAGS_COUNT> flags{};
     uint8_t hard_reset_counter{0};
     PDO_LIST source_caps{};
 
@@ -118,7 +118,7 @@ public:
     //
     // Micro-queue for DPM requests (set of flags)
     //
-    AtomicBits<DPM_REQUEST::REQUEST_COUNT> dpm_requests;
+    AtomicBits<DPM_REQUEST::REQUEST_COUNT> dpm_requests{};
     // dpm_request ID (bit number from dpm_requests), running now
     uint32_t dpm_current_request{0};
 

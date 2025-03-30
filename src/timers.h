@@ -1,8 +1,9 @@
 #pragma once
 
+#include "utils/atomic_bits.h"
+
 #include <etl/array.h>
 #include <etl/utility.h>
-#include "utils/atomic_bits.h"
 
 namespace pd {
 

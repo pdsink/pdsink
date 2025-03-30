@@ -4,8 +4,8 @@
 #include "idriver.h"
 #include "utils/atomic_bits.h"
 
-#include <etl/fsm.h>
 #include <etl/cyclic_value.h>
+#include <etl/fsm.h>
 
 namespace pd {
 
@@ -78,7 +78,7 @@ class PRL_Tx: public etl::fsm {
 public:
     PRL_Tx(PRL& prl);
     void log_state();
-    AtomicBits<PRL_TX_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<PRL_TX_FLAG::FLAGS_COUNT> flags{};
     etl::cyclic_value<int8_t, 0, 7> msg_id_counter{0};
     int8_t retry_counter{0};
     TCPC_TRANSMIT_STATUS::Type tcpc_tx_status{TCPC_TRANSMIT_STATUS::UNSET};
@@ -97,7 +97,7 @@ class PRL_HR: public etl::fsm {
 public:
     PRL_HR(PRL& prl);
     void log_state();
-    AtomicBits<PRL_HR_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<PRL_HR_FLAG::FLAGS_COUNT> flags{};
     PRL& prl;
 };
 
@@ -106,7 +106,7 @@ public:
     PRL_RCH(PRL& prl);
     void log_state();
     void copy_chunk_data();
-    AtomicBits<RCH_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<RCH_FLAG::FLAGS_COUNT> flags{};
     int8_t chunk_number_expected{0};
     PRL_ERROR error{};
     PRL& prl;
@@ -116,7 +116,7 @@ class PRL_TCH: public etl::fsm {
 public:
 PRL_TCH(PRL& prl);
     void log_state();
-    AtomicBits<TCH_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<TCH_FLAG::FLAGS_COUNT> flags{};
     int8_t chunk_number_to_send{0};
     PRL_ERROR error{};
     PRL& prl;
@@ -180,7 +180,7 @@ public:
     PRL& operator=(const PRL&) = delete;
 
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
-    AtomicBits<PRL_FLAG::FLAGS_COUNT> flags;
+    AtomicBits<PRL_FLAG::FLAGS_COUNT> flags{};
 
     PD_MSG rx_emsg;
     PD_MSG tx_emsg;

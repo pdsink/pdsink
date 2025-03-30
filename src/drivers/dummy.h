@@ -50,8 +50,8 @@ public:
 
 private:
     Sink& sink;
-    PKT_INFO rx_info;
-    TCPC_STATE state;
+    PKT_INFO rx_info{};
+    TCPC_STATE state{};
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features = {
         .rx_goodcrc_send = true,

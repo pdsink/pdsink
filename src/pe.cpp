@@ -1,11 +1,13 @@
-#include <etl/algorithm.h>
-#include "pd_conf.h"
 #include "data_objects.h"
+#include "dpm.h"
+#include "pd_conf.h"
 #include "pe.h"
 #include "prl.h"
-#include "dpm.h"
-#include "tc.h"
 #include "sink.h"
+#include "tc.h"
+
+#include <etl/algorithm.h>
+#include <etl/array.h>
 
 namespace pd {
 
@@ -55,32 +57,33 @@ enum PE_State {
 };
 
 namespace {
-    constexpr const char* const pe_state_names[] = {
-        [PE_SNK_Startup] = "PE_SNK_Startup",
-        [PE_SNK_Discovery] = "PE_SNK_Discovery",
-        [PE_SNK_Wait_for_Capabilities] = "PE_SNK_Wait_for_Capabilities",
-        [PE_SNK_Evaluate_Capability] = "PE_SNK_Evaluate_Capability",
-        [PE_SNK_Select_Capability] = "PE_SNK_Select_Capability",
-        [PE_SNK_Transition_Sink] = "PE_SNK_Transition_Sink",
-        [PE_SNK_Ready] = "PE_SNK_Ready",
-        [PE_SNK_Give_Sink_Cap] = "PE_SNK_Give_Sink_Cap",
-        [PE_SNK_EPR_Keep_Alive] = "PE_SNK_EPR_Keep_Alive",
-        [PE_SNK_Hard_Reset] = "PE_SNK_Hard_Reset",
-        [PE_SNK_Transition_to_default] = "PE_SNK_Transition_to_default",
-        [PE_SNK_Soft_Reset] = "PE_SNK_Soft_Reset",
-        [PE_SNK_Send_Soft_Reset] = "PE_SNK_Send_Soft_Reset",
-        [PE_SNK_Send_Not_Supported] = "PE_SNK_Send_Not_Supported",
-        [PE_SNK_Source_Alert_Received] = "PE_SNK_Source_Alert_Received",
-        [PE_SNK_Send_EPR_Mode_Entry] = "PE_SNK_Send_EPR_Mode_Entry",
-        [PE_SNK_EPR_Mode_Entry_Wait_For_Response] = "PE_SNK_EPR_Mode_Entry_Wait_For_Response",
-        [PE_SNK_EPR_Mode_Exit_Received] = "PE_SNK_EPR_Mode_Exit_Received",
-        [PE_BIST_Carrier_Mode] = "PE_BIST_Carrier_Mode",
-        [PE_Give_Revision] = "PE_Give_Revision",
-        [PE_Src_Disabled] = "PE_Src_Disabled",
-    };
-
-    static_assert(sizeof(pe_state_names) / sizeof(pe_state_names[0]) == PE_STATE_COUNT, "PE state names array size mismatch");
-}
+    constexpr auto pe_state_to_desc(PE_State state) -> const char* {
+        switch (state) {
+            case PE_SNK_Startup: return "PE_SNK_Startup";
+            case PE_SNK_Discovery: return "PE_SNK_Discovery";
+            case PE_SNK_Wait_for_Capabilities: return "PE_SNK_Wait_for_Capabilities";
+            case PE_SNK_Evaluate_Capability: return "PE_SNK_Evaluate_Capability";
+            case PE_SNK_Select_Capability: return "PE_SNK_Select_Capability";
+            case PE_SNK_Transition_Sink: return "PE_SNK_Transition_Sink";
+            case PE_SNK_Ready: return "PE_SNK_Ready";
+            case PE_SNK_Give_Sink_Cap: return "PE_SNK_Give_Sink_Cap";
+            case PE_SNK_EPR_Keep_Alive: return "PE_SNK_EPR_Keep_Alive";
+            case PE_SNK_Hard_Reset: return "PE_SNK_Hard_Reset";
+            case PE_SNK_Transition_to_default: return "PE_SNK_Transition_to_default";
+            case PE_SNK_Soft_Reset: return "PE_SNK_Soft_Reset";
+            case PE_SNK_Send_Soft_Reset: return "PE_SNK_Send_Soft_Reset";
+            case PE_SNK_Send_Not_Supported: return "PE_SNK_Send_Not_Supported";
+            case PE_SNK_Source_Alert_Received: return "PE_SNK_Source_Alert_Received";
+            case PE_SNK_Send_EPR_Mode_Entry: return "PE_SNK_Send_EPR_Mode_Entry";
+            case PE_SNK_EPR_Mode_Entry_Wait_For_Response: return "PE_SNK_EPR_Mode_Entry_Wait_For_Response";
+            case PE_SNK_EPR_Mode_Exit_Received: return "PE_SNK_EPR_Mode_Exit_Received";
+            case PE_BIST_Carrier_Mode: return "PE_BIST_Carrier_Mode";
+            case PE_Give_Revision: return "PE_Give_Revision";
+            case PE_Src_Disabled: return "PE_Src_Disabled";
+            default: return "Unknown PE state";
+        }
+    }
+} // namespace
 
 
 //
@@ -93,12 +96,12 @@ auto on_enter_state() -> etl::fsm_state_id_t override { \
 }
 
 #define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(const etl::imessage& event) -> etl::fsm_state_id_t { \
+auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
 #define ON_EVENT_NOTHING \
-auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t { \
+auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -120,7 +123,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.prl.is_running()) { return No_State_Change; }
@@ -153,7 +156,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -198,7 +201,7 @@ public:
 
         pe.hard_reset_counter = 0;
         pe.prl.revision = static_cast<PD_REVISION::Type>(
-            etl::min(uint16_t(PD_REVISION::REV30), msg.header.spec_revision));
+            etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
 
         pe.source_caps.clear();
         for (int i = 0, pdo_num = msg.data.size() >> 2; i < pdo_num; i++) {
@@ -264,7 +267,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -356,7 +359,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -419,8 +422,9 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        bool sr_on_unsupported = pe.flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             auto& msg = pe.get_rx_msg();
@@ -435,25 +439,20 @@ public:
                 {
                 case PD_EXT_MSGT::Source_Capabilities_Extended:
                     // If not in EPR mode, ignore this message
-                    if (!pe.is_in_epr_mode()) { return No_State_Change; }
-                    return PE_SNK_Evaluate_Capability;
+                    if (pe.is_in_epr_mode()) { return PE_SNK_Evaluate_Capability; }
+                    break;
 
                 case PD_EXT_MSGT::Extended_Control:
                     if (msg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_Get_Sink_Cap)) {
                         return PE_SNK_Give_Sink_Cap;
                     }
-                    break;
+                    return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
 
                 default:
-                    break;
+                    return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
-
-                if (pe.flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED)) {
-                    return PE_SNK_Send_Soft_Reset;
-                }
-                return PE_SNK_Send_Not_Supported;
-
-            } else if (hdr.data_obj_count > 0) {
+            }
+            else if (hdr.data_obj_count > 0) {
                 //
                 // Data message (not extended + data objects exist)
                 //
@@ -465,8 +464,8 @@ public:
 
                 case PD_DATA_MSGT::Vendor_Defined:
                     // No VDM support. Reject for 3.0+, and ignore for 2.0
-                    if (pe.is_rev_2_0()) { return No_State_Change; }
-                    return PE_SNK_Send_Not_Supported;
+                    if (!pe.is_rev_2_0()) { return PE_SNK_Send_Not_Supported; }
+                    break;
 
                 case PD_DATA_MSGT::BIST:
                     return PE_BIST_Carrier_Mode;
@@ -481,14 +480,11 @@ public:
                     if (eprmdo.action == EPR_MODE_ACTION::EXIT) {
                         return PE_SNK_EPR_Mode_Exit_Received;
                     }
-                    break;
+                    return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
 
                 default:
-                    if (pe.flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED)) {
-                        return PE_SNK_Send_Soft_Reset;
-                    }
-                    return PE_SNK_Send_Not_Supported;
+                    return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
             } else {
                 //
@@ -529,10 +525,7 @@ public:
                     return PE_Give_Revision;
 
                 default:
-                    if (pe.flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED)) {
-                        return PE_SNK_Send_Soft_Reset;
-                    }
-                    return PE_SNK_Send_Not_Supported;
+                    return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
             }
         }
@@ -551,7 +544,7 @@ public:
         // Process DPM requests
         //
 
-        // TODO: how to wakeup when multiple DPM requests stacked?
+        // NOTE: how to wakeup when multiple DPM requests stacked?
         // Finishing request return to SNK_Ready, ut not produces new event
         // to reach this block.
 
@@ -621,7 +614,7 @@ public:
                 // For regular request (non-EPR) only 7 PDOs allowed
                 if (i >= 7) { break; }
             }
-            // TODO: Not sure about this. Do we need zero-padded EPR caps?
+            // NOTE: Not sure about this. Do we need zero-padded EPR caps?
             if (pdo == 0) { continue; }
 
             msg.append32(pdo);
@@ -635,7 +628,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -670,7 +663,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -734,7 +727,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
@@ -754,7 +747,7 @@ public:
     // capacitors, drop the load and so on. But since we are sink only - do
     // a minimal cleanup and inform PRL about the end.
     //
-    // TODO: Check if more granular DRP notifications required.
+    // NOTE: Check if more granular DRP notifications required.
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
@@ -763,17 +756,17 @@ public:
         pe.flags.clear_all();
         pe.dpm_requests.clear_all();
 
-        // TODO: Here we could notify upper layers
+        // NOTE: Here we could notify upper layers
 
         // Kick loop manually, until no DRP callback exists
         pe.sink.wakeup();
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
-        // TODO: Here we could wait until upper layers finished the job
+        // NOTE: Here we could wait until upper layers finished the job
 
         pe.prl.on_pe_hard_reset_done();
         return PE_SNK_Startup;
@@ -796,7 +789,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -840,7 +833,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         // Wait until PRL layer ready
@@ -899,7 +892,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -946,7 +939,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -988,7 +981,7 @@ class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl::fsm_state<PE, 
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -1020,7 +1013,7 @@ class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.is_in_spr_contract()) {
@@ -1059,7 +1052,7 @@ public:
         return PE_SNK_Ready;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.sink.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
@@ -1098,7 +1091,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -1127,7 +1120,7 @@ PE::PE(Sink& sink, PRL& prl, ITCPC& tcpc)
 {
     sink.pe = this;
 
-    static etl::ifsm_state* pe_state_list[PE_State::PE_STATE_COUNT] = {
+    static etl::array<etl::ifsm_state*, PE_State::PE_STATE_COUNT> pe_state_list = {{
         new PE_SNK_Startup_State(),
         new PE_SNK_Discovery_State(),
         new PE_SNK_Wait_for_Capabilities_State(),
@@ -1149,13 +1142,13 @@ PE::PE(Sink& sink, PRL& prl, ITCPC& tcpc)
         new PE_BIST_Carrier_Mode_State(),
         new PE_Give_Revision_State(),
         new PE_Src_Disabled_State()
-    };
+    }};
 
-    set_states(pe_state_list, PE_State::PE_STATE_COUNT);
+    set_states(pe_state_list.data(), PE_State::PE_STATE_COUNT);
 };
 
 void PE::log_state() {
-    PE_LOG("PE state => %s", pe_state_names[get_state_id()]);
+    PE_LOG("PE state => %s", pe_state_to_desc(get_state_id()));
 }
 
 void PE::init() {
@@ -1189,8 +1182,8 @@ void PE::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
     }
 }
 
-PD_MSG& PE::get_rx_msg() { return prl.rx_emsg; }
-PD_MSG& PE::get_tx_msg() { return prl.tx_emsg; }
+auto PE::get_rx_msg() -> PD_MSG& { return prl.rx_emsg; }
+auto PE::get_tx_msg() -> PD_MSG& { return prl.tx_emsg; }
 
 //
 // Notification handlers
@@ -1232,7 +1225,7 @@ void PE::on_prl_hard_reset_sent() {
 //
 // 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
 //
-// TODO: May be need care, spec is not clear
+// NOTE: May be need care, spec is not clear
 //
 void PE::on_prl_report_error(PRL_ERROR err) {
     if (flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
@@ -1241,7 +1234,7 @@ void PE::on_prl_report_error(PRL_ERROR err) {
         return;
     }
 
-    // TODO: revisit if this is acceptable behaviour
+    // NOTE: revisit if this is acceptable behaviour
     if (dpm_current_request != 0) {
         // Restore DPM request
         dpm_requests.set(dpm_current_request);
@@ -1299,30 +1292,30 @@ void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msg) {
 //
 // Utilities
 //
-bool PE::is_rev_2_0() {
+auto PE::is_rev_2_0() const -> bool {
     return prl.revision < PD_REVISION::REV30;
 }
 
-bool PE::is_epr_mode_available() {
+auto PE::is_epr_mode_available() const -> bool {
     if (!flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
     if (is_rev_2_0()) { return false; }
 
-    PDO_FIXED fisrt_src_pdo{.raw_value = source_caps[0]};
+    const PDO_FIXED fisrt_src_pdo{.raw_value = source_caps[0]};
 
     return fisrt_src_pdo.epr_capable;
 }
 
-bool PE::is_in_spr_contract() {
-    RDO_ANY rdo{.raw_value = rdo_contracted};
+auto PE::is_in_spr_contract() const -> bool {
+    const RDO_ANY rdo{.raw_value = rdo_contracted};
     return flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) && (rdo.obj_position < 8);
 }
 
-bool PE::is_in_pps_contract() {
+auto PE::is_in_pps_contract() const -> bool {
     if (!flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
-    RDO_ANY rdo{.raw_value = rdo_contracted};
-    PDO_SPR_PPS pdo{.raw_value = source_caps[rdo.obj_position-1]};
+    const RDO_ANY rdo{.raw_value = rdo_contracted};
+    const PDO_SPR_PPS pdo{.raw_value = source_caps[rdo.obj_position-1]};
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
         pdo.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
@@ -1359,9 +1352,8 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
 
             if (flags.test(PE_FLAG::MSG_DISCARDED)) {
                 return PE_REQUEST_PROGRESS::DISCARDED;
-            } else {
-                return PE_REQUEST_PROGRESS::FAILED;
             }
+            return PE_REQUEST_PROGRESS::FAILED;
         }
 
         // Wait for GoodCRC

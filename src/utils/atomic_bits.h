@@ -1,10 +1,11 @@
 #pragma once
 
+#include <etl/array.h>
+#include <etl/atomic.h>
+#include <etl/binary.h>
+
 #include <stddef.h>
 #include <stdint.h>
-#include <etl/atomic.h>
-#include <etl/array.h>
-#include <etl/binary.h>
 
 // For old compilers ETL can fallback to spinlocks, that's not acceptable.
 // Can be workarounded by using separate bool flag for each bit at cost of

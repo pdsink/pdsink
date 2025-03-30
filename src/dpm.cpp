@@ -1,7 +1,7 @@
+#include "data_objects.h"
 #include "dpm.h"
 #include "pe.h"
 #include "sink.h"
-#include "data_objects.h"
 
 namespace pd {
 
@@ -9,7 +9,7 @@ DPM::DPM(Sink& sink, PE& pe) : etl::fsm(0), sink{sink}, pe{pe} {
     sink.dpm = this;
 };
 
-void DPM::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
+void DPM::dispatch(const MsgPdEvents& events, __maybe_unused const bool pd_enabled) {
     receive(events);
 };
 
@@ -17,7 +17,7 @@ void DPM::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
 // Custom handlers. You are expected to override these in your application.
 //
 
-PDO_LIST DPM::get_sink_pdo_list() {
+auto DPM::get_sink_pdo_list() -> PDO_LIST {
     // SNK demands are filled only once and MUST NOT be changed
     if (sink_rdo_list.size() > 0) { return sink_rdo_list; }
 
@@ -139,8 +139,7 @@ PDO_LIST DPM::get_sink_pdo_list() {
 }
 
 void DPM::fill_rdo_flags(uint32_t &rdo) {
-    RDO_ANY rdo_bits;
-    rdo_bits.raw_value = rdo;
+    RDO_ANY rdo_bits{.raw_value = rdo};
 
     // Fill RDO flags here
     rdo_bits.epr_capable = 1;
@@ -156,7 +155,7 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
 
 // This one is called when `SRC Capabilities` and `ERP SRC Capabilities`
 // are received from power source. Returns RDO and appropriate PDO as pair
-uint32_t DPM::get_request_data_object() {
+auto DPM::get_request_data_object() -> uint32_t {
     // This is default stub implementation, with simple trigger support.
     // Customize if required.
 
@@ -166,28 +165,28 @@ uint32_t DPM::get_request_data_object() {
     // Then, PE will automatically upgrade to EPR (with new ERP Caps) and this
     // function will be called again.
     //
-    // TODO: probably, should distinguish between intermediate fallback and
+    // NOTE: probably, should distinguish between intermediate fallback and
     // final fail. Decide how to inform the application.
     //
 
     if (trigger_mode == TRIGGER_MODE::FIXED) {
         for (int i = 0, max = pe.source_caps.size(); i < max; i++) {
-            uint32_t pdo = pe.source_caps[i];
+            const auto pdo = pe.source_caps[i];
             // Skip padded positions
             if (pdo == 0) { continue; }
             // Skip not fixed PDOs
             if (!DO_TOOLS::is_fixed(pdo)) { continue; }
 
-            PDO_FIXED pdo_bits{.raw_value = pdo};
-            uint32_t pdo_mv = pdo_bits.voltage * 50;
-            uint32_t pdo_ma = pdo_bits.max_current * 10;
+            const PDO_FIXED pdo_bits{.raw_value = pdo};
+            const uint32_t pdo_mv = static_cast<uint32_t>(pdo_bits.voltage) * 50U;
+            const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
 
             if (pdo_mv == trigger_mv) {
                 RDO_FIXED rdo{};
                 fill_rdo_flags(rdo.raw_value);
                 rdo.obj_position = i + 1; // zero-based index + 1
-                rdo.max_current = pdo_ma / 10;
-                rdo.operating_current = pdo_ma / 10;
+                rdo.max_current = pdo_ma / 10U;
+                rdo.operating_current = pdo_ma / 10U;
 
                 return rdo.raw_value;
             }
@@ -196,22 +195,22 @@ uint32_t DPM::get_request_data_object() {
 
     if (trigger_mode == TRIGGER_MODE::SPR_PPS) {
         for (int i = 0, max = pe.source_caps.size(); i < max; i++) {
-            uint32_t pdo = pe.source_caps[i];
+            const auto pdo = pe.source_caps[i];
             // Skip padded positions
             if (pdo == 0) { continue; }
             // Skip not SPR_PPS PDOs
             if (!DO_TOOLS::is_spr_pps(pdo)) { continue; }
 
-            PDO_SPR_PPS pdo_bits{.raw_value = pdo};
-            uint32_t pdo_max_mv = pdo_bits.max_voltage * 100;
-            uint32_t pdo_max_ma = pdo_bits.max_current * 50;
+            const PDO_SPR_PPS pdo_bits{.raw_value = pdo};
+            const uint32_t pdo_max_mv = static_cast<uint32_t>(pdo_bits.max_voltage) * 100U;
+            const uint32_t pdo_max_ma = static_cast<uint32_t>(pdo_bits.max_current) * 50U;
 
             if (pdo_max_mv >= trigger_mv && pdo_max_ma >= trigger_ma) {
                 RDO_PPS rdo{};
                 fill_rdo_flags(rdo.raw_value);
                 rdo.obj_position = i + 1; // zero-based index + 1
-                rdo.operating_current = trigger_ma / 50;
-                rdo.output_voltage = trigger_mv / 20;
+                rdo.operating_current = trigger_ma / 50U;
+                rdo.output_voltage = trigger_mv / 20U;
 
                 return rdo.raw_value;
             }
@@ -224,10 +223,10 @@ uint32_t DPM::get_request_data_object() {
     rdo.obj_position = 0 + 1; // Position = zero-based index + 1
 
     if (DO_TOOLS::is_fixed(pe.source_caps[0])) {
-        PDO_FIXED pdo_bits{.raw_value = pe.source_caps[0]};
-        uint32_t pdo_ma = pdo_bits.max_current * 10;
-        rdo.max_current = pdo_ma / 10;
-        rdo.operating_current = pdo_bits.max_current * 10;
+        const PDO_FIXED pdo_bits{.raw_value = pe.source_caps[0]};
+        const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
+        rdo.max_current = pdo_ma / 10U;
+        rdo.operating_current = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
     };
 
     return rdo.raw_value;
