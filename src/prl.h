@@ -60,7 +60,8 @@ namespace PRL_TX_FLAG {
         TX_COMPLETED,
         TX_DISCARDED,
         TX_ERROR,
-        WAIT_SINK_OK,
+        // NOTE: clarify name and logic
+        WAIT_SINK_OK, CC_SINK_OK_REACHED,
         FLAGS_COUNT
     };
 }; // namespace PRL_TX_FLAG

@@ -1,11 +1,18 @@
 #pragma once
 
+#include "pd_conf.h"
 #include "utils/atomic_bits.h"
 
 #include <etl/array.h>
 #include <etl/utility.h>
 
 namespace pd {
+
+#if PD_TIMER_RESOLUTION_US != 0
+    static constexpr int ms_mult = 1000;
+#else
+    static constexpr int ms_mult = 1;
+#endif
 
 // Virtual Timer IDs
 namespace PD_TIMER {
@@ -55,29 +62,33 @@ struct PD_TIMERS_RANGE {
 struct PD_TIMEOUT {
     using Type = etl::pair<PD_TIMER::Type, uint32_t>;
 
-    static constexpr Type TC_CC_DEBOUNCE {PD_TIMER::TC_CC_DEBOUNCE, 100}; // 100-200 ms
-    static constexpr Type TC_CC_POLL {PD_TIMER::TC_CC_DEBOUNCE, 20}; // 100-200 ms
+    static constexpr Type TC_CC_DEBOUNCE {PD_TIMER::TC_CC_DEBOUNCE, 100 * ms_mult}; // 100-200 ms
+    static constexpr Type TC_CC_POLL {PD_TIMER::TC_CC_POLL, 20 * ms_mult}; // 100-200 ms
 
-    static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465}; // 310-620 ms
-    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30}; // 27-36 ms
-    static constexpr Type tSinkRequest {PD_TIMER::PE_SinkRequestTimer, 100}; // 100 ms before repeat
-    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000}; // 10s max
+    static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms_mult}; // 310-620 ms
+    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms_mult}; // 27-36 ms
+    static constexpr Type tSinkRequest {PD_TIMER::PE_SinkRequestTimer, 100 * ms_mult}; // 100 ms before repeat
+    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000 * ms_mult}; // 10s max
     // PS Transition timeout depends on mode
-    static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, 500}; // 450-550 ms
-    static constexpr Type tPSTransition_ERP {PD_TIMER::PE_PSTransitionTimer, 925}; // 830-1020 ms
-    static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, 375}; // 250-500 ms
-    static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500}; // 450-550 ms
-    static constexpr Type tBISTCarrierMode {PD_TIMER::PE_BISTContModeTimer, 300}; // 300 ms before exit
+    static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, 500 * ms_mult}; // 450-550 ms
+    static constexpr Type tPSTransition_ERP {PD_TIMER::PE_PSTransitionTimer, 925 * ms_mult}; // 830-1020 ms
+    static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, 375 * ms_mult}; // 250-500 ms
+    static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500 * ms_mult}; // 450-550 ms
+    static constexpr Type tBISTCarrierMode {PD_TIMER::PE_BISTContModeTimer, 300 * ms_mult}; // 300 ms before exit
 
-    static constexpr Type tHardResetComplete {PD_TIMER::PRL_HardResetCompleteTimer, 5}; // 4-5 ms
-    static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27}; // 24-30 ms
-    static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, 27}; // 24-30 ms
+    static constexpr Type tHardResetComplete {PD_TIMER::PRL_HardResetCompleteTimer, 5 * ms_mult}; // 4-5 ms
+    static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27 * ms_mult}; // 24-30 ms
+    static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, 27 * ms_mult}; // 24-30 ms
 
-    // This should be 1.0ms, but since timer precision is 1ms itself,
+    // This should be 1.0ms, but if timer precision is 1ms only,
     // we use 2ms to be sure AT LEAST 1ms passed. Anyway, that's not critical,
     // because all modern TCPC process GoodCRC in hardware. Probably we should
     // remove that logic at all, when drivers architecture become more clear.
-    static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2}; // 0.9-1.1 ms
+    #if PD_TIMER_RESOLUTION_US != 0
+        static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms_mult}; // 0.9-1.1 ms
+    #else
+        static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2 * ms_mult}; // 0.9-1.1 ms
+    #endif
 };
 
 class Timers {

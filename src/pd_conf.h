@@ -19,3 +19,7 @@
 #if !defined(TC_LOG)
 #define TC_LOG(...)
 #endif
+
+#if !defined(PD_TIMER_RESOLUTION_US)
+#define PD_TIMER_RESOLUTION_US 0
+#endif

@@ -45,7 +45,7 @@ public:
     // Timer
     //
     void set_tick_handler(etl::delegate<void()> handler) override {};
-    uint64_t get_ms() override { return 0; };
+    uint64_t get_timestamp() override { return 0; };
     void rearm(uint64_t timestamp) override {};
 
 private:

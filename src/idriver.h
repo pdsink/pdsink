@@ -108,10 +108,16 @@ public:
 
 class ITimer {
 public:
+    //
+    // Note, by default time expected to be is in milliseconds.
+    // If microseconds available and required - set PD_TIMER_RESOLUTION_US
+    // in config or env.
+    //
+
     virtual void set_tick_handler(etl::delegate<void()> handler) = 0;
     // You can actually return 32-bit value, if overflow after 49.7 days is
     // acceptable.
-    virtual uint64_t get_ms() = 0;
+    virtual uint64_t get_timestamp() = 0;
     // Set next timestamp for timer tick. For simple implementation make this
     // dummy and tick every 1 ms.
     virtual void rearm(uint64_t timestamp) = 0;
