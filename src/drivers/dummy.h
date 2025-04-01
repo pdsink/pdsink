@@ -46,7 +46,8 @@ public:
     //
     void set_tick_handler(etl::delegate<void()> handler) override {};
     uint64_t get_timestamp() override { return 0; };
-    void rearm(uint64_t timestamp) override {};
+    void rearm(uint32_t interval) override {};
+    bool is_rearm_supported() override { return false; };
 
 private:
     Sink& sink;

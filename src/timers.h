@@ -4,6 +4,7 @@
 #include "utils/atomic_bits.h"
 
 #include <etl/array.h>
+#include <etl/atomic.h>
 #include <etl/utility.h>
 
 namespace pd {
@@ -96,6 +97,7 @@ public:
     explicit Timers() {
         active.clear_all();
         disabled.set_all();
+        timers_changed.store(false);
     }
 
     void start(int timer_id, uint32_t us_time);
@@ -124,6 +126,9 @@ public:
     // May be used for precise timer management. If regular 1ms interrupts
     // used, that's not needed.
     int32_t get_next_expiration();
+
+    static constexpr int32_t NO_EXPIRE = -1;
+    etl::atomic<bool> timers_changed{false};
 
 private:
     // Temporary stub

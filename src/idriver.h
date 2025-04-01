@@ -118,9 +118,11 @@ public:
     // You can actually return 32-bit value, if overflow after 49.7 days is
     // acceptable.
     virtual uint64_t get_timestamp() = 0;
-    // Set next timestamp for timer tick. For simple implementation make this
-    // dummy and tick every 1 ms.
-    virtual void rearm(uint64_t timestamp) = 0;
+    // Set interval (from "now") of next timer tick. For simple implementation
+    // make this dummy and tick every 1 ms.
+    virtual void rearm(uint32_t interval) = 0;
+
+    virtual bool is_rearm_supported() = 0;
 };
 
 class ITCPC {

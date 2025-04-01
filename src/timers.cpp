@@ -6,17 +6,20 @@ void Timers::start(int timer_id, uint32_t us_time) {
     active.set(timer_id);
     disabled.clear(timer_id);
     expire_at[timer_id] = get_time_us() + us_time;
+    timers_changed.store(true);
 }
 
 void Timers::stop(int timer_id) {
     active.clear(timer_id);
     disabled.set(timer_id);
+    timers_changed.store(true);
 }
 
 void Timers::stop_range(const PD_TIMEOUT::Type& range) {
     for (int i = range.first; i <= range.second; i++) {
         stop(i);
     }
+    timers_changed.store(true);
 }
 
 auto Timers::is_expired(int timer_id) -> bool {
@@ -41,7 +44,6 @@ void Timers::cleanup() {
 
 auto Timers::get_next_expiration() -> int32_t {
     constexpr int32_t MAX_EXPIRE = 0x7FFFFFFF;
-    constexpr int32_t NO_EXPIRE = -1;
 
     auto now = get_time_us();
     int32_t min = MAX_EXPIRE;
