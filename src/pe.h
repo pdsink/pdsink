@@ -47,13 +47,15 @@ namespace PE_FLAG {
 
         HAS_EXPLICIT_CONTRACT,
         IN_EPR_MODE,
-        SNK_WAIT_CAP_TIMEOUT,
         AMS_ACTIVE,
         AMS_FIRST_MSG_SENT,
+        EPR_AUTO_ENTER_DISABLED,
 
         // Minor local flags to control states behaviour
+        WAIT_DPM_TRANSIT_TO_DEFAULT,
         PRL_HARD_RESET_PENDING,
         IS_FROM_EVALUATE_CAPABILITY,
+        HR_BY_CAPS_TIMEOUT,
         DO_SOFT_RESET_ON_UNSUPPORTED,
         CAN_SEND_SOFT_RESET,
         TRANSMIT_REQUEST_SUCCEEDED,
@@ -83,6 +85,7 @@ public:
     void on_prl_hard_reset_sent();
 
     bool is_ams_requested() { return flags.test(PE_FLAG::AMS_ACTIVE); }
+    void wait_dpm_transit_to_default(bool enable);
 
     // Helpers
     void send_ctrl_msg(PD_CTRL_MSGT::Type msgt);

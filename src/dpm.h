@@ -8,15 +8,38 @@ namespace pd {
 
 // Messages for DPM notifications
 enum msg_dpm_id {
+    MSG_DPM_STARTUP,
+    MSG_DPM_TRANSIT_TO_DEFAULT,
+    MSG_DPM_SRC_CAPS_RECEIVED,
+    MSG_DPM_SELECT_CAP_DONE,
+    MSG_DPM_SRC_DISABLED,
     MSG_DPM_ALERT,
+    MSG_DPM_EPR_ENTRY_FAILED,
+    // Sugar
+    MSG_DPM_HANDSHAKE_DONE, // Contracted and upgraded to EPR if possible.
+    MSG_DPM_IDLE, // PE_SNK_Ready with no activity.
 };
 
-class MsgDpmAlert : public etl::message<MSG_DPM_ALERT> {
+class MsgDpm_Startup : public etl::message<MSG_DPM_STARTUP> {};
+class MsgDpm_TransitToDefault : public etl::message<MSG_DPM_TRANSIT_TO_DEFAULT> {};
+class MsgDpm_SrcCapsReceived : public etl::message<MSG_DPM_SRC_CAPS_RECEIVED> {};
+class MsgDpm_SelectCapDone : public etl::message<MSG_DPM_SELECT_CAP_DONE> {};
+class MsgDpm_SrcDisabled : public etl::message<MSG_DPM_SRC_DISABLED> {};
+
+class MsgDpm_Alert : public etl::message<MSG_DPM_ALERT> {
 public:
-    explicit MsgDpmAlert(uint32_t value) : value{value} {}
-    // Alert data object. Use simple type for now. May be will change later.
-    uint32_t value;
+    explicit MsgDpm_Alert(uint32_t value) : value{value} {}
+    uint32_t value; // Alert data object raw data.
 };
+
+class MsgDpm_EPREntryFailed : public etl::message<MSG_DPM_EPR_ENTRY_FAILED> {
+public:
+    explicit MsgDpm_EPREntryFailed(uint32_t value) : value{value} {}
+    uint32_t value; // EPR mode data object raw data (with failure reason).
+};
+
+class MsgDpm_HandshakeDone : public etl::message<MSG_DPM_HANDSHAKE_DONE> {};
+class MsgDpm_Idle : public etl::message<MSG_DPM_IDLE> {};
 
 
 class Sink;

@@ -175,7 +175,7 @@ public:
         }
 
         if (pe.sink.timers.is_expired(PD_TIMEOUT::tTypeCSinkWaitCap)) {
-            pe.flags.set(PE_FLAG::SNK_WAIT_CAP_TIMEOUT);
+            pe.flags.set(PE_FLAG::HR_BY_CAPS_TIMEOUT);
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
@@ -207,6 +207,7 @@ public:
         }
 
         pe.flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
+        pe.sink.dpm->notify(MsgDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
 };
@@ -548,11 +549,6 @@ public:
 
         pe.flags.set(PE_FLAG::AMS_ACTIVE);
 
-        if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
-            pe.dpm_current_request = DPM_REQUEST::NEW_POWER_LEVEL;
-            return PE_SNK_Select_Capability;
-        }
-
         if (pe.dpm_requests.test_and_clear(DPM_REQUEST::EPR_MODE_ENTRY)) {
             if (pe.is_in_epr_mode()) {
                 PE_LOG("EPR mode entry requested, but already in EPR mode");
@@ -562,6 +558,11 @@ public:
                 pe.dpm_current_request = DPM_REQUEST::EPR_MODE_ENTRY;
                 return PE_SNK_Send_EPR_Mode_Entry;
             }
+        }
+
+        if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
+            pe.dpm_current_request = DPM_REQUEST::NEW_POWER_LEVEL;
+            return PE_SNK_Select_Capability;
         }
 
         pe.flags.clear(PE_FLAG::AMS_ACTIVE);
@@ -577,6 +578,9 @@ public:
         if (pe.sink.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
             return PE_SNK_Select_Capability;
         }
+
+        // If event caused no activity, emit idle to DPM
+        pe.sink.dpm->notify(MsgDpm_Idle());
 
         return No_State_Change;
     }
@@ -712,7 +716,7 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        if (pe.flags.test_and_clear(PE_FLAG::SNK_WAIT_CAP_TIMEOUT) &&
+        if (pe.flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
             pe.hard_reset_counter > 2 /* nHardResetCount */)
         {
             return PE_Src_Disabled;
@@ -740,13 +744,6 @@ class PE_SNK_Transition_to_default_State : public etl::fsm_state<PE, PE_SNK_Tran
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
-    // By spec, we should notify consumer to drop power and wait until power
-    // go to default level. For example, it may be needed to discharge
-    // capacitors, drop the load and so on. But since we are sink only - do
-    // a minimal cleanup and inform PRL about the end.
-    //
-    // NOTE: Check if more granular DRP notifications required.
-
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
         pe.log_state();
@@ -754,9 +751,9 @@ public:
         pe.flags.clear_all();
         pe.dpm_requests.clear_all();
 
-        // NOTE: Here we could notify upper layers
-
-        // Kick loop manually, until no DRP callback exists
+        // If need to pend - call `wait_dpm_transit_to_default(true)` in
+        // event handler, and `wait_dpm_transit_to_default(false)` to continue.
+        pe.sink.dpm->notify(MsgDpm_TransitToDefault());
         pe.sink.wakeup();
         return No_State_Change;
     }
@@ -764,10 +761,11 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
-        // NOTE: Here we could wait until upper layers finished the job
-
-        pe.prl.on_pe_hard_reset_done();
-        return PE_SNK_Startup;
+        if (!pe.flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
+            pe.prl.on_pe_hard_reset_done();
+            return PE_SNK_Startup;
+        }
+        return No_State_Change;
     }
 };
 
@@ -907,7 +905,7 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
-        pe.sink.dpm->notify(MsgDpmAlert(pe.get_rx_msg().read32(0)));
+        pe.sink.dpm->notify(MsgDpm_Alert(pe.get_rx_msg().read32(0)));
         return PE_SNK_Ready;
     }
 };
@@ -952,6 +950,10 @@ public:
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_ACKNOWLEDGED) {
                     return PE_SNK_EPR_Mode_Entry_Wait_For_Response;
                 }
+
+                pe.flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
+                pe.sink.dpm->notify(MsgDpm_EPREntryFailed(eprmdo.raw_value));
+                pe.sink.dpm->notify(MsgDpm_HandshakeDone());
 
                 PE_LOG("EPR mode enter failed [code %" PRIX8 "]", eprmdo.action);
                 return PE_SNK_Ready;
@@ -999,7 +1001,6 @@ public:
         }
 
         if (pe.sink.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
-            pe.flags.set(PE_FLAG::SNK_WAIT_CAP_TIMEOUT);
             return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
@@ -1020,6 +1021,7 @@ public:
         }
 
         pe.flags.clear(PE_FLAG::IN_EPR_MODE);
+        pe.flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
 
         return PE_SNK_Wait_for_Capabilities;
     }
@@ -1102,7 +1104,15 @@ public:
 
 class PE_Src_Disabled_State : public etl::fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled, MsgPdEvents, MsgTransitTo> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT; ON_EVENT_NOTHING;
+    ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
+
+    auto on_enter_state() -> etl::fsm_state_id_t override {
+        auto& pe = get_fsm_context();
+        pe.log_state();
+
+        pe.sink.dpm->notify(MsgDpm_SrcDisabled());
+        return No_State_Change;
+    }
 
     auto on_event(const MsgTransitTo& event) -> etl::fsm_state_id_t {
         if (event.state_id == PE_SNK_Hard_Reset) {
@@ -1269,6 +1279,15 @@ void PE::on_prl_report_discard() {
     sink.wakeup();
 }
 
+void PE::wait_dpm_transit_to_default(bool enable) {
+    if (enable) {
+        flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
+    } else {
+        flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
+        sink.wakeup();
+    }
+}
+
 //
 // Msg sending helpers
 //
@@ -1295,9 +1314,12 @@ auto PE::is_rev_2_0() const -> bool {
 }
 
 auto PE::is_epr_mode_available() const -> bool {
-    if (!flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
-
-    if (is_rev_2_0()) { return false; }
+    if (!flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) ||
+        flags.test(PE_FLAG::EPR_AUTO_ENTER_DISABLED) ||
+        is_rev_2_0())
+    {
+        return false;
+    }
 
     const PDO_FIXED fisrt_src_pdo{.raw_value = source_caps[0]};
 

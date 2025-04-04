@@ -223,7 +223,6 @@ public:
 
                 if (!ehdr.chunked && !rch.prl.chunking()) {
                     // Unchunked ext messages are not supported now
-                    // NOTE: May be worth route to "not supported" reply?
                     rch.error = PRL_ERROR::RCH_BAD_SEQUENCE;
                     return RCH_Report_Error;
                 }
@@ -849,7 +848,7 @@ public:
 
         //
         // NOTE: do NOT check TCPC_TRANSMIT_STATUS::DISCARDED.
-        // Rely on teleport to  PRL_Tx_Discard_Message by prl_rx,
+        // Rely on teleport to PRL_Tx_Discard_Message by prl_rx,
         // to have new msg + discard in sync.
         //
 
@@ -1032,10 +1031,9 @@ public:
             return PRL_Tx_Construct_Message;
         }
 
-        // Enquire new CC fetch request
-        // NOTE: This may cause frequent requests. Consider supporting
-        // cache updates via interrupts. Note, we still need sync on state entry,
-        // but this place allows relaxed check.
+        // Note, all PD controllers support interrupts on CC level change.
+        // This manual request is left for sure, and not expected to be used.
+        // Note, manual polling can cause unexpected CPU / I2C load.
         if (!tcpc.get_hw_features().cc_update_event) {
             tcpc.req_cc_active();
         }

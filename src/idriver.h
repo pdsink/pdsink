@@ -41,9 +41,9 @@ struct TCPC_HW_FEATURES {
     bool unchunked_ext_msg; // By default - not supported
 };
 
-// Most (or all?) PD chips have automatic GoodCRC handling and TX discard.
-// These states are enhanced over spec requirements, to cover all possible
-// hardware use cases. Details will depend on concrete driver implementation.
+// All PD chips have automatic GoodCRC handling. These states are
+// enhanced over spec requirements, to cover all possible hardware use cases.
+// Details will depend on concrete driver implementation.
 namespace TCPC_TRANSMIT_STATUS {
     enum Type {
         // No operation
@@ -54,7 +54,7 @@ namespace TCPC_TRANSMIT_STATUS {
         SUCCEEDED = 1,
         // Transmission failed (no GoodCRC received)
         FAILED = 2,
-        // Message transmit discarded by by new incoming packet.
+        // Transmit discarded by by new incoming packet.
         DISCARDED = 3,
     };
 };

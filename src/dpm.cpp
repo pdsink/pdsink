@@ -164,9 +164,6 @@ auto DPM::get_request_data_object() -> uint32_t {
     // Then, PE will automatically upgrade to EPR (with new ERP Caps) and this
     // function will be called again.
     //
-    // NOTE: probably, should distinguish between intermediate fallback and
-    // final fail. Decide how to inform the application.
-    //
 
     if (trigger_mode == TRIGGER_MODE::FIXED) {
         for (int i = 0, max = pe.source_caps.size(); i < max; i++) {

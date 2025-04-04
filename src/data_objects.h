@@ -454,23 +454,52 @@ union BISTDO {
 };
 
 
-template <int BufferSize>
-struct PD_MSG_TPL {
+class I_PD_MSG {
+public:
     PD_HEADER header;
-    etl::vector<uint8_t, BufferSize> data;
+    etl::ivector<uint8_t>& data;
 
-    inline bool is_data_msg(uint8_t type) {
+    I_PD_MSG(etl::ivector<uint8_t>& data_ref) : data(data_ref) {}
+
+    I_PD_MSG& operator=(const I_PD_MSG& other) {
+        if (this != &other) {
+            header = other.header;
+            data.assign(other.data.begin(), other.data.end());
+        }
+        return *this;
+    }
+
+    virtual bool is_data_msg(uint8_t type) const = 0;
+    virtual bool is_ctrl_msg(uint8_t type) const = 0;
+    virtual bool is_ext_msg(uint8_t type) const = 0;
+    virtual bool is_ext_ctrl_msg(uint8_t type) const = 0;
+
+    virtual uint16_t read16(size_t pos) const = 0;
+    virtual uint32_t read32(size_t pos) const = 0;
+    virtual void append16(uint16_t value) = 0;
+    virtual void append32(uint32_t value) = 0;
+
+    virtual ~I_PD_MSG() = default;
+};
+
+template <int BufferSize>
+struct PD_MSG_TPL : public I_PD_MSG {
+    etl::vector<uint8_t, BufferSize> _buffer;
+
+    PD_MSG_TPL() : I_PD_MSG(_buffer) {}
+
+    bool is_data_msg(uint8_t type) const override{
         return header.extended == 0 && header.data_obj_count > 0 &&
             header.message_type == type;
     }
-    inline bool is_ctrl_msg(uint8_t type) {
+    bool is_ctrl_msg(uint8_t type) const override {
         return header.extended == 0 && header.data_obj_count == 0 &&
             header.message_type == type;
     }
-    inline bool is_ext_msg(uint8_t type) {
+    bool is_ext_msg(uint8_t type) const override {
         return header.extended > 0 && header.message_type == type;
     }
-    inline bool is_ext_ctrl_msg(uint8_t type) {
+    bool is_ext_ctrl_msg(uint8_t type) const override {
         if (!is_ext_msg(PD_EXT_MSGT::Extended_Control) || data.size() < 2) {
             return false;
         }
@@ -479,21 +508,21 @@ struct PD_MSG_TPL {
     }
 
     // Helpers to simplify payload access
-    inline uint16_t read16(size_t pos) const {
+    uint16_t read16(size_t pos) const override {
         return uint16_t(data[pos]) | (uint16_t(data[pos + 1]) << 8);
     }
-    inline uint32_t read32(size_t pos) const {
+    uint32_t read32(size_t pos) const override {
         return uint32_t(data[pos]) |
             (uint32_t(data[pos + 1]) << 8) |
             (uint32_t(data[pos + 2]) << 16) |
             (uint32_t(data[pos + 3]) << 24);
     }
 
-    inline void append16(uint16_t value) {
+    void append16(uint16_t value) override {
         data.push_back(value & 0xff);
         data.push_back((value >> 8) & 0xff);
     }
-    inline void append32(uint32_t value) {
+    void append32(uint32_t value) override {
         data.push_back(value & 0xff);
         data.push_back((value >> 8) & 0xff);
         data.push_back((value >> 16) & 0xff);
