@@ -292,8 +292,21 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Accept))
             {
+                bool is_first_contract = pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+
                 pe.flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
                 pe.rdo_contracted = pe.rdo_to_request;
+
+                if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
+                    // Report handshake complete, if first contract and should not try EPR
+                    pe.sink.dpm->notify(MsgDpm_HandshakeDone());
+                }
+
+                if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
+                    pe.sink.dpm->notify(MsgDpm_NewPowerLevel(true));
+                }
+
+                pe.sink.dpm->notify(MsgDpm_SelectCapDone());
                 return PE_SNK_Transition_Sink;
             }
 
@@ -310,6 +323,10 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
+                if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
+                    pe.sink.dpm->notify(MsgDpm_NewPowerLevel(false));
+                }
+
                 if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
                     return PE_SNK_Ready;
                 }
@@ -418,6 +435,8 @@ public:
             pe.sink.timers.start(PD_TIMEOUT::tPPSRequest);
         }
 
+        // Ensure to run after state enter, to proceed pending things (DPM requests)
+        pe.sink.wakeup();
         return No_State_Change;
     }
 
@@ -529,43 +548,49 @@ public:
             }
         }
 
-        if (pe.prl.is_busy()) return No_State_Change;
+        if (pe.prl.is_busy()) { return No_State_Change; }
 
-        pe.flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
-
-        // Retry after WAIT response for RDO request
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
-            pe.sink.timers.stop(PD_TIMEOUT::tSinkRequest);
-            return PE_SNK_Select_Capability;
-        }
-
-        //
-        // Process DPM requests
-        //
-
-        // NOTE: how to wakeup when multiple DPM requests stacked?
-        // Finishing request return to SNK_Ready, ut not produces new event
-        // to reach this block.
-
-        pe.flags.set(PE_FLAG::AMS_ACTIVE);
-
-        if (pe.dpm_requests.test_and_clear(DPM_REQUEST::EPR_MODE_ENTRY)) {
-            if (pe.is_in_epr_mode()) {
-                PE_LOG("EPR mode entry requested, but already in EPR mode");
-            } else if (!pe.is_epr_mode_available()) {
-                PE_LOG("EPR mode entry requested, but not allowed");
-            } else {
-                pe.dpm_current_request = DPM_REQUEST::EPR_MODE_ENTRY;
-                return PE_SNK_Send_EPR_Mode_Entry;
+        // Special case, process postponed src caps request. If pending - don't
+        // try DPM requests queue.
+        if (pe.sink.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
+        {
+            if (pe.sink.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
+                pe.sink.timers.stop(PD_TIMEOUT::tSinkRequest);
+                return PE_SNK_Select_Capability;
             }
         }
+        else
+        {
+            //
+            // Process DPM requests
+            //
+            // Note, request flags are cleared from inside of states, when
+            // result determined (succees or failure). Any interrupt of process
+            // leaves request armed. Should be ok for sink. Can be changed later.
+            //
 
-        if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
-            pe.dpm_current_request = DPM_REQUEST::NEW_POWER_LEVEL;
-            return PE_SNK_Select_Capability;
+            pe.flags.set(PE_FLAG::AMS_ACTIVE);
+
+            if (pe.dpm_requests.test(DPM_REQUEST::EPR_MODE_ENTRY)) {
+                if (pe.is_in_epr_mode()) {
+                    PE_LOG("EPR mode entry requested, but already in EPR mode");
+                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                } else if (!pe.is_epr_mode_available()) {
+                    PE_LOG("EPR mode entry requested, but not allowed");
+                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                } else {
+                    pe.dpm_current_request = DPM_REQUEST::EPR_MODE_ENTRY;
+                    return PE_SNK_Send_EPR_Mode_Entry;
+                }
+            }
+
+            if (pe.dpm_requests.test(DPM_REQUEST::NEW_POWER_LEVEL)) {
+                pe.dpm_current_request = DPM_REQUEST::NEW_POWER_LEVEL;
+                return PE_SNK_Select_Capability;
+            }
+
+            pe.flags.clear(PE_FLAG::AMS_ACTIVE);
         }
-
-        pe.flags.clear(PE_FLAG::AMS_ACTIVE);
 
         //
         // Keep-alive for EPR mode / PPS contract
@@ -952,10 +977,13 @@ public:
                 }
 
                 pe.flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
+                pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+
+                PE_LOG("EPR mode enter failed [code %" PRIX8 "]", eprmdo.action);
+
                 pe.sink.dpm->notify(MsgDpm_EPREntryFailed(eprmdo.raw_value));
                 pe.sink.dpm->notify(MsgDpm_HandshakeDone());
 
-                PE_LOG("EPR mode enter failed [code %" PRIX8 "]", eprmdo.action);
                 return PE_SNK_Ready;
             }
 
@@ -991,6 +1019,8 @@ public:
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_SUCCEEDED) {
                     pe.flags.set(PE_FLAG::IN_EPR_MODE);
+                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+
                     return PE_SNK_Wait_for_Capabilities;
                 }
 
@@ -1242,13 +1272,6 @@ void PE::on_prl_report_error(PRL_ERROR err) {
         return;
     }
 
-    // NOTE: revisit if this is acceptable behaviour
-    if (dpm_current_request != 0) {
-        // Restore DPM request
-        dpm_requests.set(dpm_current_request);
-        dpm_current_request = 0;
-    }
-
     if (err == PRL_ERROR::RCH_SEND_FAIL ||
         err ==PRL_ERROR::TCH_SEND_FAIL)
     {
@@ -1360,19 +1383,11 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
     if (!flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
         // This branch used ONLY when custom error processing selected.
         // For standard cases processing happens in error handler.
-        if (flags.test(PE_FLAG::MSG_DISCARDED) ||
-            flags.test(PE_FLAG::PROTOCOL_ERROR))
-        {
-            // First, restore back DPM request, if existed.
-            if (dpm_current_request != 0) {
-                // Restore DPM request
-                dpm_requests.set(dpm_current_request);
-                dpm_current_request = 0;
-            }
+        if (flags.test(PE_FLAG::MSG_DISCARDED)) {
+            return PE_REQUEST_PROGRESS::DISCARDED;
+        }
 
-            if (flags.test(PE_FLAG::MSG_DISCARDED)) {
-                return PE_REQUEST_PROGRESS::DISCARDED;
-            }
+        if (flags.test(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_REQUEST_PROGRESS::FAILED;
         }
 

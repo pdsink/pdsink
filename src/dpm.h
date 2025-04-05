@@ -8,6 +8,7 @@ namespace pd {
 
 // Messages for DPM notifications
 enum msg_dpm_id {
+    // Generic events
     MSG_DPM_STARTUP,
     MSG_DPM_TRANSIT_TO_DEFAULT,
     MSG_DPM_SRC_CAPS_RECEIVED,
@@ -15,6 +16,8 @@ enum msg_dpm_id {
     MSG_DPM_SRC_DISABLED,
     MSG_DPM_ALERT,
     MSG_DPM_EPR_ENTRY_FAILED,
+    // DPM requests
+    NSG_DPM_NEW_POWER_LEVEL,
     // Sugar
     MSG_DPM_HANDSHAKE_DONE, // Contracted and upgraded to EPR if possible.
     MSG_DPM_IDLE, // PE_SNK_Ready with no activity.
@@ -36,6 +39,12 @@ class MsgDpm_EPREntryFailed : public etl::message<MSG_DPM_EPR_ENTRY_FAILED> {
 public:
     explicit MsgDpm_EPREntryFailed(uint32_t value) : value{value} {}
     uint32_t value; // EPR mode data object raw data (with failure reason).
+};
+
+class MsgDpm_NewPowerLevel : public etl::message<NSG_DPM_NEW_POWER_LEVEL> {
+public:
+    explicit MsgDpm_NewPowerLevel(uint32_t ok) : ok{ok} {}
+    uint32_t ok; // succeeded/rejected.
 };
 
 class MsgDpm_HandshakeDone : public etl::message<MSG_DPM_HANDSHAKE_DONE> {};
