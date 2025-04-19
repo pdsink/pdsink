@@ -1,0 +1,49 @@
+//
+// Type-C port manager.
+//
+// For our case - used only for monitoring CC0/CC1/VBUS states, to
+// activate/deactivate PD protocol stack.
+//
+#pragma once
+
+#include <etl/message_router.h>
+
+#include "messages.h"
+#include "utils/afsm.h"
+
+namespace pd {
+
+using TC_EventListener_Base = etl::message_router<class TC_EventListener, MsgSysUpdate>;
+
+class TC_EventListener : public TC_EventListener_Base {
+public:
+    TC_EventListener(class TC& tc) : tc(tc) {}
+    void on_receive(const MsgSysUpdate& msg);
+    void on_receive_unknown(const etl::imessage& msg);
+private:
+    TC& tc;
+};
+
+class TC : public afsm::fsm<TC> {
+public:
+    TC(class Port& port, class ITCPC& tcpc);
+
+    // Disable unexpected use
+    TC() = delete;
+    TC(const TC&) = delete;
+    TC& operator=(const TC&) = delete;
+
+    void log_state() const;
+    void setup();
+
+    Port& port;
+    ITCPC& tcpc;
+
+    // Internal variables, used from state classes
+    TCPC_CC_LEVEL::Type prev_cc1{TCPC_CC_LEVEL::NONE};
+    TCPC_CC_LEVEL::Type prev_cc2{TCPC_CC_LEVEL::NONE};
+
+    TC_EventListener tc_event_listener;
+};
+
+} // namespace pd
