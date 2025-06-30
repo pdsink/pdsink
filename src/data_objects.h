@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 #include <etl/message.h>
 #include <etl/vector.h>
 

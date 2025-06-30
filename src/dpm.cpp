@@ -1,6 +1,7 @@
 #include "dpm.h"
 #include "pe.h"
 #include "sink.h"
+#include "common_macros.h"
 
 namespace pd {
 

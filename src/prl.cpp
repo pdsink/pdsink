@@ -3,6 +3,7 @@
 #include "prl.h"
 #include "sink.h"
 #include "tc.h"
+#include "common_macros.h"
 
 #include <etl/array.h>
 
