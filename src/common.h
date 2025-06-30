@@ -25,5 +25,3 @@
         #define __fallthrough
     #endif
 #endif
-
-#define BIT(n) (1UL << (n))
