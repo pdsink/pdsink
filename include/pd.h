@@ -1,10 +1,30 @@
 #pragma once
 
+//
+// Load user config first.
+//
+
+#include "../src/pd_conf.h"
+
+//
+// Generic headers.
+//
+
 #include "../src/dpm.h"
-#include "../src/drivers/dummy.h"
-#include "../src/drivers/fusb302_esp32_arduino.h"
 #include "../src/idriver.h"
 #include "../src/pe.h"
 #include "../src/prl.h"
 #include "../src/sink.h"
 #include "../src/tc.h"
+
+//
+// Built-in drivers, if enabled by user.
+//
+
+#ifdef USE_FUSB302_RTOS
+#include "../src/drivers/fusb302_rtos.h"
+#endif // USE_FUSB302_RTOS
+
+#ifdef USE_FUSB302_RTOS_HAL_ESP32
+#include "../src/drivers/fusb302_rtos_hal_esp32.h"
+#endif // USE_FUSB302_RTOS_HAL_ESP32

@@ -4,7 +4,8 @@
 
 //pd::Fusb302Esp32Arduino fusb302;
 pd::Sink sink;
-pd::DummyDriver driver(sink);
+pd::Fusb302RtosHalEsp32 fusb302_hal;
+pd::Fusb302Rtos driver(sink, fusb302_hal);
 pd::PRL prl(sink, driver);
 pd::PE pe(sink, prl, driver);
 pd::TC tc(sink, driver);
