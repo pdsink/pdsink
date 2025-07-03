@@ -75,16 +75,16 @@ class MsgDpm_Idle : public etl::message<MSG_DPM_IDLE> {};
 class Sink;
 class PE;
 
-class DPM: public etl::fsm {
+class DPM {
 public:
     DPM(Sink& sink, PE& pe);
-    void dispatch(const MsgPdEvents& events, const bool pd_enabled);
 
     // Disable unexpected use
     DPM() = delete;
     DPM(const DPM&) = delete;
     DPM& operator=(const DPM&) = delete;
 
+    // Override to listen events from PE
     virtual void notify(const etl::imessage& msg) {}
 
     //

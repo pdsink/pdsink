@@ -20,7 +20,6 @@ void Sink::loop() {
         tc->dispatch(msg_events);
         auto connected = tc->is_connected();
 
-        dpm->dispatch(msg_events, connected);
         pe->dispatch(msg_events, connected);
         prl->dispatch(msg_events, connected);
 
@@ -58,7 +57,6 @@ void Sink::start() {
     prl->init();
     pe->init();
     tc->start();
-    //dpm->start();
 
     loop_flags.clear(IS_IN_LOOP_FL);
     set_event(PD_EVENT::TIMER);

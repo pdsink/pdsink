@@ -5,12 +5,8 @@
 
 namespace pd {
 
-DPM::DPM(Sink& sink, PE& pe) : etl::fsm(0), sink{sink}, pe{pe} {
+DPM::DPM(Sink& sink, PE& pe) : sink{sink}, pe{pe} {
     sink.dpm = this;
-};
-
-void DPM::dispatch(const MsgPdEvents& events, __maybe_unused const bool pd_enabled) {
-    receive(events);
 };
 
 //
