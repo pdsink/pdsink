@@ -8,6 +8,8 @@
 
 namespace pd {
 
+namespace fusb302 {
+
 void Fusb302RtosHalEsp32::set_tick_handler(etl::delegate<void()> handler) {
     // Stop existing timer
     if (timer_handle != nullptr) {
@@ -69,6 +71,8 @@ bool Fusb302RtosHalEsp32::write(uint8_t reg, uint8_t *data, uint32_t size) {
     i2c_cmd_link_delete(cmd);
     return ret == ESP_OK;
 }
+
+} // namespace fusb302
 
 } // namespace pd
 

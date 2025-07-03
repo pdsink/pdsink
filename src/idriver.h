@@ -61,7 +61,7 @@ namespace TCPC_TRANSMIT_STATUS {
 
 // Those flags display pending TCPC calls. Some flags can be not necessary,
 // when TCPC is memory mapped instead of I2C.
-namespace TCPC_FLAG {
+namespace TCPC_CALL_FLAG {
     enum Type {
         REQ_CC_BOTH,
         REQ_CC_ACTIVE,
@@ -74,7 +74,7 @@ namespace TCPC_FLAG {
     };
 };
 
-using TCPC_STATE = AtomicBits<TCPC_FLAG::FLAGS_COUNT>;
+using TCPC_STATE = AtomicBits<TCPC_CALL_FLAG::FLAGS_COUNT>;
 
 using PKT_INFO = PD_MSG_TPL<MaxUnchunkedMsgLen>;
 
@@ -101,6 +101,8 @@ public:
     explicit MsgTcpcTransmitStatus(TCPC_TRANSMIT_STATUS::Type status) : status{status} {}
     TCPC_TRANSMIT_STATUS::Type status;
 };
+
+class MsgTimerEvent : public etl::message<3> {};
 
 //
 // Interfaces

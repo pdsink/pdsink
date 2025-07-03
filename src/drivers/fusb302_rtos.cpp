@@ -7,6 +7,8 @@
 
 namespace pd {
 
+namespace fusb302 {
+
 Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal)
     : sink{sink}, hal{hal}
 {
@@ -53,6 +55,8 @@ void Fusb302Rtos::set_tcpc_event_handler(etl::imessage_router& handler) {
 
 void Fusb302Rtos::set_tick_handler(etl::delegate<void()> handler) {
 }
+
+} // namespace fusb302
 
 } // namespace pd
 

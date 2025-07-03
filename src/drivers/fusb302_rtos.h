@@ -5,6 +5,10 @@
 
 namespace pd {
 
+class Sink;
+
+namespace fusb302 {
+
 // Interface to abstract hardware use.
 class IFusb302RtosHal {
 public:
@@ -13,8 +17,6 @@ public:
     virtual bool read(uint8_t reg, uint8_t *data, uint32_t size) = 0;
     virtual bool write(uint8_t reg, uint8_t *data, uint32_t size) = 0;
 };
-
-class Sink;
 
 // This class implements generic FUSB302B logic, and relies on FreeRTOS
 // to make i2c calls sync.
@@ -64,5 +66,7 @@ private:
         .unchunked_ext_msg = false
     };
 };
+
+} // namespace fusb302
 
 } // namespace pd

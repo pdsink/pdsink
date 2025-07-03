@@ -5,6 +5,8 @@
 
 namespace pd {
 
+namespace fusb302 {
+
 class Fusb302RtosHalEsp32 : public IFusb302RtosHal {
 public:
     void set_tick_handler(etl::delegate<void()> handler) override;
@@ -16,5 +18,7 @@ private:
     esp_timer_handle_t timer_handle = nullptr;
     etl::delegate<void()> tick_handler;
 };
+
+} // namespace fusb302
 
 } // namespace pd

@@ -737,7 +737,7 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
-        if (prl.tcpc.get_state().test(TCPC_FLAG::SET_RX_ENABLE)) {
+        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::SET_RX_ENABLE)) {
             return No_State_Change;
         }
 
@@ -1016,7 +1016,7 @@ public:
         auto& tcpc = prl_tx.prl.tcpc;
 
         // Wait until CC fetch completes
-        if (tcpc.get_state().test(TCPC_FLAG::REQ_CC_ACTIVE)) {
+        if (tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_ACTIVE)) {
             return No_State_Change;
         }
 
@@ -1224,7 +1224,7 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC operation complete
-        if (prl.tcpc.get_state().test(TCPC_FLAG::SET_RX_ENABLE)) {
+        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::SET_RX_ENABLE)) {
             return No_State_Change;
         }
 
@@ -1265,7 +1265,7 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC call to complete
-        if (prl.tcpc.get_state().test(TCPC_FLAG::HARD_RESET)) {
+        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::HARD_RESET)) {
             return No_State_Change;
         }
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
@@ -1640,6 +1640,9 @@ void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcWakeup& msg) {
 void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcTransmitStatus& msg) {
     prl.prl_tx.tcpc_tx_status = msg.status;
     prl.sink.wakeup();
+}
+void TcpcEventHandler::on_receive(__maybe_unused const MsgTimerEvent& msg) {
+    prl.sink.set_event(PD_EVENT::TIMER);
 }
 void TcpcEventHandler::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
     PRL_LOG("Unknown TCPC event");

@@ -59,7 +59,7 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_FLAG::REQ_CC_BOTH)) {
+        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) {
             return No_State_Change;
         }
 
@@ -103,7 +103,7 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_FLAG::REQ_CC_BOTH)) {
+        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) {
             return No_State_Change;
         }
 

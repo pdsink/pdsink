@@ -128,6 +128,7 @@ public:
     void on_receive(const MsgTcpcHardReset& msg);
     void on_receive(const MsgTcpcWakeup& msg);
     void on_receive(const MsgTcpcTransmitStatus& msg);
+    void on_receive(const MsgTimerEvent& msg);
     void on_receive_unknown(const etl::imessage& msg);
 private:
     PRL& prl;

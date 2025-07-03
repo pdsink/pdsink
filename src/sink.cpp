@@ -54,10 +54,6 @@ void Sink::loop() {
 void Sink::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
-    driver->set_tick_handler([this]{
-        set_event(PD_EVENT::TIMER);
-    });
-
     driver->start();
     prl->init();
     pe->init();
