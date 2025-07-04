@@ -136,7 +136,7 @@ private:
 
 class PRL {
 public:
-    PRL(Sink& sink, ITCPC& tcpc);
+    PRL(Sink& sink, IDriver& tcpc);
     void dispatch(const MsgPdEvents& events, const bool pd_enabled);
     void init(bool from_hr_fsm = false);
 
@@ -196,9 +196,9 @@ public:
     PD_REVISION::Type revision{PD_REVISION::REV30};
 
     Sink& sink;
-    ITCPC& tcpc;
+    IDriver& tcpc;
 
-    TcpcEventHandler tcpc_event_handler;
+    TcpcEventHandler tcpc_event_handler{*this};
     PRL_Tx prl_tx;
     PRL_Rx prl_rx;
     PRL_HR prl_hr;

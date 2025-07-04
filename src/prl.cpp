@@ -1343,17 +1343,16 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-PRL::PRL(Sink& sink, ITCPC& tcpc)
+PRL::PRL(Sink& sink, IDriver& tcpc)
     : sink{sink},
     tcpc{tcpc},
-    tcpc_event_handler{*this},
     prl_tx{*this},
     prl_rx{*this},
     prl_hr{*this},
     prl_rch{*this},
     prl_tch{*this}
 {
-    tcpc.set_tcpc_event_handler(tcpc_event_handler);
+    tcpc.set_msg_router(tcpc_event_handler);
 }
 
 void PRL::init(bool from_hr_fsm) {

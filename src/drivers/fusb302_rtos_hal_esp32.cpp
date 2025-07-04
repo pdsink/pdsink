@@ -10,37 +10,50 @@ namespace pd {
 
 namespace fusb302 {
 
-void Fusb302RtosHalEsp32::set_tick_handler(etl::delegate<void()> handler) {
-    // Stop existing timer
-    if (timer_handle != nullptr) {
-        esp_timer_stop(timer_handle);
-        esp_timer_delete(timer_handle);
-        timer_handle = nullptr;
-    }
+void Fusb302RtosHalEsp32::init_timer() {
+    esp_timer_create_args_t timer_args = {
+        .callback = [](void* arg) {
+            auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
+            self->msg_router->receive(MsgHal_Timer{});
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "Fusb302RtosHalEsp32Tick",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&timer_args, &timer_handle);
+    esp_timer_start_periodic(timer_handle, 1000);
+}
 
-    tick_handler = handler;
+void Fusb302RtosHalEsp32::init_pins() {
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << intPin);
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
 
-    // If handler not empty - create a new timer
-    if (tick_handler.is_valid()) {
-        esp_timer_create_args_t timer_args = {
-            .callback = [](void* arg) {
-                auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-                if (self->tick_handler) {
-                    self->tick_handler();
-                }
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "Fusb302RtosHalEsp32Tick",
-            .skip_unhandled_events = true,
-        };
-        esp_timer_create(&timer_args, &timer_handle);
-        esp_timer_start_periodic(timer_handle, 1000);
-    }
+    auto handler = [](void* arg) -> void {
+        auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
+        self->msg_router->receive(MsgHal_Interrupt{});
+    };
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)intPin, handler, this);
+}
+
+void Fusb302RtosHalEsp32::start() {
+    init_timer();
+    init_pins();
 }
 
 uint64_t Fusb302RtosHalEsp32::get_timestamp() {
     return esp_timer_get_time() / 1000;
+}
+
+bool Fusb302RtosHalEsp32::is_interrupt_active() {
+    return gpio_get_level(intPin) == 0; // active low
 }
 
 static constexpr int I2C_TIMEOUT_MS = 10;

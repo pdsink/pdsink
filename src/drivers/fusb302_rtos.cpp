@@ -13,9 +13,13 @@ Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal)
     : sink{sink}, hal{hal}
 {
     sink.driver = this;
+    hal.set_msg_router(hal_msg_handler);
 }
 
 void Fusb302Rtos::start() {
+}
+
+void Fusb302Rtos::notify_task() {
 }
 
 void Fusb302Rtos::req_cc_both() {
@@ -50,10 +54,16 @@ void Fusb302Rtos::bist_carrier_enable(bool enable) {
 void Fusb302Rtos::hard_reset() {
 }
 
-void Fusb302Rtos::set_tcpc_event_handler(etl::imessage_router& handler) {
+HalMsgHandler::HalMsgHandler(Fusb302Rtos& drv) : drv{drv} {}
+
+void HalMsgHandler::on_receive(const MsgHal_Timer& msg) {
 }
 
-void Fusb302Rtos::set_tick_handler(etl::delegate<void()> handler) {
+void HalMsgHandler::on_receive(const MsgHal_Interrupt& msg) {
+}
+
+void HalMsgHandler::on_receive_unknown(const etl::imessage& msg) {
+    // Handle unknown messages
 }
 
 } // namespace fusb302

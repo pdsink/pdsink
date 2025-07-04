@@ -110,13 +110,6 @@ class MsgTimerEvent : public etl::message<3> {};
 
 class ITimer {
 public:
-    //
-    // Note, by default time expected to be is in milliseconds.
-    // If microseconds available and required - set PD_TIMER_RESOLUTION_US
-    // in config or env.
-    //
-
-    virtual void set_tick_handler(etl::delegate<void()> handler) = 0;
     // You can actually return 32-bit value, if overflow after 49.7 days is
     // acceptable.
     virtual uint64_t get_timestamp() = 0;
@@ -179,15 +172,13 @@ public:
 
     virtual void hard_reset() = 0;
 
-    // Set TCPC event handler
-    virtual void set_tcpc_event_handler(etl::imessage_router& handler) = 0;
-
     virtual auto get_hw_features() -> TCPC_HW_FEATURES = 0;
 };
 
 class IDriver: public ITCPC, public ITimer {
 public:
     virtual void start() = 0;
+    virtual void set_msg_router(etl::imessage_router& router) = 0;
 };
 
 } // namespace pd
