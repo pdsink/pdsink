@@ -65,6 +65,7 @@ void Fusb302RtosHalEsp32::start() {
     init_pins();
 }
 
+// This will not be actually used, object expected to be static.
 Fusb302RtosHalEsp32::~Fusb302RtosHalEsp32() {
     if (started) {
         esp_timer_stop(timer_handle);

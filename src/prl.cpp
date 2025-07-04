@@ -1066,7 +1066,7 @@ public:
             return No_State_Change;
         }
 
-        prl.tcpc.fetch_rx_data(prl.rx_chunk);
+        if (!prl.tcpc.fetch_rx_data(prl.rx_chunk)) { return No_State_Change; }
 
         if (prl.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             return PRL_Rx_Layer_Reset_for_Receive;

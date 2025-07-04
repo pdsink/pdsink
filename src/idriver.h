@@ -18,6 +18,14 @@ namespace TCPC_CC {
     };
 };
 
+namespace TCPC_POLARITY {
+    enum Type {
+        CC1 = 0, // CC1 is active
+        CC2 = 1, // CC2 is active
+        NONE = 2 // Not selected yet
+    };
+};
+
 // Voltage ranges from comparator, correcpoinding to Rp values
 namespace TCPC_CC_LEVEL {
     enum Type {
@@ -153,7 +161,7 @@ public:
 
     // Note, any other actions should NOT reset selected polarity. It's updated
     // only by this call, when new cable connect detected.
-    virtual void set_polarity(TCPC_CC::Type active_cc) = 0;
+    virtual void set_polarity(TCPC_POLARITY::Type active_cc) = 0;
 
     // Note, this should flush RX/TX FIFO on disable,
     // and TX FIFO (only) on enable.
@@ -162,7 +170,7 @@ public:
     // True when new packet is available in rx_info.
     virtual bool has_rx_data() = 0;
     // Fetch pending RX data.
-    virtual void fetch_rx_data(PKT_INFO& data) = 0;
+    virtual bool fetch_rx_data(PKT_INFO& data) = 0;
 
     // Transmit packet in tx_info
     virtual void transmit(const PKT_INFO& tx_info) = 0;

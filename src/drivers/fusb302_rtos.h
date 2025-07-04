@@ -1,5 +1,10 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <etl/atomic.h>
+#include <etl/queue_spsc_atomic.h>
+
 #include "pd_conf.h"
 #include "idriver.h"
 
@@ -23,6 +28,15 @@ public:
     virtual bool write(uint8_t reg, uint8_t *data, uint32_t size) = 0;
     virtual bool is_interrupt_active() = 0;
 };
+
+namespace HAL_EVENT_FLAG {
+    enum Type {
+        TIMER,
+        FUSB302_INTERRUPT,
+        FLAGS_COUNT
+    };
+};
+
 
 class Fusb302Rtos;
 
@@ -55,10 +69,10 @@ public:
     void req_cc_both() override;
     void req_cc_active() override;
     auto get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type override;
-    void set_polarity(TCPC_CC::Type active_cc) override;
+    void set_polarity(TCPC_POLARITY::Type active_cc) override;
     void set_rx_enable(bool enable) override;
     bool has_rx_data() override;
-    void fetch_rx_data(PKT_INFO& data) override;
+    bool fetch_rx_data(PKT_INFO& data) override;
     void transmit(const PKT_INFO& tx_info) override;
     void bist_carrier_enable(bool enable) override;
     void hard_reset() override;
@@ -72,13 +86,23 @@ public:
     void rearm(uint32_t interval) override {};
     bool is_rearm_supported() override { return false; };
 
+    AtomicBits<HAL_EVENT_FLAG::FLAGS_COUNT> hal_events{};
+
 private:
+    void task();
+
     Sink& sink;
     IFusb302RtosHal& hal;
-    PKT_INFO rx_info{};
-    TCPC_STATE state{};
     etl::imessage_router* msg_router{nullptr};
     HalMsgHandler hal_msg_handler{*this};
+    bool started{false};
+    TaskHandle_t xWaitingTaskHandle{nullptr};
+
+    TCPC_STATE state{};
+    etl::queue_spsc_atomic<PKT_INFO, 4> rx_queue{};
+    etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
+    etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
+    etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_goodcrc_send = true,
@@ -87,6 +111,12 @@ private:
         .cc_update_event = true,
         .unchunked_ext_msg = false
     };
+
+    // TCPC call arguments, used for state transitions to task().
+    TCPC_POLARITY::Type call_arg_set_polarity{};
+    bool call_arg_set_rx_enable{};
+    PKT_INFO call_arg_transmit{};
+    bool call_arg_bist_carrier_enable{};
 };
 
 } // namespace fusb302

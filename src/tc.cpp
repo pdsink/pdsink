@@ -121,7 +121,7 @@ public:
         {
             // Probably, polarity can be set only once after debounce,
             // but do it in advance, for sure.
-            tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_CC::CC1 : TCPC_CC::CC2);
+            tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
 
             if (tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_DEBOUNCE)) {
                 return TC_SINK_ATTACHED;
