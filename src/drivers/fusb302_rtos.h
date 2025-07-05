@@ -3,10 +3,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <etl/atomic.h>
-#include <etl/queue_spsc_atomic.h>
 
 #include "pd_conf.h"
 #include "idriver.h"
+#include "utils/spsc_overwrite_queue.h"
 
 namespace pd {
 
@@ -99,7 +99,7 @@ private:
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
     TCPC_STATE state{};
-    etl::queue_spsc_atomic<PKT_INFO, 4> rx_queue{};
+    spsc_overwrite_queue<PKT_INFO, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
