@@ -197,7 +197,9 @@ public:
         rch.log_state();
 
         rch.prl.flags.clear(PRL_FLAG::ABORT);
-        rch.prl.rx_emsg.data.clear();
+
+        // Don't reset `rx_emsg` here until new chunk come, it is shared with PE
+
         return No_State_Change;
     }
 
@@ -218,7 +220,12 @@ public:
                     // Spec says clear vars below in RCH_Processing_Extended_Message
                     // on first chunk, but this place looks more obvious
                     rch.chunk_number_expected = 0;
-                    rch.prl.tx_emsg.header = chunk.header;
+
+                    prl.rx_emsg.clear();
+                    // Save header (with message type) in both tx and rx structs.
+                    // Tx may be used in chunk requests.
+                    prl.rx_emsg.header = chunk.header;
+                    prl.tx_emsg.header = chunk.header;
                     return RCH_Processing_Extended_Message;
                 }
 
@@ -233,7 +240,8 @@ public:
             }
 
             // Non-extended message
-            rch.copy_chunk_data();
+            prl.rx_emsg = chunk;
+            prl.rx_emsg.resize_by_data_obj_count();
             return RCH_Pass_Up_Message;
         }
         return No_State_Change;
@@ -281,11 +289,11 @@ public:
 
         // Copy as much as possible (without ext header),
         // until desired size reached.
-        msg.data.insert(msg.data.end(), chunk.data.begin() + 2, chunk.data.end());
+        msg.append_from(chunk, 2, chunk.data_size());
         rch.chunk_number_expected++;
 
-        if (msg.data.size() >= ehdr.data_size) {
-            msg.data.resize(ehdr.data_size);
+        if (msg.data_size() >= ehdr.data_size) {
+            msg.get_data().resize(ehdr.data_size);
             return RCH_Pass_Up_Message;
         }
         return RCH_Requesting_Chunk;
@@ -316,8 +324,8 @@ public:
         ehdr.chunk_number = rch.chunk_number_expected;
         ehdr.chunked = 1;
 
+        chunk.clear();
         chunk.header = hdr;
-        chunk.data.clear();
         chunk.append16(ehdr.raw_value);
         chunk.append16(0); // Placeholder, align to 32 bit (data object size)
 
@@ -410,7 +418,8 @@ public:
         auto& prl = rch.prl;
 
         if (prl.flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
-            rch.copy_chunk_data();
+            prl.rx_emsg = prl.rx_chunk;
+            prl.rx_emsg.resize_by_data_obj_count();
             prl.sink.pe->on_message_received();
         }
 
@@ -476,9 +485,8 @@ public:
         // NOTE: add unchunked ext msg data copy
 
         // Copy data to chunk & fill data object count
-        prl.tx_chunk.header = prl.tx_emsg.header;
-        prl.tx_chunk.data.assign(prl.tx_emsg.data.begin(), prl.tx_emsg.data.end());
-        prl.tx_chunk.header.data_obj_count = (prl.tx_emsg.data.size() + 3) >> 2;
+        prl.tx_chunk = prl.tx_emsg;
+        prl.tx_chunk.header.data_obj_count = (prl.tx_emsg.data_size() + 3) >> 2;
 
         prl.prl_tx.flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
         return TCH_Wait_For_Transmision_Complete;
@@ -550,23 +558,21 @@ public:
         auto& prl = tch.prl;
         tch.log_state();
 
-        int tail_len = prl.tx_emsg.data.size() - tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
+        int tail_len = prl.tx_emsg.data_size() - tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
         int chunk_data_len = etl::min(tail_len, MaxExtendedMsgChunkLen);
 
         PD_EXT_HEADER ehdr{.raw_value = 0};
-        ehdr.data_size = prl.tx_emsg.data.size();
+        ehdr.data_size = prl.tx_emsg.data_size();
         ehdr.chunk_number = tch.chunk_number_to_send;
         ehdr.chunked = 1;
 
-        prl.tx_chunk.data.clear();
+        prl.tx_chunk.clear();
         prl.tx_chunk.append16(ehdr.raw_value);
         auto offset = tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
-        prl.tx_chunk.data.insert(prl.tx_chunk.data.end(),
-            prl.tx_emsg.data.begin() + offset,
-            prl.tx_emsg.data.begin() + offset + chunk_data_len);
+        prl.tx_chunk.append_from(prl.tx_emsg, offset, offset + chunk_data_len);
 
         prl.tx_chunk.header = prl.tx_emsg.header;
-        prl.tx_chunk.header.data_obj_count = (prl.tx_chunk.data.size() + 3) >> 2;
+        prl.tx_chunk.header.data_obj_count = (prl.tx_chunk.data_size() + 3) >> 2;
 
         if (tch.prl.flags.test_and_clear(PRL_FLAG::ABORT)) {
             return TCH_Wait_For_Transmision_Complete;
@@ -602,7 +608,7 @@ public:
 
         // Reached msg size => last chunk sent
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
-            if (max_bytes >= prl.tx_emsg.data.size()) {
+            if (max_bytes >= prl.tx_emsg.data_size()) {
                 return TCH_Message_Sent;
             }
 
@@ -1464,8 +1470,8 @@ void PRL::on_pe_hard_reset_done() {
 void PRL::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
     PD_HEADER hdr{};
     hdr.message_type = msgt;
+    tx_emsg.clear();
     tx_emsg.header = hdr;
-    tx_emsg.data.clear();
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
     sink.wakeup();
@@ -1537,19 +1543,6 @@ PRL_RCH::PRL_RCH(PRL& prl) : etl::fsm(0), prl{prl} {
 
 void PRL_RCH::log_state() {
     PRL_LOG("PRL_RCH state => %s", prl_rch_state_to_desc(get_state_id()));
-}
-
-void PRL_RCH::copy_chunk_data() {
-    auto& msg = prl.rx_emsg;
-    auto& chunk = prl.rx_chunk;
-
-    // Currently we cove only non-extended messages.
-
-    // Adjust buffer size
-    chunk.data.resize(chunk.header.data_obj_count * 4);
-
-    msg.header = chunk.header;
-    msg.data.assign(chunk.data.begin(), chunk.data.end());
 }
 
 PRL_TCH::PRL_TCH(PRL& prl) : etl::fsm(0), prl{prl} {

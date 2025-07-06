@@ -72,8 +72,8 @@ public:
     void set_polarity(TCPC_POLARITY::Type active_cc) override;
     void set_rx_enable(bool enable) override;
     bool has_rx_data() override;
-    bool fetch_rx_data(PKT_INFO& data) override;
-    void transmit(const PKT_INFO& tx_info) override;
+    bool fetch_rx_data(PD_CHUNK& data) override;
+    void transmit(const PD_CHUNK& tx_info) override;
     void bist_carrier_enable(bool enable) override;
     void hard_reset() override;
 
@@ -99,7 +99,7 @@ private:
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
     TCPC_STATE state{};
-    spsc_overwrite_queue<PKT_INFO, 4> rx_queue{};
+    spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
@@ -115,7 +115,7 @@ private:
     // TCPC call arguments, used for state transitions to task().
     TCPC_POLARITY::Type call_arg_set_polarity{};
     bool call_arg_set_rx_enable{};
-    PKT_INFO call_arg_transmit{};
+    PD_CHUNK call_arg_transmit{};
     bool call_arg_bist_carrier_enable{};
 };
 

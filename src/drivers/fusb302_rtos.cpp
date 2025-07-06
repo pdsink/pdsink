@@ -99,11 +99,11 @@ bool Fusb302Rtos::has_rx_data() {
     return !rx_queue.empty();
 }
 
-bool Fusb302Rtos::fetch_rx_data(PKT_INFO& data) {
+bool Fusb302Rtos::fetch_rx_data(PD_CHUNK& data) {
     return rx_queue.pop(data);
 }
 
-void Fusb302Rtos::transmit(const PKT_INFO& tx_info) {
+void Fusb302Rtos::transmit(const PD_CHUNK& tx_info) {
     call_arg_transmit = tx_info;
     state.set(TCPC_CALL_FLAG::TRANSMIT);
     notify_task();

@@ -211,7 +211,7 @@ public:
             etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
 
         pe.source_caps.clear();
-        for (int i = 0, pdo_num = msg.data.size() >> 2; i < pdo_num; i++) {
+        for (int i = 0, pdo_num = msg.data_size() >> 2; i < pdo_num; i++) {
             pe.source_caps.push_back(msg.read32(i*4));
         }
 
@@ -253,7 +253,7 @@ public:
 
         // Prepare & send request, depending on SPR/ERP mode
         auto& msg = pe.get_tx_msg();
-        msg.data.clear();
+        msg.clear();
 
         // remember RDO, to store after success
         pe.rdo_to_request = rdo.raw_value;
@@ -644,7 +644,7 @@ public:
 
         bool is_erp = pe.get_rx_msg().header.extended;
         auto& msg = pe.get_tx_msg();
-        msg.data.clear();
+        msg.clear();
 
         auto caps = pe.sink.dpm->get_sink_pdo_list();
 
@@ -695,7 +695,7 @@ public:
         ecdb.type = PD_EXT_CTRL_MSGT::EPR_KeepAlive;
 
         auto& msg = pe.get_tx_msg();
-        msg.data.clear();
+        msg.clear();
         msg.append16(ecdb.raw_value);
 
         pe.send_ext_msg(PD_EXT_MSGT::Extended_Control);
@@ -964,7 +964,7 @@ public:
         eprmdo.data = pe.sink.dpm->get_epr_watts();
 
         auto& msg = pe.get_tx_msg();
-        msg.data.clear();
+        msg.clear();
         msg.append32(eprmdo.raw_value);
 
         pe.send_data_msg(PD_DATA_MSGT::EPR_Mode);
@@ -1129,7 +1129,7 @@ public:
         rmdo.ver_minor = 1;
 
         auto& msg = pe.get_tx_msg();
-        msg.data.clear();
+        msg.clear();
         msg.append32(rmdo.raw_value);
 
         pe.send_data_msg(PD_DATA_MSGT::Revision);

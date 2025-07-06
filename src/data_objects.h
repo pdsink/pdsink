@@ -455,17 +455,10 @@ union BISTDO {
 class I_PD_MSG {
 public:
     PD_HEADER header;
-    etl::ivector<uint8_t>& data;
 
-    I_PD_MSG(etl::ivector<uint8_t>& data_ref) : data(data_ref) {}
-
-    I_PD_MSG& operator=(const I_PD_MSG& other) {
-        if (this != &other) {
-            header = other.header;
-            data.assign(other.data.begin(), other.data.end());
-        }
-        return *this;
-    }
+    virtual etl::ivector<uint8_t>& get_data() = 0;
+    virtual const etl::ivector<uint8_t>& get_data() const = 0;
+    virtual void clear() = 0;
 
     virtual bool is_data_msg(uint8_t type) const = 0;
     virtual bool is_ctrl_msg(uint8_t type) const = 0;
@@ -477,6 +470,10 @@ public:
     virtual void append16(uint16_t value) = 0;
     virtual void append32(uint32_t value) = 0;
 
+    virtual void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) = 0;
+    virtual uint32_t data_size() const = 0;
+    virtual void resize_by_data_obj_count() = 0;
+
     virtual ~I_PD_MSG() = default;
 };
 
@@ -484,7 +481,31 @@ template <int BufferSize>
 struct PD_MSG_TPL : public I_PD_MSG {
     etl::vector<uint8_t, BufferSize> _buffer;
 
-    PD_MSG_TPL() : I_PD_MSG(_buffer) {}
+    etl::ivector<uint8_t>& get_data() override { return _buffer; }
+    const etl::ivector<uint8_t>& get_data() const override { return _buffer; }
+
+    PD_MSG_TPL() = default;
+
+    PD_MSG_TPL(const I_PD_MSG& src) {
+        *this = src;
+    }
+
+    PD_MSG_TPL& operator=(const I_PD_MSG& src) {
+        if (this == &src) return *this;
+
+        header = src.header;
+
+        const auto& src_data = src.get_data();
+        size_t copy_size = (src_data.size() < BufferSize) ? src_data.size() : BufferSize;
+        _buffer.assign(src_data.begin(), src_data.begin() + copy_size);
+
+        return *this;
+    }
+
+    void clear() override {
+        header.raw_value = 0;
+        _buffer.clear();
+    }
 
     bool is_data_msg(uint8_t type) const override{
         return header.extended == 0 && header.data_obj_count > 0 &&
@@ -498,7 +519,7 @@ struct PD_MSG_TPL : public I_PD_MSG {
         return header.extended > 0 && header.message_type == type;
     }
     bool is_ext_ctrl_msg(uint8_t type) const override {
-        if (!is_ext_msg(PD_EXT_MSGT::Extended_Control) || data.size() < 2) {
+        if (!is_ext_msg(PD_EXT_MSGT::Extended_Control) || _buffer.size() < 2) {
             return false;
         }
         ECDB ecdb{.raw_value = read16(0)};
@@ -507,27 +528,42 @@ struct PD_MSG_TPL : public I_PD_MSG {
 
     // Helpers to simplify payload access
     uint16_t read16(size_t pos) const override {
-        return uint16_t(data[pos]) | (uint16_t(data[pos + 1]) << 8);
+        return uint16_t(_buffer[pos]) | (uint16_t(_buffer[pos + 1]) << 8);
     }
     uint32_t read32(size_t pos) const override {
-        return uint32_t(data[pos]) |
-            (uint32_t(data[pos + 1]) << 8) |
-            (uint32_t(data[pos + 2]) << 16) |
-            (uint32_t(data[pos + 3]) << 24);
+        return uint32_t(_buffer[pos]) |
+            (uint32_t(_buffer[pos + 1]) << 8) |
+            (uint32_t(_buffer[pos + 2]) << 16) |
+            (uint32_t(_buffer[pos + 3]) << 24);
     }
 
     void append16(uint16_t value) override {
-        data.push_back(value & 0xff);
-        data.push_back((value >> 8) & 0xff);
+        _buffer.push_back(value & 0xff);
+        _buffer.push_back((value >> 8) & 0xff);
     }
     void append32(uint32_t value) override {
-        data.push_back(value & 0xff);
-        data.push_back((value >> 8) & 0xff);
-        data.push_back((value >> 16) & 0xff);
-        data.push_back((value >> 24) & 0xff);
+        _buffer.push_back(value & 0xff);
+        _buffer.push_back((value >> 8) & 0xff);
+        _buffer.push_back((value >> 16) & 0xff);
+        _buffer.push_back((value >> 24) & 0xff);
+    }
+
+    void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) {
+        if (start < end) {
+            _buffer.insert(_buffer.end(), src.get_data().begin() + start, src.get_data().begin() + end);
+        }
+    }
+
+    uint32_t data_size() const {
+        return _buffer.size();
+    }
+
+    void resize_by_data_obj_count() {
+        _buffer.resize(header.data_obj_count * 4);
     }
 };
 
 using PD_MSG = PD_MSG_TPL<MaxExtendedMsgLen>;
+using PD_CHUNK = PD_MSG_TPL<MaxUnchunkedMsgLen>;
 
 } // namespace pd

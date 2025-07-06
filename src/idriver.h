@@ -84,8 +84,6 @@ namespace TCPC_CALL_FLAG {
 
 using TCPC_STATE = AtomicBits<TCPC_CALL_FLAG::FLAGS_COUNT>;
 
-using PKT_INFO = PD_MSG_TPL<MaxUnchunkedMsgLen>;
-
 namespace SOP_TYPE {
     enum Type {
         SOP = 0,
@@ -170,10 +168,10 @@ public:
     // True when new packet is available in rx_info.
     virtual bool has_rx_data() = 0;
     // Fetch pending RX data.
-    virtual bool fetch_rx_data(PKT_INFO& data) = 0;
+    virtual bool fetch_rx_data(PD_CHUNK& data) = 0;
 
     // Transmit packet in tx_info
-    virtual void transmit(const PKT_INFO& tx_info) = 0;
+    virtual void transmit(const PD_CHUNK& tx_info) = 0;
 
     // On/off BIST carrier
     virtual void bist_carrier_enable(bool enable) = 0;

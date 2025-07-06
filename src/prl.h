@@ -105,7 +105,6 @@ class PRL_RCH: public etl::fsm {
 public:
     PRL_RCH(PRL& prl);
     void log_state();
-    void copy_chunk_data();
     AtomicBits<RCH_FLAG::FLAGS_COUNT> flags{};
     int8_t chunk_number_expected{0};
     PRL_ERROR error{};
@@ -187,8 +186,8 @@ public:
     PD_MSG tx_emsg;
 
     // Internal buffers to construct/split messages
-    PKT_INFO rx_chunk;
-    PKT_INFO tx_chunk;
+    PD_CHUNK rx_chunk;
+    PD_CHUNK tx_chunk;
 
     // In full PD stack we should keep separate revision for all SOP*.
     // But in sink we talk with charger only, and single revision for `SOP`
