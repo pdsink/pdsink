@@ -5,6 +5,7 @@
 
 #include <etl/array.h>
 #include <etl/atomic.h>
+#include <etl/delegate.h>
 #include <etl/utility.h>
 
 namespace pd {
@@ -94,10 +95,16 @@ struct PD_TIMEOUT {
 
 class Timers {
 public:
+    using GetTimeFunc = etl::delegate<uint64_t()>;
+
     explicit Timers() {
         active.clear_all();
         disabled.set_all();
         timers_changed.store(false);
+    }
+
+    void set_time_provider(const GetTimeFunc& func) {
+        get_time_func = func;
     }
 
     void start(int timer_id, uint32_t us_time);
@@ -131,8 +138,11 @@ public:
     etl::atomic<bool> timers_changed{false};
 
 private:
-    // Temporary stub
-    uint64_t get_time_us() { return 0; };
+    GetTimeFunc get_time_func;
+
+    uint64_t get_time() {
+        return get_time_func ? get_time_func() : 0;
+    }
 
     // After expiration, timer becomes deactivated, but not disabled, to
     // keep expire status.

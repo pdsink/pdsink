@@ -53,6 +53,9 @@ void Sink::loop() {
 void Sink::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
+    timers.set_time_provider(
+        etl::delegate<uint64_t()>::create<ITimer, &ITimer::get_timestamp>(*driver));
+
     driver->start();
     prl->init();
     pe->init();
