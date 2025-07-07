@@ -275,7 +275,7 @@ public:
         PD_EXT_HEADER ehdr{.raw_value = chunk.read16(0)};
 
         if (rch.prl.flags.test_and_clear(PRL_FLAG::ABORT)) {
-            return TCH_Wait_For_Transmision_Complete;
+            return RCH_Wait_For_Message_From_Protocol_Layer;
         }
 
         // Minimal data integrity check
@@ -349,7 +349,7 @@ public:
 
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
             // Discarded chunk request in chunked RX is abnormal fuckup.
-            // Report it via error only, not via discard.
+            // Report it via log only, not via discard.
             PRL_LOG("RCH: Chunk request discarded");
             // Instead of error reporting here, go to next state to
             // handle new message properly.
@@ -385,7 +385,7 @@ public:
             // RCH_Wait_For_Message_From_Protocol_Layer.
             // But we can safely land only unchunked messages this way.
 
-            // NOTE: if unchunked ext msg eve supported, filter here too.
+            // NOTE: if unchunked ext msg ever supported, filter here too.
             if (hdr.extended == 0) {
                 rch.error = PRL_ERROR::RCH_SEQUENCE_DISCARDED;
                 return RCH_Report_Error;
@@ -1167,8 +1167,8 @@ public:
         // Spec describes chunking as "Not in initial waiting state". But
         // PE send requests are not executed immediately, those just rise flag.
         // So, having that flag set means "not waiting" too.
-        if (prl.prl_tch.flags.test(TCH_FLAG::MSG_ENQUEUED ||
-            prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine))
+        if (prl.prl_tch.flags.test(TCH_FLAG::MSG_ENQUEUED) ||
+            prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine)
         {
             // TCH does chunking => route to it
             prl.prl_tch.flags.set(TCH_FLAG::NEXT_CHUNK_REQUEST);
@@ -1511,8 +1511,8 @@ void PRL::tcpc_enquire_msg() {
 }
 
 void PRL::tx_enquire_chunk() {
-    prl_tx.flags.set(PRL_TX_FLAG::TX_COMPLETED);
-    prl_tx.flags.set(PRL_TX_FLAG::TX_ERROR);
+    prl_tx.flags.clear(PRL_TX_FLAG::TX_COMPLETED);
+    prl_tx.flags.clear(PRL_TX_FLAG::TX_ERROR);
     prl_tx.flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
     sink.wakeup();
 }

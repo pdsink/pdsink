@@ -301,7 +301,7 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Accept))
             {
-                bool is_first_contract = pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+                bool is_first_contract = !pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
 
                 pe.flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
                 pe.rdo_contracted = pe.rdo_to_request;
@@ -557,7 +557,7 @@ public:
 
         // Special case, process postponed src caps request. If pending - don't
         // try DPM requests queue.
-        if (pe.sink.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
+        if (!pe.sink.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
             if (pe.sink.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
                 pe.sink.timers.stop(PD_TIMEOUT::tSinkRequest);
@@ -1191,7 +1191,7 @@ public:
             auto& msg = pe.get_rx_msg();
             auto result{0}; // 0 means unsupported
 
-            if (msg.is_data_msg(PD_EXT_MSGT::PPS_Status)) {
+            if (msg.is_ext_msg(PD_EXT_MSGT::PPS_Status)) {
                 result = msg.read32(0);
             }
 
