@@ -20,6 +20,14 @@
 #define TC_LOG(...)
 #endif
 
+#if !defined(DRV_LOG)
+#define DRV_LOG(...)
+#endif
+
+#if !defined(DRV_ERR)
+#define DRV_ERR(...)
+#endif
+
 #if !defined(PD_TIMER_RESOLUTION_US)
 #define PD_TIMER_RESOLUTION_US 0
 #endif
