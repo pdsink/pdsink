@@ -157,6 +157,10 @@ public:
     // Get fetched data after req_cc_both/req_cc_secondary completed.
     virtual TCPC_CC_LEVEL::Type get_cc(TCPC_CC::Type cc) = 0;
 
+    // Spec requires VBUS detection. While we can use CC1/CC2 instead,
+    // keep this method for compatibility.
+    virtual bool is_vbus_ok() = 0;
+
     // Note, any other actions should NOT reset selected polarity. It's updated
     // only by this call, when new cable connect detected.
     virtual void set_polarity(TCPC_POLARITY::Type active_cc) = 0;
@@ -176,7 +180,7 @@ public:
     // On/off BIST carrier
     virtual void bist_carrier_enable(bool enable) = 0;
 
-    virtual void hard_reset() = 0;
+    virtual void hr_send() = 0;
 
     virtual auto get_hw_features() -> TCPC_HW_FEATURES = 0;
 };

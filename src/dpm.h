@@ -94,11 +94,11 @@ public:
 
     virtual bool has_usb_comm() { return false; }
 
-    // This one is called from `SRC Capabilities` and `ERP SRC Capabilities`
+    // This one is called from `SRC Capabilities` and `EPR SRC Capabilities`
     // Override with your custom logic to evaluate capabilities and return
     virtual uint32_t get_request_data_object();
 
-    // This one is called via `Sink Capabilities` and `ERP Sink Capabilities`
+    // This one is called via `Sink Capabilities` and `EPR Sink Capabilities`
     // requests from SRC. By default, provides max possible list of Sink PDOs.
     // Override with your custom logic to provide Sink capabilities.
     // See details in default implementation

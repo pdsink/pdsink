@@ -73,7 +73,7 @@ struct PD_TIMEOUT {
     static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000 * ms_mult}; // 10s max
     // PS Transition timeout depends on mode
     static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, 500 * ms_mult}; // 450-550 ms
-    static constexpr Type tPSTransition_ERP {PD_TIMER::PE_PSTransitionTimer, 925 * ms_mult}; // 830-1020 ms
+    static constexpr Type tPSTransition_EPR {PD_TIMER::PE_PSTransitionTimer, 925 * ms_mult}; // 830-1020 ms
     static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, 375 * ms_mult}; // 250-500 ms
     static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500 * ms_mult}; // 450-550 ms
     static constexpr Type tBISTCarrierMode {PD_TIMER::PE_BISTContModeTimer, 300 * ms_mult}; // 300 ms before exit

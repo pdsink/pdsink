@@ -389,7 +389,7 @@ namespace EPR_MODE_ACTION {
         ENTER_FAILED = 4,
         EXIT = 5
     };
-}; // namespace ERP_MODE_ACTION
+}; // namespace EPR_MODE_ACTION
 
 // [rev3.2] Table 6.50 EPR Mode Data Object (EPRMDO)
 union EPRMDO {

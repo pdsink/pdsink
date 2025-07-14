@@ -926,12 +926,15 @@ public:
         // checks needed. Always use retries.
 
         if (prl_tx.prl.tcpc.get_hw_features().tx_retransmit) {
+            // TODO: consider removing this feature.
+
             // Don't try retransmit if supported by hardware.
             return PRL_Tx_Transmission_Error;
         }
 
         prl_tx.retry_counter++;
 
+        // TODO: check if retries count should depend on negotiated revision (2 or 3)
         if (prl_tx.retry_counter > 2 /* nRetryCount */) {
             return PRL_Tx_Transmission_Error;
         }
@@ -1263,7 +1266,7 @@ public:
         auto& hr = get_fsm_context();
         hr.log_state();
 
-        hr.prl.tcpc.hard_reset();
+        hr.prl.tcpc.hr_send();
         return No_State_Change;
     }
 

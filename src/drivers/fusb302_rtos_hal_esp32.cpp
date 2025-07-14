@@ -86,8 +86,9 @@ bool Fusb302RtosHalEsp32::is_interrupt_active() {
 static constexpr int I2C_TIMEOUT_MS = 10;
 static_assert(pdMS_TO_TICKS(I2C_TIMEOUT_MS) > 0, "Too slow FreeRTOS tick rate, should be 1ms or faster");
 
-bool Fusb302RtosHalEsp32::read(uint8_t reg, uint8_t *data, uint32_t size) {
-    if (!started) return false;
+bool Fusb302RtosHalEsp32::read_block(uint8_t reg, uint8_t *data, uint32_t size) {
+    if (!started) { return false; }
+    if (!size) { return true; } // nothing to read
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -102,8 +103,9 @@ bool Fusb302RtosHalEsp32::read(uint8_t reg, uint8_t *data, uint32_t size) {
     return ret == ESP_OK;
 }
 
-bool Fusb302RtosHalEsp32::write(uint8_t reg, uint8_t *data, uint32_t size) {
-    if (!started) return false;
+bool Fusb302RtosHalEsp32::write_block(uint8_t reg, uint8_t *data, uint32_t size) {
+    if (!started) { return false; }
+    if (!size) { return true; } // nothing to write
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -114,6 +116,32 @@ bool Fusb302RtosHalEsp32::write(uint8_t reg, uint8_t *data, uint32_t size) {
     esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
     i2c_cmd_link_delete(cmd);
     return ret == ESP_OK;
+}
+
+bool Fusb302RtosHalEsp32::read_reg(uint8_t reg, uint8_t& data) {
+    return read_block(reg, &data, 1);
+}
+
+bool Fusb302RtosHalEsp32::write_reg(uint8_t reg, uint8_t data) {
+    return write_block(reg, &data, 1);
+}
+
+bool Fusb302RtosHalEsp32::set_bits(uint8_t reg, uint8_t bits) {
+    if (!started) return false;
+
+    uint8_t data;
+    if (!read_reg(reg, data)) { return false; }
+    data |= bits;
+    return write_reg(reg, data);
+}
+
+bool Fusb302RtosHalEsp32::clear_bits(uint8_t reg, uint8_t bits) {
+    if (!started) return false;
+
+    uint8_t data;
+    if (!read_reg(reg, data)) { return false; }
+    data &= ~bits;
+    return write_reg(reg, data);
 }
 
 } // namespace fusb302

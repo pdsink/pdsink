@@ -149,16 +149,16 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
     rdo = rdo_bits.raw_value;
 }
 
-// This one is called when `SRC Capabilities` and `ERP SRC Capabilities`
+// This one is called when `SRC Capabilities` and `EPR SRC Capabilities`
 // are received from power source. Returns RDO and appropriate PDO as pair
 auto DPM::get_request_data_object() -> uint32_t {
     // This is default stub implementation, with simple trigger support.
     // Customize if required.
 
     //
-    // Note, here we indirectly check ERP mode. At the start we go to SRP, where
-    // ERP voltage will not be available, and fallback to vSafe5V will be used.
-    // Then, PE will automatically upgrade to EPR (with new ERP Caps) and this
+    // Note, here we indirectly check EPR mode. At the start we go to SRP, where
+    // EPR voltage will not be available, and fallback to vSafe5V will be used.
+    // Then, PE will automatically upgrade to EPR (with new EPR Caps) and this
     // function will be called again.
     //
 

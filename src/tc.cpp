@@ -52,6 +52,9 @@ public:
         tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
         tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
         tc.prev_cc2 = TCPC_CC_LEVEL::NONE;
+
+        tc.tcpc.set_polarity(TCPC_POLARITY::NONE);
+        // TODO: consider have this in is_vbus_ok() method
         tc.tcpc.req_cc_both();
         return No_State_Change;
     }
@@ -59,7 +62,8 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) {
+        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH) ||
+            tc.tcpc.get_state().test(TCPC_CALL_FLAG::SET_POLARITY)) {
             return No_State_Change;
         }
 
@@ -67,11 +71,7 @@ public:
             return No_State_Change;
         }
 
-        auto cc1 = tc.tcpc.get_cc(TCPC_CC::CC1);
-        auto cc2 = tc.tcpc.get_cc(TCPC_CC::CC2);
-
-        // If any of CC not zero => cable attached, go to detecting
-        if (cc1 != TCPC_CC_LEVEL::NONE || cc2 != TCPC_CC_LEVEL::NONE) {
+        if (tc.tcpc.is_vbus_ok()) {
             return TC_DETECTING;
         }
 
@@ -119,17 +119,19 @@ public:
             (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::RP_3_0)) &&
             (cc1 == tc.prev_cc1 || cc2 == tc.prev_cc2))
         {
-            // Probably, polarity can be set only once after debounce,
-            // but do it in advance, for sure.
-            tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
-
             if (tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_DEBOUNCE)) {
+                tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
                 return TC_SINK_ATTACHED;
             }
         }
         else
         {
-            // On CC mismatch - restart debounce timer
+            if (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::NONE) {
+                // Signal completely lost
+                return TC_DETACHED;
+            }
+            // If CCx unstable (changed) or not satisfy requirements - restart
+            // debounce interval.
             tc.sink.timers.start(PD_TIMEOUT::TC_CC_DEBOUNCE);
         }
 

@@ -251,7 +251,7 @@ public:
         // This decision can be changed later, if needed.
         RDO_ANY rdo{.raw_value = pe.sink.dpm->get_request_data_object()};
 
-        // Prepare & send request, depending on SPR/ERP mode
+        // Prepare & send request, depending on SPR/EPR mode
         auto& msg = pe.get_tx_msg();
         msg.clear();
 
@@ -374,7 +374,7 @@ public:
         // timer. Use proper one for setup, but SPR one for clear/check
         // (because clear/check use the same timer ID).
         if (pe.flags.test(PE_FLAG::IN_EPR_MODE)) {
-            pe.sink.timers.start(PD_TIMEOUT::tPSTransition_ERP);
+            pe.sink.timers.start(PD_TIMEOUT::tPSTransition_EPR);
         } else {
             pe.sink.timers.start(PD_TIMEOUT::tPSTransition_SPR);
         }
@@ -425,7 +425,7 @@ public:
         pe.flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
 
         if (pe.is_in_epr_mode()) {
-            // If we are in EPR mode, rearm timer for ERP Keep Alive request
+            // If we are in EPR mode, rearm timer for EPR Keep Alive request
             pe.sink.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
         } else {
             // Force enter EPR mode if possible
@@ -642,7 +642,7 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        bool is_erp = pe.get_rx_msg().header.extended;
+        bool is_epr = pe.get_rx_msg().header.extended;
         auto& msg = pe.get_tx_msg();
         msg.clear();
 
@@ -652,7 +652,7 @@ public:
         for (int i = 0, max = caps.size(); i < max; i++) {
             auto pdo = caps[i];
 
-            if (!is_erp) {
+            if (!is_epr) {
                 // For regular request (non-EPR) only 7 PDOs allowed
                 if (i >= 7) { break; }
             }
@@ -662,7 +662,7 @@ public:
             msg.append32(pdo);
         }
 
-        if (!is_erp) {
+        if (!is_epr) {
             pe.send_data_msg(PD_DATA_MSGT::Sink_Capabilities);
         } else {
             pe.send_ext_msg(PD_EXT_MSGT::EPR_Sink_Capabilities);
