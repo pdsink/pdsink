@@ -592,10 +592,6 @@ void Fusb302Rtos::set_rx_enable(bool enable) {
     notify_task();
 }
 
-bool Fusb302Rtos::has_rx_data() {
-    return !rx_queue.empty();
-}
-
 bool Fusb302Rtos::fetch_rx_data(PD_CHUNK& data) {
     return rx_queue.pop(data);
 }

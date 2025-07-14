@@ -1062,8 +1062,6 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
-        if (!prl.tcpc.has_rx_data()) { return No_State_Change; };
-
         if (prl.prl_rch.flags.test(RCH_FLAG::RX_ENQUEUED)) {
             // In theory, we can have pending packet in RCH, re-routed by
             // discard. Postpone processing of new one to next cycle, to allow

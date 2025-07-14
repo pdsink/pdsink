@@ -169,8 +169,6 @@ public:
     // and TX FIFO (only) on enable.
     virtual void set_rx_enable(bool enable) = 0;
 
-    // True when new packet is available in rx_info.
-    virtual bool has_rx_data() = 0;
     // Fetch pending RX data.
     virtual bool fetch_rx_data(PD_CHUNK& data) = 0;
 

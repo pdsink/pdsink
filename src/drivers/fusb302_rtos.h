@@ -88,7 +88,6 @@ public:
     bool is_vbus_ok() override;
     void set_polarity(TCPC_POLARITY::Type active_cc) override;
     void set_rx_enable(bool enable) override;
-    bool has_rx_data() override;
     bool fetch_rx_data(PD_CHUNK& data) override;
     void transmit(const PD_CHUNK& tx_info) override;
     void bist_carrier_enable(bool enable) override;

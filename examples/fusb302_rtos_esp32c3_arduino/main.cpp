@@ -5,7 +5,7 @@
 //pd::Fusb302Esp32Arduino fusb302;
 pd::Sink sink;
 pd::fusb302::Fusb302RtosHalEsp32 fusb302_hal;
-pd::fusb302::Fusb302Rtos driver(sink, fusb302_hal);
+pd::fusb302::Fusb302Rtos driver(sink, fusb302_hal, true /* emulate VBUS_OK */);
 pd::PRL prl(sink, driver);
 pd::PE pe(sink, prl, driver);
 pd::TC tc(sink, driver);
