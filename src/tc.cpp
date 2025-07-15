@@ -49,37 +49,36 @@ public:
         auto& tc = get_fsm_context();
         tc.log_state();
 
-        tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
-        tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
-        tc.prev_cc2 = TCPC_CC_LEVEL::NONE;
-
+        tc.sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
         tc.tcpc.set_polarity(TCPC_POLARITY::NONE);
-        // TODO: consider have this in is_vbus_ok() method
-        tc.tcpc.req_cc_both();
         return No_State_Change;
     }
 
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH) ||
-            tc.tcpc.get_state().test(TCPC_CALL_FLAG::SET_POLARITY)) {
+        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::SET_POLARITY)) { return No_State_Change; }
+
+        auto vbus_ok = tc.tcpc.is_vbus_ok();
+        if (!vbus_ok) {
+            tc.sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
             return No_State_Change;
         }
 
-        if (!tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) {
+        if (tc.sink.timers.is_disabled(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
+            tc.sink.timers.start(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
             return No_State_Change;
         }
 
-        if (tc.tcpc.is_vbus_ok()) {
+        if (tc.sink.timers.is_expired(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
             return TC_DETECTING;
         }
 
-        // Rearm timer and fetch
-        tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
-        tc.tcpc.req_cc_both();
-
         return No_State_Change;
+    }
+
+    void on_exit_state() override {
+        get_fsm_context().sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
     }
 };
 
@@ -92,24 +91,26 @@ public:
         auto& tc = get_fsm_context();
         tc.log_state();
 
-        tc.prev_cc1 = tc.tcpc.get_cc(TCPC_CC::CC1);
-        tc.prev_cc2 = tc.tcpc.get_cc(TCPC_CC::CC2);
+        tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
+        tc.prev_cc2 = TCPC_CC_LEVEL::NONE;
         tc.tcpc.req_cc_both();
-        tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
-        tc.sink.timers.start(PD_TIMEOUT::TC_CC_DEBOUNCE);
+        tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
 
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) {
-            return No_State_Change;
+        if (!tc.sink.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
+            if (!tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
+
+            tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+            tc.tcpc.req_cc_both();
         }
 
-        if (!tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) {
-            return No_State_Change;
-        }
+        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) { return No_State_Change; }
+
+        if (!tc.tcpc.is_vbus_ok()) { return TC_DETACHED; }
 
         auto cc1 = tc.tcpc.get_cc(TCPC_CC::CC1);
         auto cc2 = tc.tcpc.get_cc(TCPC_CC::CC2);
@@ -119,26 +120,12 @@ public:
             (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::RP_3_0)) &&
             (cc1 == tc.prev_cc1 || cc2 == tc.prev_cc2))
         {
-            if (tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_DEBOUNCE)) {
-                tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
-                return TC_SINK_ATTACHED;
-            }
-        }
-        else
-        {
-            if (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::NONE) {
-                // Signal completely lost
-                return TC_DETACHED;
-            }
-            // If CCx unstable (changed) or not satisfy requirements - restart
-            // debounce interval.
-            tc.sink.timers.start(PD_TIMEOUT::TC_CC_DEBOUNCE);
+            tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
+            return TC_SINK_ATTACHED;
         }
 
-        // Not yet debounced => rearm polling
         tc.prev_cc1 = cc1;
         tc.prev_cc2 = cc2;
-        tc.tcpc.req_cc_both();
         tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
@@ -146,7 +133,6 @@ public:
     void on_exit_state() override {
         auto& sink = get_fsm_context().sink;
         sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
-        sink.timers.stop(PD_TIMEOUT::TC_CC_DEBOUNCE);
     }
 };
 

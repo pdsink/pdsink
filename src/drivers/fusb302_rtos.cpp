@@ -149,6 +149,19 @@ bool Fusb302Rtos::fusb_scan_cc() {
     sw0.MEAS_CC2 = backup_cc2;
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
+    if (emulate_vbus_ok) {
+        vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
+
+        auto prev_vbus_ok = vbus_ok.load();
+        vbus_ok.store((cc1_cache != TCPC_CC_LEVEL::NONE) ||
+                      (cc2_cache != TCPC_CC_LEVEL::NONE));
+
+        if (vbus_ok.load() != prev_vbus_ok) {
+            DRV_LOG("Emulator: VBUS changed by CC1/CC2 scan");
+            msg_router->receive(MsgTcpcWakeup());
+        }
+    }
+
     return true;
 }
 
@@ -312,13 +325,15 @@ bool Fusb302Rtos::handle_interrupt() {
         HAL_FAIL_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
         HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
 
-        // Skip interrupt.I_ACTIVITY check to avoid lockouts after switch.
-        // We have data anyway, just use for update
+        if (interrupt.I_ACTIVITY) {
+            DRV_LOG("IRQ: activity detected");
+            // ANY toggle => pop last activity mark
+            last_activity_ts = get_timestamp();
+        }
         activity_on = status0.ACTIVITY;
-        if (activity_on) { last_activity_ts = get_timestamp(); }
 
         if (interrupt.I_VBUSOK) {
-            status0.VBUSOK ? flags.set(DRV_FLAG::VBUS_OK) : flags.clear(DRV_FLAG::VBUS_OK);
+            vbus_ok.store(status0.VBUSOK);
             DRV_LOG("IRQ: VBUS changed");
             msg_router->receive(MsgTcpcWakeup());
         }
@@ -363,42 +378,41 @@ bool Fusb302Rtos::handle_interrupt() {
 }
 
 bool Fusb302Rtos::handle_get_active_cc() {
-    if (!flags.test(DRV_FLAG::ENQUIRED_REQ_CC_ACTIVE)) { return true; }
-
     if (polarity == TCPC_POLARITY::NONE) {
-        DRV_ERR("Can't get active CC without polarity set");
-        flags.clear(DRV_FLAG::ENQUIRED_REQ_CC_ACTIVE);
-        state.clear(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
-        return false;
+        DRV_ERR("Can't get active CC without polarity set, ignore request");
+        return true;
     }
 
-    // tPDDebounce of Type-C spec + 10ms for sure
-#if PD_TIMER_RESOLUTION_US != 0
-    static constexpr uint32_t DEBOUNCE_PERIOD_MS = 30 * 1000;
-#else
-    static constexpr uint32_t DEBOUNCE_PERIOD_MS = 30;
-#endif
+    static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
 
-    if (get_timestamp() < last_activity_ts + DEBOUNCE_PERIOD_MS) { return true; }
+    if (get_timestamp() < last_activity_ts + DEBOUNCE_PERIOD_MS) { return false; }
 
     // Wrap BC_LVL fetch with direct ACTIVITY check to avoid false values
     Status0 status0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    if (status0.ACTIVITY) { activity_on = true; return true; }
+    if (status0.ACTIVITY) { activity_on = true; return false; }
 
     auto bc_lvl = status0.BC_LVL;
 
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    if (status0.ACTIVITY) { activity_on = true; return true; }
+    if (status0.ACTIVITY) { activity_on = true; return false; }
 
-    if (polarity == TCPC_POLARITY::CC1) {
-        cc1_cache = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
-    } else {
-        cc2_cache = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
+    auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
+
+    if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
+    else { cc2_cache = cc_new; }
+
+    if (emulate_vbus_ok) {
+        vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
+
+        auto prev_vbus_ok = vbus_ok.load();
+        vbus_ok.store(cc_new != TCPC_CC_LEVEL::NONE);
+
+        if (vbus_ok.load() != prev_vbus_ok) {
+            DRV_LOG("Emulator: VBUS changed by Active CC");
+            msg_router->receive(MsgTcpcWakeup());
+        }
     }
-
-    flags.clear(DRV_FLAG::ENQUIRED_REQ_CC_ACTIVE);
-    state.clear(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
     return true;
 }
 
@@ -410,35 +424,63 @@ bool Fusb302Rtos::handle_timer() {
     if (activity_on) { last_activity_ts = get_timestamp(); }
 
     if (emulate_vbus_ok) {
-        // In VBUS_OK emulation mode schedule read every 50ms
-        emulate_vbus_counter++;
-        if (emulate_vbus_counter == 0) {
-            if (polarity == TCPC_POLARITY::NONE) {
-                fusb_scan_cc();
-            } else {
-                flags.set(DRV_FLAG::ENQUIRED_REQ_CC_ACTIVE);
+        // In VBUS_OK emulation mode enforce probe requests
+        static constexpr uint32_t ACTIVE_CC_DEBOUNCE_MS = 100;
+        static constexpr uint32_t FULL_CC_SCAN_DEBOUNCE_MS = 40;
+
+        // Rearm CC requests if debounce interval passed
+        if (polarity == TCPC_POLARITY::NONE) {
+            if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + FULL_CC_SCAN_DEBOUNCE_MS) &&
+                (sem_req_cc_scan.load() == 0)) {
+                sem_req_cc_scan.fetch_add(1);
+            }
+        } else {
+            if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + ACTIVE_CC_DEBOUNCE_MS) &&
+                (sem_req_cc_active.load() == 0)) {
+                sem_req_cc_active.fetch_add(1);
             }
         }
     }
 
-    handle_get_active_cc();
+    // "Tasks"
+
+    if (sem_req_cc_scan.load()) {
+        auto sem_ver = sem_req_cc_scan.load();
+        while (1) {
+            if (!fusb_scan_cc()) { break; }
+            vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
+            if (sem_req_cc_scan.compare_exchange_strong(sem_ver, 0)) {
+                state.clear(TCPC_CALL_FLAG::REQ_CC_BOTH);
+                msg_router->receive(MsgTcpcWakeup());
+                break;
+            }
+        }
+    }
+
+    if (sem_req_cc_active.load()) {
+        auto sem_ver = sem_req_cc_active.load();
+        while (1) {
+            // on failure - postpone to next tick
+            if (!handle_get_active_cc()) { break; }
+            vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
+
+            if (sem_req_cc_active.compare_exchange_strong(sem_ver, 0)) {
+                state.clear(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
+                msg_router->receive(MsgTcpcWakeup());
+                break;
+            }
+        }
+    }
 
     msg_router->receive(MsgTimerEvent());
     return true;
 }
 
 bool Fusb302Rtos::handle_tcpc_calls() {
+    // Simple requests
     while (flags.test_and_clear(DRV_FLAG::API_CALL)) {
-        // REQ_CC_ACTIVE processed in timer handler
-
         if (flags.test_and_clear(DRV_FLAG::ENQUIRED_HR_SEND)) {
             fusb_hr_send_begin();
-        }
-
-        if (state.test(TCPC_CALL_FLAG::REQ_CC_BOTH)) {
-            DRV_FAIL_ON_ERROR(fusb_scan_cc());
-            state.clear(TCPC_CALL_FLAG::REQ_CC_BOTH);
-            msg_router->receive(MsgTcpcWakeup());
         }
 
         if (state.test(TCPC_CALL_FLAG::SET_POLARITY)) {
@@ -466,6 +508,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
             DRV_FAIL_ON_ERROR(fusb_tx_pkt());
         }
     }
+
     return true;
 }
 
@@ -519,14 +562,13 @@ void Fusb302Rtos::notify_task() {
 
 void Fusb302Rtos::req_cc_both() {
     state.set(TCPC_CALL_FLAG::REQ_CC_BOTH);
-    flags.set(DRV_FLAG::API_CALL);
+    sem_req_cc_scan.fetch_add(1);
     notify_task();
 }
 
 void Fusb302Rtos::req_cc_active() {
     state.set(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
-    flags.set(DRV_FLAG::ENQUIRED_REQ_CC_ACTIVE);
-    flags.set(DRV_FLAG::API_CALL);
+    sem_req_cc_active.fetch_add(1);
     notify_task();
 }
 
@@ -550,32 +592,7 @@ auto Fusb302Rtos::get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type {
 }
 
 bool Fusb302Rtos::is_vbus_ok() {
-    // Normal mode - value updated by VBUS_OK interrupt.
-    if (!emulate_vbus_ok) { return flags.test(DRV_FLAG::VBUS_OK); }
-
-    // Experimental detecting VBUS_OK via CC1/CC2, to keep VBUS pin unattached.
-    //
-    // Reasons: fusb302b expects 21v max at VBUS pin. With 28v abs max. That's
-    // too risky for EPR 28v mode, and too much for higher EPR voltages. With
-    // emulation VBUS PIN and be unattached, to keep hw simple.
-    //
-    // WARNING! This does NOT fit PD spec, and not guaranteed to work. May be
-    // dropped in future.
-
-    // When active polarity selected, another CC pin can be used for VCONN.
-    // So, it's important to check the proper CC.
-    if (polarity == TCPC_POLARITY::CC1) {
-        return (get_cc(TCPC_CC::CC1) != TCPC_CC_LEVEL::NONE);
-    } else if (polarity == TCPC_POLARITY::CC2) {
-        return (get_cc(TCPC_CC::CC2) != TCPC_CC_LEVEL::NONE);
-    }
-
-    // Without selected polarity, check both lines.
-    //
-    // TODO: probably, we sould embed request_cc_both() here, to hide
-    // implementation details from TC class.
-    return (get_cc(TCPC_CC::CC1) != TCPC_CC_LEVEL::NONE ||
-            get_cc(TCPC_CC::CC2) != TCPC_CC_LEVEL::NONE);
+    return vbus_ok.load();
 }
 
 void Fusb302Rtos::set_polarity(TCPC_POLARITY::Type active_cc) {

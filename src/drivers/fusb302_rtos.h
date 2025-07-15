@@ -41,13 +41,11 @@ namespace DRV_FLAG {
     enum Type {
         FUSB_SETUP_DONE,
         FUSB_SETUP_FAILED,
-        VBUS_OK,
         TIMER_EVENT,
 
         API_CALL,
-        ENQUIRED_REQ_CC_ACTIVE,
-        ENQUIRED_TRANSMIT,
         ENQUIRED_HR_SEND,
+        ENQUIRED_TRANSMIT,
 
         FLAGS_COUNT
     };
@@ -130,13 +128,16 @@ private:
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
     bool emulate_vbus_ok;
-    etl::cyclic_value<uint32_t, 0, 49> emulate_vbus_counter{0};
+    uint64_t vbus_ok_emulator_last_measure_ts{0};
 
     TCPC_STATE state{};
     spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
+    etl::atomic<bool> vbus_ok{false};
+    etl::atomic<uint32_t> sem_req_cc_active{0};
+    etl::atomic<uint32_t> sem_req_cc_scan{0};
     // Marks of signal activity, to measure CC at safe periods
     bool activity_on{false};
     uint64_t last_activity_ts{0};
