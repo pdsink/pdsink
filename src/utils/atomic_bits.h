@@ -82,16 +82,6 @@ public:
         }
     }
 
-    template<typename T, size_t N>
-    void set_many(const etl::array<T, N>& indices) {
-        for(const auto& idx : indices) { set(idx); }
-    }
-
-    template<typename T, size_t N>
-    void clear_many(const etl::array<T, N>& indices) {
-        for(const auto& idx : indices) { clear(idx); }
-    }
-
 private:
     etl::array<etl::atomic<StorageType>, STORAGE_SIZE> storage;
 };
