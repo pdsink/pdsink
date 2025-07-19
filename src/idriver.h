@@ -98,17 +98,24 @@ namespace SOP_TYPE {
 //
 // TCPC event messages
 //
-class MsgTcpcHardReset : public etl::message<0> {};
+enum msg_driver_id {
+    MSG_TCPC_HARD_RESET = 20,
+    MSG_TCPC_WAKEUP,
+    MSG_TCPC_TRANSMIT_STATUS,
+    MSG_TIMER_EVENT,
+};
 
-class MsgTcpcWakeup : public etl::message<1> {};
+class MsgTcpcHardReset : public etl::message<MSG_TCPC_HARD_RESET> {};
 
-class MsgTcpcTransmitStatus : public etl::message<2> {
+class MsgTcpcWakeup : public etl::message<MSG_TCPC_WAKEUP> {};
+
+class MsgTcpcTransmitStatus : public etl::message<MSG_TCPC_TRANSMIT_STATUS> {
 public:
     explicit MsgTcpcTransmitStatus(TCPC_TRANSMIT_STATUS::Type status) : status{status} {}
     TCPC_TRANSMIT_STATUS::Type status;
 };
 
-class MsgTimerEvent : public etl::message<3> {};
+class MsgTimerEvent : public etl::message<MSG_TIMER_EVENT> {};
 
 //
 // Interfaces

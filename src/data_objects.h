@@ -30,14 +30,21 @@ namespace PD_EVENT {
     };
 }; // namespace PD_EVENT
 
-class MsgPdEvents : public etl::message<0> {
+enum msg_common_id {
+    MSG_COMMON_PD_EVENTS = 10,
+    MSG_COMMON_TRANSIT_TO,
+};
+
+// Emitted by Sink
+class MsgPdEvents : public etl::message<MSG_COMMON_PD_EVENTS> {
 public:
     explicit MsgPdEvents(uint32_t events) : value{events} {}
     uint32_t value;
     inline bool has_timeout() const { return value & PD_EVENT::TIMER; }
 };
 
-class MsgTransitTo : public etl::message<1> {
+// Used to force PE & PRL state change
+class MsgTransitTo : public etl::message<MSG_COMMON_TRANSIT_TO> {
 public:
     explicit MsgTransitTo(int state) : state_id{state} {}
     const int state_id;

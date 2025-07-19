@@ -6,10 +6,13 @@
 
 namespace pd {
 
+//
 // Messages for DPM notifications
+//
+
 enum msg_dpm_id {
     // Generic events
-    MSG_DPM_STARTUP,
+    MSG_DPM_STARTUP = 200,
     MSG_DPM_TRANSIT_TO_DEFAULT,
     MSG_DPM_SRC_CAPS_RECEIVED,
     MSG_DPM_SELECT_CAP_DONE,
@@ -75,7 +78,15 @@ class MsgDpm_Idle : public etl::message<MSG_DPM_IDLE> {};
 class Sink;
 class PE;
 
-class DPM {
+class IDPM {
+public:
+    virtual uint32_t get_request_data_object() = 0;
+    virtual PDO_LIST get_sink_pdo_list() = 0;
+    virtual uint32_t get_epr_watts() = 0;
+    virtual void notify(const etl::imessage& msg) = 0;
+};
+
+class DPM : public IDPM {
 public:
     DPM(Sink& sink, PE& pe);
 

@@ -14,7 +14,7 @@ namespace pd {
 
 class TC;
 class PE;
-class DPM;
+class IDPM;
 class PRL;
 
 class Sink {
@@ -33,7 +33,7 @@ public:
     IDriver* driver{nullptr};
     TC* tc{nullptr};
     PE* pe{nullptr};
-    DPM* dpm{nullptr};
+    IDPM* dpm{nullptr};
     PRL* prl{nullptr};
 
     // Disable unexpected use

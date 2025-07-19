@@ -17,8 +17,13 @@ class Sink;
 namespace fusb302 {
 
 // Hal messages to TCPC
-class MsgHal_Timer : public etl::message<0> {};
-class MsgHal_Interrupt : public etl::message<1> {};
+
+enum msg_hal_id {
+    MSG_HAL_TIMER = 30,
+    MSG_HAL_INTERRUPT,
+};
+class MsgHal_Timer : public etl::message<MSG_HAL_TIMER> {};
+class MsgHal_Interrupt : public etl::message<MSG_HAL_INTERRUPT> {};
 
 // Interface to abstract hardware use.
 class IFusb302RtosHal {
