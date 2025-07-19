@@ -31,9 +31,6 @@ public:
     virtual bool write_reg(uint8_t reg, uint8_t data) = 0;
     virtual bool read_block(uint8_t reg, uint8_t *data, uint32_t size) = 0;
     virtual bool write_block(uint8_t reg, uint8_t *data, uint32_t size) = 0;
-    virtual bool set_bits(uint8_t reg, uint8_t mask) = 0;
-    virtual bool clear_bits(uint8_t reg, uint8_t mask) = 0;
-
     virtual bool is_interrupt_active() = 0;
 };
 

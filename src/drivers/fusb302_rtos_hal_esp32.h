@@ -20,8 +20,6 @@ public:
     bool write_reg(uint8_t reg, uint8_t data) override;
     bool read_block(uint8_t reg, uint8_t *data, uint32_t size) override;
     bool write_block(uint8_t reg, uint8_t *data, uint32_t size) override;
-    bool set_bits(uint8_t reg, uint8_t bits) override;
-    bool clear_bits(uint8_t reg, uint8_t bits) override;
     bool is_interrupt_active() override;
 
     ~Fusb302RtosHalEsp32();

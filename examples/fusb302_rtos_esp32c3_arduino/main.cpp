@@ -32,6 +32,9 @@ void setup() {
     // Heater off.
     pinMode(20, OUTPUT); digitalWrite(20, LOW);
 
+    // Activate PD stack
+    sink.start();
+
     LOG_INFO("Setup complete");
 }
 

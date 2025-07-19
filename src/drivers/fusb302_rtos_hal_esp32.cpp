@@ -126,24 +126,6 @@ bool Fusb302RtosHalEsp32::write_reg(uint8_t reg, uint8_t data) {
     return write_block(reg, &data, 1);
 }
 
-bool Fusb302RtosHalEsp32::set_bits(uint8_t reg, uint8_t bits) {
-    if (!started) return false;
-
-    uint8_t data;
-    if (!read_reg(reg, data)) { return false; }
-    data |= bits;
-    return write_reg(reg, data);
-}
-
-bool Fusb302RtosHalEsp32::clear_bits(uint8_t reg, uint8_t bits) {
-    if (!started) return false;
-
-    uint8_t data;
-    if (!read_reg(reg, data)) { return false; }
-    data &= ~bits;
-    return write_reg(reg, data);
-}
-
 } // namespace fusb302
 
 } // namespace pd
