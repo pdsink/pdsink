@@ -8,7 +8,7 @@ namespace pd {
 
 void Sink::loop() {
     do {
-        if (!loop_flags.test_and_set(IS_IN_LOOP_FL)) {
+        if (loop_flags.test_and_set(IS_IN_LOOP_FL)) {
             // If processing in progress - postpone call to avoid recursion.
             loop_flags.set(HAS_DEFERRED_FL);
             return;
