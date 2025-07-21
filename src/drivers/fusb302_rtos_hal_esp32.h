@@ -1,6 +1,7 @@
 #pragma once
 
 #include <driver/gpio.h>
+#include <driver/i2c.h>
 #include <esp_timer.h>
 #include "fusb302_rtos.h"
 #include "fusb302_regs.h"
@@ -22,10 +23,20 @@ public:
 
     ~Fusb302RtosHalEsp32();
 
+    // Prohibit copy/move because class have interrupt callbacks
+    // and manages hardware resources.
+    Fusb302RtosHalEsp32(const Fusb302RtosHalEsp32&) = delete;
+    Fusb302RtosHalEsp32& operator=(const Fusb302RtosHalEsp32&) = delete;
+    Fusb302RtosHalEsp32(Fusb302RtosHalEsp32&&) = delete;
+    Fusb302RtosHalEsp32& operator=(Fusb302RtosHalEsp32&&) = delete;
+    Fusb302RtosHalEsp32() = default;
+
 protected:
     gpio_num_t sda_io_pin{GPIO_NUM_5};
     gpio_num_t scl_io_pin{GPIO_NUM_6};
     gpio_num_t int_io_pin{GPIO_NUM_7};
+    i2c_port_t i2c_num{I2C_NUM_0};
+    uint32_t i2c_freq{400000}; // 400kHz
     uint8_t i2c_address{ChipAddress::FUSB302B};
 
     etl::imessage_router* msg_router{nullptr};

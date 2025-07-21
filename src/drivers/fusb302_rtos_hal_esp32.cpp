@@ -2,7 +2,6 @@
 
 #if defined(USE_FUSB302_RTOS_HAL_ESP32)
 
-#include <driver/i2c.h>
 #include "fusb302_rtos_hal_esp32.h"
 
 namespace pd {
@@ -33,10 +32,10 @@ void Fusb302RtosHalEsp32::init_pins() {
     conf.scl_io_num = scl_io_pin;
     conf.sda_pullup_en = GPIO_PULLUP_DISABLE;
     conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
-    conf.master.clk_speed = 400000;
+    conf.master.clk_speed = i2c_freq;
 
-    ESP_ERROR_CHECK(i2c_param_config(I2C_NUM_0, &conf));
-    ESP_ERROR_CHECK(i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0));
+    ESP_ERROR_CHECK(i2c_param_config(i2c_num, &conf));
+    ESP_ERROR_CHECK(i2c_driver_install(i2c_num, conf.mode, 0, 0, 0));
 
     // fusb302 interrupt pin
     gpio_config_t io_conf = {};

@@ -38,7 +38,6 @@ Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal, bool emulate_vbus_ok)
     : sink{sink}, hal{hal}, emulate_vbus_ok{emulate_vbus_ok}
 {
     sink.driver = this;
-    hal.set_msg_router(hal_msg_handler);
 }
 
 bool Fusb302Rtos::fusb_setup() {
@@ -533,6 +532,7 @@ void Fusb302Rtos::start() {
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
 
+    hal.set_msg_router(hal_msg_handler);
     hal.start();
     started = true;
 }
