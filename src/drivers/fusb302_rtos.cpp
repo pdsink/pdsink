@@ -121,8 +121,8 @@ bool Fusb302Rtos::fusb_scan_cc() {
     Status0 status0;
 
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
-    auto backup_cc1 = sw0.MEAS_CC1;
-    auto backup_cc2 = sw0.MEAS_CC2;
+    const auto backup_cc1 = sw0.MEAS_CC1;
+    const auto backup_cc2 = sw0.MEAS_CC2;
 
     // Measure CC1
     sw0.MEAS_CC1 = 1;
@@ -206,7 +206,9 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
-    DRV_LOG("Polarity selected");
+    if (enable) { DRV_LOG("BMC attached, polarity selected"); }
+    else { DRV_LOG("BMC detached"); }
+
     return true;
 }
 
@@ -227,9 +229,9 @@ bool Fusb302Rtos::fusb_tx_pkt() {
     fifo_buf.push_back(TX_TKN::SOP1);
     fifo_buf.push_back(TX_TKN::SOP2);
 
-    // PACKSYM with data size
-    auto pack_sym = TX_TKN::PACKSYM;
-    pack_sym |= (call_arg_transmit.data_size() + 2); // data + header
+    uint8_t pack_sym = TX_TKN::PACKSYM;
+    // Add data size (+ 2 for header)
+    pack_sym |= (call_arg_transmit.data_size() + 2);
     fifo_buf.push_back(pack_sym);
 
     // Msg header
@@ -390,12 +392,12 @@ bool Fusb302Rtos::handle_get_active_cc() {
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     if (status0.ACTIVITY) { activity_on = true; return false; }
 
-    auto bc_lvl = status0.BC_LVL;
+    const auto bc_lvl = status0.BC_LVL;
 
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     if (status0.ACTIVITY) { activity_on = true; return false; }
 
-    auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
+    const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
 
     if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
     else { cc2_cache = cc_new; }
@@ -532,13 +534,13 @@ void Fusb302Rtos::start() {
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
 
+    started = true;
+
     hal.set_event_handler(
-        hal_event_handler_t::template create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
+        hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
     );
 
     hal.start();
-
-    started = true;
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {

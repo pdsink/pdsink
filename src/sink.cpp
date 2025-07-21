@@ -54,7 +54,7 @@ void Sink::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
     timers.set_time_provider(
-        Timers::GetTimeFunc::template create<ITimer, &ITimer::get_timestamp>(*driver)
+        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(*driver)
     );
 
     driver->start();

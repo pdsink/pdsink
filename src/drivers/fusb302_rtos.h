@@ -29,13 +29,13 @@ using hal_event_handler_t = etl::delegate<void(HAL_EVENT_TYPE, bool)>;
 class IFusb302RtosHal {
 public:
     virtual void start() = 0;
-    virtual void set_event_handler(hal_event_handler_t handler) = 0;
+    virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
     virtual uint64_t get_timestamp() = 0;
 
     virtual bool read_reg(uint8_t reg, uint8_t& data) = 0;
     virtual bool write_reg(uint8_t reg, uint8_t data) = 0;
     virtual bool read_block(uint8_t reg, uint8_t *data, uint32_t size) = 0;
-    virtual bool write_block(uint8_t reg, uint8_t *data, uint32_t size) = 0;
+    virtual bool write_block(uint8_t reg, const uint8_t *data, uint32_t size) = 0;
     virtual bool is_interrupt_active() = 0;
 };
 
@@ -61,6 +61,14 @@ class Fusb302Rtos;
 class Fusb302Rtos : public IDriver {
 public:
     Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal, bool emulate_vbus_ok = false);
+
+    // Prohibit copy/move because class manages FreeRTOS tasks,
+    // hardware resources, and contains callback references.
+    Fusb302Rtos(const Fusb302Rtos&) = delete;
+    Fusb302Rtos& operator=(const Fusb302Rtos&) = delete;
+    Fusb302Rtos(Fusb302Rtos&&) = delete;
+    Fusb302Rtos& operator=(Fusb302Rtos&&) = delete;
+
     void start() override;
     void set_msg_router(etl::imessage_router& router) override {
         msg_router = &router;
