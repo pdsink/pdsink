@@ -6,6 +6,14 @@ namespace pd {
 
 namespace fusb302 {
 
+namespace ChipAddress {
+    // 7-bit addresses for FUSB302B family
+    static constexpr uint8_t FUSB302B = 0x22;
+    static constexpr uint8_t FUSB302B01 = 0x23;
+    static constexpr uint8_t FUSB302B10 = 0x24;
+    static constexpr uint8_t FUSB302B11 = 0x25;
+}
+
 union DeviceID {
     struct {
         uint8_t REVISION_ID : 2;

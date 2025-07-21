@@ -3,6 +3,7 @@
 #include <driver/gpio.h>
 #include <esp_timer.h>
 #include "fusb302_rtos.h"
+#include "fusb302_regs.h"
 
 namespace pd {
 
@@ -10,9 +11,6 @@ namespace fusb302 {
 
 class Fusb302RtosHalEsp32 : public IFusb302RtosHal {
 public:
-    Fusb302RtosHalEsp32() :
-        sda_io_pin{GPIO_NUM_5}, scl_io_pin{GPIO_NUM_6}, int_io_pin{GPIO_NUM_7}
-    {}
     void set_msg_router(etl::imessage_router& router) { msg_router = &router; };
     void start() override;
     uint64_t get_timestamp() override;
@@ -25,9 +23,10 @@ public:
     ~Fusb302RtosHalEsp32();
 
 protected:
-    gpio_num_t sda_io_pin;
-    gpio_num_t scl_io_pin;
-    gpio_num_t int_io_pin;
+    gpio_num_t sda_io_pin{GPIO_NUM_5};
+    gpio_num_t scl_io_pin{GPIO_NUM_6};
+    gpio_num_t int_io_pin{GPIO_NUM_7};
+    uint8_t i2c_address{ChipAddress::FUSB302B};
 
     etl::imessage_router* msg_router{nullptr};
     esp_timer_handle_t timer_handle;

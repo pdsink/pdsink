@@ -4,7 +4,6 @@
 
 #include <driver/i2c.h>
 #include "fusb302_rtos_hal_esp32.h"
-#include "fusb302_regs.h"
 
 namespace pd {
 
@@ -92,10 +91,10 @@ bool Fusb302RtosHalEsp32::read_block(uint8_t reg, uint8_t *data, uint32_t size) 
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (fusb302::DeviceID::addr << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, (i2c_address << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, reg, true);
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (fusb302::DeviceID::addr << 1) | I2C_MASTER_READ, true);
+    i2c_master_write_byte(cmd, (i2c_address << 1) | I2C_MASTER_READ, true);
     i2c_master_read(cmd, data, size, I2C_MASTER_LAST_NACK);
     i2c_master_stop(cmd);
     esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
@@ -109,7 +108,7 @@ bool Fusb302RtosHalEsp32::write_block(uint8_t reg, uint8_t *data, uint32_t size)
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (fusb302::DeviceID::addr << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, (i2c_address << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, reg, true);
     i2c_master_write(cmd, data, size, true);
     i2c_master_stop(cmd);
