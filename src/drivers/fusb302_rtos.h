@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include <etl/atomic.h>
 #include <etl/cyclic_value.h>
+#include <etl/delegate.h>
 
 #include "pd_conf.h"
 #include "idriver.h"
@@ -18,18 +19,17 @@ namespace fusb302 {
 
 // Hal messages to TCPC
 
-enum msg_hal_id {
-    MSG_HAL_TIMER = 30,
-    MSG_HAL_INTERRUPT,
+enum class HAL_EVENT_TYPE {
+    Timer,
+    FUSB302_Interrupt
 };
-class MsgHal_Timer : public etl::message<MSG_HAL_TIMER> {};
-class MsgHal_Interrupt : public etl::message<MSG_HAL_INTERRUPT> {};
+using hal_event_handler_t = etl::delegate<void(HAL_EVENT_TYPE, bool)>;
 
 // Interface to abstract hardware use.
 class IFusb302RtosHal {
 public:
     virtual void start() = 0;
-    virtual void set_msg_router(etl::imessage_router& router) = 0;
+    virtual void set_event_handler(hal_event_handler_t handler) = 0;
     virtual uint64_t get_timestamp() = 0;
 
     virtual bool read_reg(uint8_t reg, uint8_t& data) = 0;
@@ -56,16 +56,6 @@ namespace DRV_FLAG {
 
 class Fusb302Rtos;
 
-class HalMsgHandler : public etl::message_router<HalMsgHandler, MsgHal_Timer, MsgHal_Interrupt> {
-public:
-    HalMsgHandler(Fusb302Rtos& drv);
-    void on_receive(const MsgHal_Timer& msg);
-    void on_receive(const MsgHal_Interrupt& msg);
-    void on_receive_unknown(const etl::imessage& msg);
-private:
-    Fusb302Rtos& drv;
-};
-
 // This class implements generic FUSB302B logic, and relies on FreeRTOS
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
@@ -75,10 +65,6 @@ public:
     void set_msg_router(etl::imessage_router& router) override {
         msg_router = &router;
     };
-    void pass_up(const etl::imessage& msg) {
-        if (msg_router) { msg_router->receive(msg); }
-    }
-    void kick_task();
 
     //
     // TCPC
@@ -113,6 +99,12 @@ private:
     bool handle_tcpc_calls();
     bool handle_get_active_cc();
 
+    void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);
+    void pass_up(const etl::imessage& msg) {
+        if (msg_router) { msg_router->receive(msg); }
+    }
+    void kick_task(bool from_isr = false);
+
     bool fusb_setup();
     bool fusb_set_polarity(TCPC_POLARITY::Type polarity);
     bool fusb_set_rx_enable(bool enable);
@@ -128,7 +120,6 @@ private:
     Sink& sink;
     IFusb302RtosHal& hal;
     etl::imessage_router* msg_router{nullptr};
-    HalMsgHandler hal_msg_handler{*this};
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 

@@ -12,7 +12,7 @@ namespace fusb302 {
 
 class Fusb302RtosHalEsp32 : public IFusb302RtosHal {
 public:
-    void set_msg_router(etl::imessage_router& router) { msg_router = &router; };
+    void set_event_handler(hal_event_handler_t h) { event_cb = h; }
     void start() override;
     uint64_t get_timestamp() override;
     bool read_reg(uint8_t reg, uint8_t& data) override;
@@ -39,7 +39,7 @@ protected:
     uint32_t i2c_freq{400000}; // 400kHz
     uint8_t i2c_address{ChipAddress::FUSB302B};
 
-    etl::imessage_router* msg_router{nullptr};
+    hal_event_handler_t event_cb;
     esp_timer_handle_t timer_handle;
     bool started{false};
 

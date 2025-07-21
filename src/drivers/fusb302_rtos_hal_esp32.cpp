@@ -12,8 +12,9 @@ void Fusb302RtosHalEsp32::init_timer() {
     esp_timer_create_args_t timer_args = {
         .callback = [](void* arg) {
             auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-            if (self->msg_router == nullptr) { return; }
-            self->msg_router->receive(MsgHal_Timer{});
+            if (self->event_cb) {
+                self->event_cb(HAL_EVENT_TYPE::Timer, false);
+            }
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
@@ -47,8 +48,9 @@ void Fusb302RtosHalEsp32::init_pins() {
 
     auto handler = [](void* arg) -> void {
         auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-        if (self->msg_router == nullptr) { return; }
-        self->msg_router->receive(MsgHal_Interrupt{});
+        if (self->event_cb) {
+            self->event_cb(HAL_EVENT_TYPE::FUSB302_Interrupt, true);
+        }
     };
 
     gpio_install_isr_service(0);

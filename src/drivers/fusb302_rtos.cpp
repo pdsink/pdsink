@@ -532,24 +532,32 @@ void Fusb302Rtos::start() {
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
 
-    hal.set_msg_router(hal_msg_handler);
+    hal.set_event_handler(
+        hal_event_handler_t::template create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
+    );
+
     hal.start();
+
     started = true;
 }
 
-void Fusb302Rtos::kick_task() {
+void Fusb302Rtos::kick_task(bool from_isr) {
     if (!started) { return; }
     if (!xWaitingTaskHandle) { return; }
 
-    if (xPortInIsrContext()) {
-        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        vTaskNotifyGiveFromISR(xWaitingTaskHandle, &xHigherPriorityTaskWoken);
-        if (xHigherPriorityTaskWoken != pdFALSE) {
-            portYIELD_FROM_ISR();
-        }
+    if (from_isr) {
+        BaseType_t woken = pdFALSE;
+        vTaskNotifyGiveFromISR(xWaitingTaskHandle, &woken);
+        if (woken != pdFALSE) { portYIELD_FROM_ISR(); }
     } else {
         xTaskNotifyGive(xWaitingTaskHandle);
     }
+}
+
+void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
+    if (event == HAL_EVENT_TYPE::Timer) { flags.set(DRV_FLAG::TIMER_EVENT); }
+
+    kick_task(from_isr);
 }
 
 //
@@ -629,22 +637,6 @@ void Fusb302Rtos::hr_send() {
     flags.set(DRV_FLAG::ENQUIRED_HR_SEND);
     flags.set(DRV_FLAG::API_CALL);
     kick_task();
-}
-
-HalMsgHandler::HalMsgHandler(Fusb302Rtos& drv) : drv{drv} {}
-
-void HalMsgHandler::on_receive(const MsgHal_Timer& msg) {
-    drv.flags.set(DRV_FLAG::TIMER_EVENT);
-    drv.kick_task();
-}
-
-void HalMsgHandler::on_receive(const MsgHal_Interrupt& msg) {
-    // fusb302 interrupt is level-based. No need to set extra flag.
-    drv.kick_task();
-}
-
-void HalMsgHandler::on_receive_unknown(const etl::imessage& msg) {
-    DRV_ERR("Unknown event from HAL, id: {}", msg.get_message_id());
 }
 
 } // namespace fusb302
