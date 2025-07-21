@@ -225,4 +225,25 @@ auto DPM::get_request_data_object() -> uint32_t {
     return rdo.raw_value;
 }
 
+void DPM::trigger_fixed(uint32_t mv) {
+    trigger_mv = mv;
+    trigger_mode = FIXED;
+
+    // If explicit contract already exists, request new power level
+    if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+        pe.dpm_requests.set(DPM_REQUEST::NEW_POWER_LEVEL);
+    }
+}
+void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
+    trigger_mv = mv;
+    trigger_ma = ma;
+    trigger_mode = SPR_PPS;
+
+    // If explicit contract already exists, request new power level
+    if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+        pe.dpm_requests.set(DPM_REQUEST::NEW_POWER_LEVEL);
+    }
+}
+
+
 } // namespace pd

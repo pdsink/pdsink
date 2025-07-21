@@ -124,10 +124,8 @@ public:
     //
     // Sugar methods for simple mode select. You are not forced to use those.
     //
-    void trigger_fixed(uint32_t mv) { trigger_mv = mv; trigger_mode = FIXED; };
-    void trigger_spr_pps(uint32_t mv, uint32_t ma) {
-        trigger_mv = mv; trigger_ma = ma; trigger_mode = SPR_PPS;
-    };
+    void trigger_fixed(uint32_t mv);
+    void trigger_spr_pps(uint32_t mv, uint32_t ma);
 
     enum TRIGGER_MODE {
         INACTIVE,
