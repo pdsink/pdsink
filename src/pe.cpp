@@ -249,7 +249,7 @@ public:
         // By spec, we should request PDO on previous stage. But for sink-only
         // this place looks more convenient, as unified DPM point for all cases.
         // This decision can be changed later, if needed.
-        RDO_ANY rdo{.raw_value = pe.sink.dpm->get_request_data_object()};
+        RDO_ANY rdo{pe.sink.dpm->get_request_data_object()};
 
         // Prepare & send request, depending on SPR/EPR mode
         auto& msg = pe.get_tx_msg();
@@ -499,7 +499,7 @@ public:
                 case PD_DATA_MSGT::EPR_Mode: {
                     // SRC requested to exit EPR mode (should not happen, but
                     // allowed by the spec)
-                    EPRMDO eprmdo{.raw_value = msg.read32(0)};
+                    EPRMDO eprmdo{msg.read32(0)};
                     if (eprmdo.action == EPR_MODE_ACTION::EXIT) {
                         return PE_SNK_EPR_Mode_Exit_Received;
                     }
@@ -985,7 +985,7 @@ public:
         {
             auto& msg = pe.get_rx_msg();
             if (msg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
-                EPRMDO eprmdo{.raw_value = msg.read32(0)};
+                EPRMDO eprmdo{msg.read32(0)};
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_ACKNOWLEDGED) {
                     return PE_SNK_EPR_Mode_Entry_Wait_For_Response;
@@ -1030,7 +1030,7 @@ public:
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             auto& msg = pe.get_rx_msg();
             if (msg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
-                EPRMDO eprmdo{.raw_value = msg.read32(0)};
+                EPRMDO eprmdo{msg.read32(0)};
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_SUCCEEDED) {
                     pe.flags.set(PE_FLAG::IN_EPR_MODE);
@@ -1081,7 +1081,7 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        BISTDO bdo{.raw_value = pe.get_rx_msg().read32(0)};
+        BISTDO bdo{pe.get_rx_msg().read32(0)};
 
         if (bdo.mode == BIST_MODE::Carrier) {
             pe.tcpc.bist_carrier_enable(true);
@@ -1499,21 +1499,21 @@ auto PE::is_epr_mode_available() const -> bool {
         return false;
     }
 
-    const PDO_FIXED fisrt_src_pdo{.raw_value = source_caps[0]};
+    const PDO_FIXED fisrt_src_pdo{source_caps[0]};
 
     return fisrt_src_pdo.epr_capable;
 }
 
 auto PE::is_in_spr_contract() const -> bool {
-    const RDO_ANY rdo{.raw_value = rdo_contracted};
+    const RDO_ANY rdo{rdo_contracted};
     return flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) && (rdo.obj_position < 8);
 }
 
 auto PE::is_in_pps_contract() const -> bool {
     if (!flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
-    const RDO_ANY rdo{.raw_value = rdo_contracted};
-    const PDO_SPR_PPS pdo{.raw_value = source_caps[rdo.obj_position-1]};
+    const RDO_ANY rdo{rdo_contracted};
+    const PDO_SPR_PPS pdo{source_caps[rdo.obj_position-1]};
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
         pdo.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;

@@ -47,7 +47,7 @@ bool Fusb302Rtos::fusb_setup() {
     flags.set(DRV_FLAG::FUSB_SETUP_FAILED);
 
     // Reset chip
-    Reset rst{.raw_value = 0};
+    Reset rst{0};
     rst.SW_RES = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
 
@@ -58,26 +58,26 @@ bool Fusb302Rtos::fusb_setup() {
         id.VERSION_ID, id.PRODUCT_ID, id.REVISION_ID);
 
     // Power up all blocks
-    Power pwr{.raw_value = 0};
+    Power pwr{0};
     pwr.PWR = 0xF;
     HAL_FAIL_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
 
     // Setup interrupts
 
-    Mask1 mask{.raw_value = 0xFF};
+    Mask1 mask{0xFF};
     mask.M_COLLISION = 0;
     mask.M_ACTIVITY = 0; // used to debounce active CC levels reading
     if (!emulate_vbus_ok) { mask.M_VBUSOK = 0; }
     HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
 
-    Maska maska{.raw_value = 0xFF};
+    Maska maska{0xFF};
     maska.M_HARDRST = 0;
     maska.M_TXSENT = 0; // TX packet sent (and confirmed)
     maska.M_HARDSENT = 0;
     maska.M_RETRYFAIL = 0;
     HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
 
-    Maskb maskb{.raw_value = 0xFF};
+    Maskb maskb{0xFF};
     maskb.M_GCRCSENT = 0; // New RX packet (received + confirmed)
     HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
 
@@ -101,7 +101,7 @@ bool Fusb302Rtos::fusb_setup() {
 }
 
 bool Fusb302Rtos::fusb_flush_rx_fifo() {
-    Control1 ctrl1{.raw_value = 0};
+    Control1 ctrl1{0};
     HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
     ctrl1.RX_FLUSH = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
@@ -109,7 +109,7 @@ bool Fusb302Rtos::fusb_flush_rx_fifo() {
 }
 
 bool Fusb302Rtos::fusb_flush_tx_fifo() {
-    Control0 ctrl0{.raw_value = 0};
+    Control0 ctrl0{0};
     HAL_FAIL_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
     ctrl0.TX_FLUSH = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
@@ -339,7 +339,7 @@ bool Fusb302Rtos::handle_interrupt() {
 
         if (interrupta.I_HARDRST) {
             DRV_LOG("IRQ: hard reset received");
-            Reset rst{.raw_value = 0};
+            Reset rst{0};
             rst.PD_RESET = 1;
             HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
             // Cleanup buffers for sure

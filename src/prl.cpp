@@ -214,7 +214,7 @@ public:
             prl.rx_emsg.header = chunk.header;
 
             if (chunk.header.extended) {
-                PD_EXT_HEADER ehdr{.raw_value = chunk.read16(0)};
+                PD_EXT_HEADER ehdr{chunk.read16(0)};
 
                 if (ehdr.chunked && rch.prl.chunking()) {
                     // Spec says clear vars below in RCH_Processing_Extended_Message
@@ -272,7 +272,7 @@ public:
         auto& chunk = rch.prl.rx_chunk;
         auto& msg = rch.prl.rx_emsg;
 
-        PD_EXT_HEADER ehdr{.raw_value = chunk.read16(0)};
+        PD_EXT_HEADER ehdr{chunk.read16(0)};
 
         if (rch.prl.flags.test_and_clear(PRL_FLAG::ABORT)) {
             return RCH_Wait_For_Message_From_Protocol_Layer;
@@ -314,12 +314,12 @@ public:
 
         auto& chunk = prl.tx_chunk;
 
-        PD_HEADER hdr{.raw_value = 0};
+        PD_HEADER hdr{0};
         hdr.message_type = prl.rx_emsg.header.message_type;
         hdr.data_obj_count = 1;
         hdr.extended = 1;
 
-        PD_EXT_HEADER ehdr{.raw_value = 0};
+        PD_EXT_HEADER ehdr{0};
         ehdr.request_chunk = 1;
         ehdr.chunk_number = rch.chunk_number_expected;
         ehdr.chunked = 1;
@@ -561,7 +561,7 @@ public:
         int tail_len = prl.tx_emsg.data_size() - tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
         int chunk_data_len = etl::min(tail_len, MaxExtendedMsgChunkLen);
 
-        PD_EXT_HEADER ehdr{.raw_value = 0};
+        PD_EXT_HEADER ehdr{0};
         ehdr.data_size = prl.tx_emsg.data_size();
         ehdr.chunk_number = tch.chunk_number_to_send;
         ehdr.chunked = 1;
@@ -643,7 +643,7 @@ public:
 
         if (tch.flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
             if (prl.rx_emsg.header.extended) {
-                PD_EXT_HEADER ehdr{.raw_value = prl.rx_chunk.read16(0)};
+                PD_EXT_HEADER ehdr{prl.rx_chunk.read16(0)};
 
                 if (ehdr.request_chunk) {
                     if (ehdr.chunk_number == tch.chunk_number_to_send) {

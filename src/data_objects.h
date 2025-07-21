@@ -153,6 +153,7 @@ namespace PD_EXT_MSGT {
 
 // 6.2.1.1 Message Header
 union PD_HEADER {
+    uint16_t raw_value;
     struct {
         uint16_t message_type : 5;
         uint16_t port_data_role : 1; // SOP only, Reserved for SOP'/SOP"
@@ -162,12 +163,12 @@ union PD_HEADER {
         uint16_t data_obj_count : 3; // Number of data objects in the message
         uint16_t extended : 1;
     };
-    uint16_t raw_value;
 };
 
 
 // 6.2.1.2 Extended Message Header
 union PD_EXT_HEADER {
+    uint16_t raw_value;
     struct {
         uint16_t data_size : 9;
         uint16_t : 1; // reserved
@@ -175,7 +176,6 @@ union PD_EXT_HEADER {
         uint16_t chunk_number : 4;
         uint16_t chunked : 1;
     };
-    uint16_t raw_value;
 };
 
 
@@ -215,6 +215,7 @@ namespace PDO_AUGMENTED_SUBTYPE {
 // [rev3.2] 6.4.1.2.1 Fixed Supply Power Data Object
 // Table 6.9
 union PDO_FIXED {
+    uint32_t raw_value;
     struct {
         uint32_t max_current : 10; // 10ma step
         uint32_t voltage : 10; // 50mv step
@@ -229,12 +230,12 @@ union PDO_FIXED {
         uint32_t dual_role_power : 1;
         uint32_t pdo_type : 2;
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] 6.4.1.2.4 Augmented Power Data Object (APDO)
 // Table 6.13
 union PDO_SPR_PPS {
+    uint32_t raw_value;
     struct {
         uint32_t max_current: 7; // 50ma step
         uint32_t : 1;
@@ -246,11 +247,11 @@ union PDO_SPR_PPS {
         uint32_t apdo_subtype : 2; // 00b
         uint32_t pdo_type : 2; // 11b
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] Table 6.15
 union PDO_EPR_AVS {
+    uint32_t raw_value;
     struct {
         uint32_t pdp: 8; // 1W step
         uint32_t min_voltage : 8; // 100mv step
@@ -260,7 +261,6 @@ union PDO_EPR_AVS {
         uint32_t apdo_subtype : 2; // 01b
         uint32_t pdo_type : 2; // 11b
     };
-    uint32_t raw_value;
 };
 
 //
@@ -271,6 +271,7 @@ union PDO_EPR_AVS {
 
 // [rev3.2] Table 6.23 Fixed and Variable Request Data Object
 union RDO_FIXED {
+    uint32_t raw_value;
     struct {
         uint32_t max_current : 10; // 10ma step
         uint32_t operating_current : 10; // 10ma step
@@ -283,11 +284,11 @@ union RDO_FIXED {
         uint32_t : 1; // "giveback" flag deprecated
         uint32_t obj_position : 4; // !!! numeration starts from 1 !!!
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] Table 6.25 PPS Request Data Object
 union RDO_PPS {
+    uint32_t raw_value;
     struct {
         uint32_t operating_current : 7; // 50ma step
         uint32_t : 2;
@@ -301,7 +302,6 @@ union RDO_PPS {
         uint32_t : 1; // "giveback" flag deprecated
         uint32_t obj_position : 4; // !!! numeration starts from 1 !!!
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] Table 6.26 AVS Request Data Object
@@ -309,6 +309,7 @@ union RDO_PPS {
 
 // Helper to parse flags
 union RDO_ANY {
+    uint32_t raw_value;
     struct {
         uint32_t : 22; // depends on PDO type
         uint32_t epr_capable : 1;
@@ -319,7 +320,6 @@ union RDO_ANY {
         uint32_t : 1; // "giveback" flag deprecated
         uint32_t obj_position : 4; // !!! numeration starts from 1 !!!
     };
-    uint32_t raw_value;
 };
 
 //
@@ -329,6 +329,7 @@ union RDO_ANY {
 // [rev3.2] 6.4.1.3.1 Sink Fixed Supply Power Data Objec
 // Table 6.17
 union SNK_PDO_FIXED {
+    uint32_t raw_value;
     struct {
         uint32_t max_current : 10; // 10ma step
         uint32_t voltage : 10; // 50mv step
@@ -341,12 +342,12 @@ union SNK_PDO_FIXED {
         uint32_t dual_role_power : 1;
         uint32_t pdo_type : 2;
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] 6.4.1.3.4.1 SPR Programmable Power Supply APDO
 // Table 6.20
 union SNK_PDO_SPR_PPS {
+    uint32_t raw_value;
     struct {
         uint32_t max_current: 7; // 50ma step
         uint32_t : 1;
@@ -357,12 +358,12 @@ union SNK_PDO_SPR_PPS {
         uint32_t apdo_subtype : 2; // 00b
         uint32_t pdo_type : 2; // 11b
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] 6.4.1.3.4.3 EPR Adjustable Voltage Supply APDO
 // Table 6.22
 union SNK_PDO_EPR_AVS {
+    uint32_t raw_value;
     struct {
         uint32_t pdp: 8; // 1W step
         uint32_t min_voltage : 8; // 100mv step
@@ -372,17 +373,16 @@ union SNK_PDO_EPR_AVS {
         uint32_t apdo_subtype : 2; // 01b
         uint32_t pdo_type : 2; // 11b
     };
-    uint32_t raw_value;
 };
 
 namespace DO_TOOLS {
     inline bool is_fixed(uint32_t pdo) {
-        PDO_FIXED pd = { .raw_value = pdo };
+        PDO_FIXED pd{pdo};
         return pd.pdo_type == PDO_TYPE::FIXED;
     }
 
     inline bool is_spr_pps(uint32_t pdo) {
-        PDO_SPR_PPS pd = { .raw_value = pdo };
+        PDO_SPR_PPS pd{pdo};
         return pd.pdo_type == PDO_TYPE::AUGMENTED &&
             pd.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
     }
@@ -400,21 +400,21 @@ namespace EPR_MODE_ACTION {
 
 // [rev3.2] Table 6.50 EPR Mode Data Object (EPRMDO)
 union EPRMDO {
+    uint32_t raw_value;
     struct {
         uint32_t : 16;
         uint32_t data : 8;
         uint32_t action : 8;
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] 6.5.14 Extended_Control Message
 union ECDB {
+    uint16_t raw_value;
     struct {
         uint16_t type : 8;
         uint16_t data : 8;
     };
-    uint16_t raw_value;
 };
 
 // [rev3.2] 6.5.14 Extended_Control Message
@@ -430,6 +430,7 @@ namespace PD_EXT_CTRL_MSGT {
 // [rev3.2] 6.4.12 Revision Message
 // Table 6.52 Revision Message Data Object (RMDO)
 union RMDO {
+    uint32_t raw_value;
     struct {
         uint32_t : 16;
         uint32_t ver_minor : 4;
@@ -437,7 +438,6 @@ union RMDO {
         uint32_t rev_minor : 4;
         uint32_t rev_major : 4;
     };
-    uint32_t raw_value;
 };
 
 // [rev3.2] 6.4.3 BIST Message
@@ -451,11 +451,11 @@ namespace BIST_MODE {
 }; // namespace BIST_MODE
 
 union BISTDO {
+    uint32_t raw_value;
     struct {
         uint32_t : 28;
         uint32_t mode : 4;
     };
-    uint32_t raw_value;
 };
 
 
@@ -529,7 +529,7 @@ struct PD_MSG_TPL : public I_PD_MSG {
         if (!is_ext_msg(PD_EXT_MSGT::Extended_Control) || _buffer.size() < 2) {
             return false;
         }
-        ECDB ecdb{.raw_value = read16(0)};
+        ECDB ecdb{read16(0)};
         return ecdb.type == type;
     }
 

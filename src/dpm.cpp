@@ -135,7 +135,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 }
 
 void DPM::fill_rdo_flags(uint32_t &rdo) {
-    RDO_ANY rdo_bits{.raw_value = rdo};
+    RDO_ANY rdo_bits{rdo};
 
     // Fill RDO flags here
     rdo_bits.epr_capable = 1;
@@ -170,7 +170,7 @@ auto DPM::get_request_data_object() -> uint32_t {
             // Skip not fixed PDOs
             if (!DO_TOOLS::is_fixed(pdo)) { continue; }
 
-            const PDO_FIXED pdo_bits{.raw_value = pdo};
+            const PDO_FIXED pdo_bits{pdo};
             const uint32_t pdo_mv = static_cast<uint32_t>(pdo_bits.voltage) * 50U;
             const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
 
@@ -194,7 +194,7 @@ auto DPM::get_request_data_object() -> uint32_t {
             // Skip not SPR_PPS PDOs
             if (!DO_TOOLS::is_spr_pps(pdo)) { continue; }
 
-            const PDO_SPR_PPS pdo_bits{.raw_value = pdo};
+            const PDO_SPR_PPS pdo_bits{pdo};
             const uint32_t pdo_max_mv = static_cast<uint32_t>(pdo_bits.max_voltage) * 100U;
             const uint32_t pdo_max_ma = static_cast<uint32_t>(pdo_bits.max_current) * 50U;
 
@@ -216,7 +216,7 @@ auto DPM::get_request_data_object() -> uint32_t {
     rdo.obj_position = 0 + 1; // Position = zero-based index + 1
 
     if (DO_TOOLS::is_fixed(pe.source_caps[0])) {
-        const PDO_FIXED pdo_bits{.raw_value = pe.source_caps[0]};
+        const PDO_FIXED pdo_bits{pe.source_caps[0]};
         const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
         rdo.max_current = pdo_ma / 10U;
         rdo.operating_current = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
