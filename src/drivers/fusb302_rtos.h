@@ -75,7 +75,10 @@ public:
     void set_msg_router(etl::imessage_router& router) override {
         msg_router = &router;
     };
-    void notify_task();
+    void pass_up(const etl::imessage& msg) {
+        if (msg_router) { msg_router->receive(msg); }
+    }
+    void kick_task();
 
     //
     // TCPC
