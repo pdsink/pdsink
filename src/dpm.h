@@ -49,8 +49,8 @@ public:
 
 class MsgDpm_NewPowerLevel : public etl::message<MSG_DPM_NEW_POWER_LEVEL> {
 public:
-    explicit MsgDpm_NewPowerLevel(uint32_t ok) : ok{ok} {}
-    uint32_t ok; // succeeded/rejected.
+    explicit MsgDpm_NewPowerLevel(bool ok) : ok{ok} {}
+    bool ok; // succeeded/rejected.
 };
 
 class MsgDpm_PPSStatus : public etl::message<MSG_DPM_PPS_STATUS> {

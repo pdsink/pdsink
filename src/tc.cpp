@@ -1,7 +1,7 @@
+#include "common_macros.h"
 #include "pd_conf.h"
 #include "sink.h"
 #include "tc.h"
-#include "common_macros.h"
 
 #include <etl/array.h>
 

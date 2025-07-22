@@ -1,12 +1,12 @@
 #pragma once
 
-#include "data_objects.h"
-#include "utils/atomic_bits.h"
-
 #include <etl/delegate.h>
 #include <etl/message_router.h>
 #include <etl/utility.h>
 #include <etl/vector.h>
+
+#include "data_objects.h"
+#include "utils/atomic_bits.h"
 
 namespace pd {
 

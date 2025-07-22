@@ -3,8 +3,8 @@
 #include <driver/gpio.h>
 #include <driver/i2c.h>
 #include <esp_timer.h>
-#include "fusb302_rtos.h"
 #include "fusb302_regs.h"
+#include "fusb302_rtos.h"
 
 namespace pd {
 

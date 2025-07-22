@@ -1,15 +1,14 @@
 #pragma once
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <etl/atomic.h>
 #include <etl/cyclic_value.h>
 #include <etl/delegate.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
-#include "pd_conf.h"
+#include "fusb302_regs.h"
 #include "idriver.h"
 #include "utils/spsc_overwrite_queue.h"
-#include "fusb302_regs.h"
 
 namespace pd {
 

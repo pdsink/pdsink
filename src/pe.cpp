@@ -1,9 +1,9 @@
+#include "common_macros.h"
 #include "dpm.h"
-#include "pd_conf.h"
 #include "pe.h"
+#include "pd_conf.h"
 #include "sink.h"
 #include "tc.h"
-#include "common_macros.h"
 
 #include <etl/algorithm.h>
 #include <etl/array.h>
@@ -1181,7 +1181,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1227,7 +1227,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1273,7 +1273,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
