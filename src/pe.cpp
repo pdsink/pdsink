@@ -249,7 +249,14 @@ public:
         // By spec, we should request PDO on previous stage. But for sink-only
         // this place looks more convenient, as unified DPM point for all cases.
         // This decision can be changed later, if needed.
-        RDO_ANY rdo{pe.sink.dpm->get_request_data_object()};
+        RDO_ANY rdo{pe.sink.dpm->get_request_data_object(pe.source_caps)};
+
+        // Minimal check for RDO validity.
+        // DPM implementation MUST NOT return invalid data.
+        if (rdo.obj_position < 1 || rdo.obj_position > pe.source_caps.size()) {
+            PE_LOG("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
+            return PE_SNK_Hard_Reset;
+        }
 
         // Prepare & send request, depending on SPR/EPR mode
         auto& msg = pe.get_tx_msg();

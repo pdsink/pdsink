@@ -151,7 +151,7 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
 
 // This one is called when `SRC Capabilities` and `EPR SRC Capabilities`
 // are received from power source. Returns RDO and appropriate PDO as pair
-auto DPM::get_request_data_object() -> uint32_t {
+auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uint32_t {
     // This is default stub implementation, with simple trigger support.
     // Customize if required.
 
@@ -163,8 +163,8 @@ auto DPM::get_request_data_object() -> uint32_t {
     //
 
     if (trigger_mode == TRIGGER_MODE::FIXED) {
-        for (int i = 0, max = pe.source_caps.size(); i < max; i++) {
-            const auto pdo = pe.source_caps[i];
+        for (int i = 0, max = src_caps.size(); i < max; i++) {
+            const auto pdo = src_caps[i];
             // Skip padded positions
             if (pdo == 0) { continue; }
             // Skip not fixed PDOs
@@ -187,8 +187,8 @@ auto DPM::get_request_data_object() -> uint32_t {
     }
 
     if (trigger_mode == TRIGGER_MODE::SPR_PPS) {
-        for (int i = 0, max = pe.source_caps.size(); i < max; i++) {
-            const auto pdo = pe.source_caps[i];
+        for (int i = 0, max = src_caps.size(); i < max; i++) {
+            const auto pdo = src_caps[i];
             // Skip padded positions
             if (pdo == 0) { continue; }
             // Skip not SPR_PPS PDOs
@@ -215,11 +215,11 @@ auto DPM::get_request_data_object() -> uint32_t {
     fill_rdo_flags(rdo.raw_value);
     rdo.obj_position = 0 + 1; // Position = zero-based index + 1
 
-    if (DO_TOOLS::is_fixed(pe.source_caps[0])) {
-        const PDO_FIXED pdo_bits{pe.source_caps[0]};
+    if (DO_TOOLS::is_fixed(src_caps[0])) {
+        const PDO_FIXED pdo_bits{src_caps[0]};
         const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
         rdo.max_current = pdo_ma / 10U;
-        rdo.operating_current = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
+        rdo.operating_current = pdo_ma / 10U;
     };
 
     return rdo.raw_value;
