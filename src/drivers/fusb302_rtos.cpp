@@ -66,12 +66,13 @@ bool Fusb302Rtos::fusb_setup() {
     Mask1 mask{0xFF};
     mask.M_COLLISION = 0;
     mask.M_ACTIVITY = 0; // used to debounce active CC levels reading
+    mask.M_ALERT = 0;
     if (!emulate_vbus_ok) { mask.M_VBUSOK = 0; }
     HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
 
     Maska maska{0xFF};
     maska.M_HARDRST = 0;
-    maska.M_TXSENT = 0; // TX packet sent (and confirmed)
+    maska.M_TXSENT = 0;
     maska.M_HARDSENT = 0;
     maska.M_RETRYFAIL = 0;
     HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
@@ -129,7 +130,8 @@ bool Fusb302Rtos::fusb_scan_cc() {
     sw0.MEAS_CC2 = 0;
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
     // Technically, 250uS is ok, but precise match would be platform-dependant
-    // and, probably, blocking.
+    // and, probably, blocking. We rely on FreeRTOS ticks instead.
+    // Minimal value is 1, and we add one more to guard against jitter.
     vTaskDelay(pdMS_TO_TICKS(2));
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     cc1_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
@@ -220,8 +222,17 @@ void Fusb302Rtos::fusb_complete_tx(TCPC_TRANSMIT_STATUS::Type status) {
 bool Fusb302Rtos::fusb_tx_pkt() {
     DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
 
-    // Max buffer size is SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4] = 39
     etl::vector<uint8_t, 40> fifo_buf{};
+
+    // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4] = 39
+    static_assert(decltype(fifo_buf)::MAX_SIZE >=
+        4 + 1 + 2 + decltype(call_arg_transmit)::MAX_SIZE + 4,
+        "TX buffer too small to fit all possible data");
+
+    // Ensure only "legacy" packets allowed. We do NOT support unchunked extended
+    // packets and long vendor packets (that's really useless for sink mode).
+    static_assert(decltype(call_arg_transmit)::MAX_SIZE <= 28,
+        "Packet size should not exceed 28 bytes in this implementation");
 
     // Hardcode Msg SOP, since library supports only sink mode
     fifo_buf.push_back(TX_TKN::SOP1);
@@ -230,7 +241,8 @@ bool Fusb302Rtos::fusb_tx_pkt() {
     fifo_buf.push_back(TX_TKN::SOP2);
 
     uint8_t pack_sym = TX_TKN::PACKSYM;
-    // Add data size (+ 2 for header)
+    // Add data size (+ 2 for header). No need to mask - value restricted by
+    // static_assert above.
     pack_sym |= (call_arg_transmit.data_size() + 2);
     fifo_buf.push_back(pack_sym);
 
@@ -268,12 +280,24 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         return false;
     }
 
+    // Pick all pending packets from RX FIFO.
+    // Note, this should not happen, but in theory we can get several packets
+    // per interrupt handler call. Use loop to be sure all those are extracted.
     while (!status1.RX_EMPTY) {
         HAL_FAIL_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
 
         HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, hdr, 2));
         pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
 
+        if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
+            // Unchunked extended packets are not supported.
+            DRV_ERR("Unchunked extended packet received, ignoring");
+            fusb_flush_rx_fifo();
+            return false;
+        }
+
+        // Chunks have only 7 bits for data objects count. Max 28 bytes in total.
+        // So, it's impossible to overflow chunk buffer.
         pkt.resize_by_data_obj_count();
         HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, pkt.get_data().data(), pkt.data_size()));
 
@@ -372,6 +396,13 @@ bool Fusb302Rtos::handle_interrupt() {
         if (interruptb.I_GCRCSENT) {
             DRV_LOG("IRQ: GoodCRC sent");
             fusb_rx_pkt();
+        }
+
+        if (interrupt.I_ALERT) {
+            DRV_LOG("IRQ: ALERT received (fifo overflow)");
+            // Fuckup. Reset FIFO-s for sure.
+            fusb_flush_rx_fifo();
+            fusb_flush_tx_fifo();
         }
     }
     return true;
@@ -528,11 +559,16 @@ void Fusb302Rtos::task() {
 void Fusb302Rtos::start() {
     if (started) { return; }
 
-    xTaskCreate(
+    auto result = xTaskCreate(
         [](void* params) {
             static_cast<Fusb302Rtos*>(params)->task();
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
+
+    if (result != pdPASS) {
+        DRV_ERR("Failed to create Fusb302Rtos task");
+        return;
+    }
 
     started = true;
 
@@ -548,7 +584,7 @@ void Fusb302Rtos::kick_task(bool from_isr) {
     if (!xWaitingTaskHandle) { return; }
 
     if (from_isr) {
-        BaseType_t woken = pdFALSE;
+        auto woken = pdFALSE;
         vTaskNotifyGiveFromISR(xWaitingTaskHandle, &woken);
         if (woken != pdFALSE) { portYIELD_FROM_ISR(); }
     } else {

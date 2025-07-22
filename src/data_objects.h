@@ -487,6 +487,7 @@ public:
 template <int BufferSize>
 struct PD_MSG_TPL : public I_PD_MSG {
     etl::vector<uint8_t, BufferSize> _buffer;
+    static constexpr size_t MAX_SIZE = BufferSize;
 
     etl::ivector<uint8_t>& get_data() override { return _buffer; }
     const etl::ivector<uint8_t>& get_data() const override { return _buffer; }
