@@ -1091,7 +1091,7 @@ public:
         BISTDO bdo{pe.get_rx_msg().read32(0)};
 
         if (bdo.mode == BIST_MODE::Carrier) {
-            pe.tcpc.bist_carrier_enable(true);
+            pe.tcpc.req_bist_carrier_enable(true);
             pe.sink.timers.start(PD_TIMEOUT::tBISTCarrierMode);
             return No_State_Change;
         }
@@ -1108,7 +1108,7 @@ public:
         auto& pe = get_fsm_context();
 
         if (pe.sink.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
-            pe.tcpc.bist_carrier_enable(false);
+            pe.tcpc.req_bist_carrier_enable(false);
             return PE_SNK_Ready;
         }
 
@@ -1411,7 +1411,7 @@ void PE::on_prl_soft_reset_from_partner() {
 
 void PE::on_prl_hard_reset_from_partner() {
     if (!is_started()) { return; }
-    tcpc.bist_carrier_enable(false);
+    tcpc.req_bist_carrier_enable(false);
     receive(MsgTransitTo(PE_SNK_Transition_to_default));
     sink.wakeup();
 }

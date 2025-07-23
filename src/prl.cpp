@@ -736,14 +736,14 @@ public:
         auto& prl_tx = get_fsm_context();
         prl_tx.log_state();
 
-        prl_tx.prl.tcpc.set_rx_enable(true);
+        prl_tx.prl.tcpc.req_rx_enable(true);
         return No_State_Change;
     }
 
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
-        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::SET_RX_ENABLE)) {
+        if (prl.tcpc.is_rx_enable_done()) {
             return No_State_Change;
         }
 
@@ -1016,7 +1016,7 @@ public:
 
         // Initiate CC reading. First call is required to ensure
         // cache is in sync. Subsequent updates can be interrupt-based.
-        prl_tx.prl.tcpc.req_cc_active();
+        prl_tx.prl.tcpc.req_active_cc();
         return No_State_Change;
     }
 
@@ -1025,7 +1025,7 @@ public:
         auto& tcpc = prl_tx.prl.tcpc;
 
         // Wait until CC fetch completes
-        if (tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_ACTIVE)) {
+        if (tcpc.is_active_cc_done()) {
             return No_State_Change;
         }
 
@@ -1045,7 +1045,7 @@ public:
         // This manual request is left for sure, and not expected to be used.
         // Note, manual polling can cause unexpected CPU / I2C load.
         if (!tcpc.get_hw_features().cc_update_event) {
-            tcpc.req_cc_active();
+            tcpc.req_active_cc();
         }
         return No_State_Change;
     }
@@ -1222,7 +1222,7 @@ public:
         hr.prl.prl_tch.flags.clear_all();
 
         // Start with RX path disable (and FIFO clear).
-        hr.prl.tcpc.set_rx_enable(false);
+        hr.prl.tcpc.req_rx_enable(false);
 
         return No_State_Change;
     }
@@ -1231,7 +1231,7 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC operation complete
-        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::SET_RX_ENABLE)) {
+        if (prl.tcpc.is_rx_enable_done()) {
             return No_State_Change;
         }
 
@@ -1264,7 +1264,7 @@ public:
         auto& hr = get_fsm_context();
         hr.log_state();
 
-        hr.prl.tcpc.hr_send();
+        hr.prl.tcpc.req_hr_send();
         return No_State_Change;
     }
 
@@ -1272,7 +1272,7 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC call to complete
-        if (prl.tcpc.get_state().test(TCPC_CALL_FLAG::HARD_RESET)) {
+        if (prl.tcpc.is_hr_send_done()) {
             return No_State_Change;
         }
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
@@ -1409,7 +1409,7 @@ void PRL::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
             __fallthrough;
         case LS_WORKING:
             if (!pd_enabled) {
-                tcpc.set_rx_enable(false);
+                tcpc.req_rx_enable(false);
                 local_state = LS_DISABLED;
                 break;
             }
@@ -1508,7 +1508,7 @@ void PRL::tcpc_enquire_msg() {
     // Rearm TCPC TX status.
     prl_tx.tcpc_tx_status = TCPC_TRANSMIT_STATUS::WAITING;
 
-    tcpc.transmit(tx_chunk);
+    tcpc.req_transmit(tx_chunk);
 }
 
 void PRL::tx_enquire_chunk() {

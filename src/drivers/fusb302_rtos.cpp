@@ -10,6 +10,13 @@ namespace pd {
 
 namespace fusb302 {
 
+#define HAL_LOG_ON_ERROR(expr) \
+    do { \
+        if (!(expr)) { \
+            DRV_ERR("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+        } \
+    } while (0)
+
 #define HAL_FAIL_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
@@ -18,7 +25,20 @@ namespace fusb302 {
         } \
     } while (0)
 
-#define DRV_FAIL_ON_ERROR(x) HAL_FAIL_ON_ERROR(x)
+#define DRV_LOG_ON_ERROR(expr) \
+    do { \
+        if (!(expr)) { \
+            DRV_ERR("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+        } \
+    } while (0)
+
+#define DRV_FAIL_ON_ERROR(expr) \
+    do { \
+        if (!(expr)) { \
+            DRV_ERR("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            return false; \
+        } \
+    } while (0)
 
 // FIFO TX tokens
 namespace TX_TKN {
@@ -116,55 +136,6 @@ bool Fusb302Rtos::fusb_flush_tx_fifo() {
     return true;
 }
 
-bool Fusb302Rtos::fusb_scan_cc() {
-    // This function is used only for initial CC detection.
-    Switches0 sw0;
-    Status0 status0;
-
-    HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
-    const auto backup_cc1 = sw0.MEAS_CC1;
-    const auto backup_cc2 = sw0.MEAS_CC2;
-
-    // Measure CC1
-    sw0.MEAS_CC1 = 1;
-    sw0.MEAS_CC2 = 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
-    // Technically, 250uS is ok, but precise match would be platform-dependant
-    // and, probably, blocking. We rely on FreeRTOS ticks instead.
-    // Minimal value is 1, and we add one more to guard against jitter.
-    vTaskDelay(pdMS_TO_TICKS(2));
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    cc1_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
-
-    // Measure CC2
-    sw0.MEAS_CC1 = 0;
-    sw0.MEAS_CC2 = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
-    vTaskDelay(pdMS_TO_TICKS(2));
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    cc2_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
-
-    // Restore previous state
-    sw0.MEAS_CC1 = backup_cc1;
-    sw0.MEAS_CC2 = backup_cc2;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
-
-    if (emulate_vbus_ok) {
-        vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
-
-        auto prev_vbus_ok = vbus_ok.load();
-        vbus_ok.store((cc1_cache != TCPC_CC_LEVEL::NONE) ||
-                      (cc2_cache != TCPC_CC_LEVEL::NONE));
-
-        if (vbus_ok.load() != prev_vbus_ok) {
-            DRV_LOG("Emulator: VBUS changed by CC1/CC2 scan");
-            pass_up(MsgTcpcWakeup());
-        }
-    }
-
-    return true;
-}
-
 bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY::Type polarity) {
     Switches0 sw0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
@@ -214,12 +185,12 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     return true;
 }
 
-void Fusb302Rtos::fusb_complete_tx(TCPC_TRANSMIT_STATUS::Type status) {
-    state.clear(TCPC_CALL_FLAG::TRANSMIT);
+void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status) {
+    sync_transmit.mark_finished();
     pass_up(MsgTcpcTransmitStatus(status));
 }
 
-bool Fusb302Rtos::fusb_tx_pkt() {
+bool Fusb302Rtos::fusb_tx_pkt_begin() {
     DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
 
     etl::vector<uint8_t, 40> fifo_buf{};
@@ -305,7 +276,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
         if (pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
             DRV_LOG("GoodCRC received");
-            fusb_complete_tx(TCPC_TRANSMIT_STATUS::SUCCEEDED);
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
         } else {
             DRV_LOG("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());
@@ -319,21 +290,31 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 }
 
 bool Fusb302Rtos::fusb_hr_send_begin() {
+    sync_hr_send.mark_started();
+
     Control3 ctrl3;
     HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
     // Cleanup buffers for sure
     rx_queue.clear_from_producer();
-    state.clear(TCPC_CALL_FLAG::TRANSMIT);
-    flags.clear(DRV_FLAG::ENQUIRED_TRANSMIT);
+
+    sync_transmit.reset();
     return true;
 }
 
 bool Fusb302Rtos::fusb_hr_send_end() {
     // TODO: (?) add chip reset
-    state.clear(TCPC_CALL_FLAG::HARD_RESET);
+    sync_hr_send.mark_finished();
     pass_up(MsgTcpcWakeup());
+    return true;
+}
+
+bool Fusb302Rtos::fusb_bist(bool enable) {
+    Control1 ctrl1;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
+    ctrl1.BIST_MODE2 = enable ? 1 : 0;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
     return true;
 }
 
@@ -369,8 +350,7 @@ bool Fusb302Rtos::handle_interrupt() {
             HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
             // Cleanup buffers for sure
             rx_queue.clear_from_producer();
-            state.clear(TCPC_CALL_FLAG::TRANSMIT);
-            flags.clear(DRV_FLAG::ENQUIRED_TRANSMIT);
+            sync_transmit.reset();
             pass_up(MsgTcpcHardReset());
         }
 
@@ -382,11 +362,11 @@ bool Fusb302Rtos::handle_interrupt() {
         if (interrupt.I_COLLISION) {
             DRV_LOG("IRQ: tx collision");
             // Discarding logic is part of PRL, here we just report tx failure
-            fusb_complete_tx(TCPC_TRANSMIT_STATUS::FAILED);
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_RETRYFAIL) {
             DRV_LOG("IRQ: tx retry failed");
-            fusb_complete_tx(TCPC_TRANSMIT_STATUS::FAILED);
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_TXSENT) {
             DRV_LOG("IRQ: tx completed");
@@ -408,42 +388,158 @@ bool Fusb302Rtos::handle_interrupt() {
     return true;
 }
 
-bool Fusb302Rtos::handle_get_active_cc() {
-    if (polarity == TCPC_POLARITY::NONE) {
-        DRV_ERR("Can't get active CC without polarity set, ignore request");
-        return true;
-    }
-
-    static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
-
-    if (get_timestamp() < last_activity_ts + DEBOUNCE_PERIOD_MS) { return false; }
-
-    // Wrap BC_LVL fetch with direct ACTIVITY check to avoid false values
+bool Fusb302Rtos::meter_tick(bool &repeat) {
+    repeat = false;
     Status0 status0;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    if (status0.ACTIVITY) { activity_on = true; return false; }
+    Switches0 sw0;
 
-    const auto bc_lvl = status0.BC_LVL;
+    switch (meter_state) {
+        case MeterState::IDLE:
+            if (sync_active_cc.is_enquired()) {
+                sync_active_cc.mark_started();
+                meter_state = MeterState::CC_ACTIVE_BEGIN;
+                repeat = true;
+                return true;
+            }
+            if (sync_scan_cc.is_enquired()) {
+                sync_scan_cc.mark_started();
+                meter_state = MeterState::SCAN_CC_BEGIN;
+                repeat = true;
+                return true;
+            }
+            break;
 
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-    if (status0.ACTIVITY) { activity_on = true; return false; }
+        case MeterState::CC_ACTIVE_BEGIN:
+            if (polarity == TCPC_POLARITY::NONE) {
+                DRV_ERR("Can't measure active CC without polarity set");
+                meter_state = MeterState::CC_ACTIVE_END;
+                repeat = true;
+            }
 
-    const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(bc_lvl);
+            static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
 
-    if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
-    else { cc2_cache = cc_new; }
+            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            if (status0.ACTIVITY) {
+                meter_wait_until_ts = get_timestamp() + DEBOUNCE_PERIOD_MS;
+                meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
+                repeat = true;
+                break;
+            }
 
-    if (emulate_vbus_ok) {
-        vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
+            {
+                const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+                if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
+                else { cc2_cache = cc_new; }
 
-        auto prev_vbus_ok = vbus_ok.load();
-        vbus_ok.store(cc_new != TCPC_CC_LEVEL::NONE);
+                if (emulate_vbus_ok) {
+                    vbus_ok_emulator_last_measure_ts = get_timestamp();
 
-        if (vbus_ok.load() != prev_vbus_ok) {
-            DRV_LOG("Emulator: VBUS changed by Active CC");
+                    auto prev_vbus_ok = vbus_ok.load();
+                    auto new_vbus_ok = (cc_new != TCPC_CC_LEVEL::NONE);
+
+                    vbus_ok.store(new_vbus_ok);
+                    if (new_vbus_ok != prev_vbus_ok) {
+                        DRV_LOG("Emulator: VBUS changed by Active CC");
+                        pass_up(MsgTcpcWakeup());
+                    }
+                }
+            }
+
+            meter_state = MeterState::CC_ACTIVE_END;
+            repeat = true;
+            break;
+
+        case MeterState::CC_ACTIVE_MEASURE_WAIT:
+            if (get_timestamp() < meter_wait_until_ts) { break; }
+            meter_state = MeterState::CC_ACTIVE_BEGIN;
+            repeat = true;
+            break;
+
+        case MeterState::CC_ACTIVE_END:
+            sync_active_cc.mark_finished();
+            meter_state = MeterState::IDLE;
             pass_up(MsgTcpcWakeup());
-        }
+            break;
+
+        case MeterState::SCAN_CC_BEGIN:
+            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            meter_backup_cc1 = sw0.MEAS_CC1;
+            meter_backup_cc2 = sw0.MEAS_CC2;
+
+            // Measure CC1
+            sw0.MEAS_CC1 = 1;
+            sw0.MEAS_CC2 = 0;
+            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+
+            // Technically, 250uS is ok, but precise match would be platform-dependant
+            // and, probably, blocking. We rely on FreeRTOS ticks instead.
+            // Minimal value is 1, and we add one more to guard against jitter.
+            meter_wait_until_ts = get_timestamp() + 2;
+            meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
+            repeat = true;
+            break;
+
+        case MeterState::SCAN_CC1_MEASURE_WAIT:
+            if (get_timestamp() < meter_wait_until_ts) { break; }
+
+            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            cc1_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+
+            // Measure CC2
+            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            sw0.MEAS_CC1 = 0;
+            sw0.MEAS_CC2 = 1;
+            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            meter_wait_until_ts = get_timestamp() + 2;
+            meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
+            repeat = true;
+
+            break;
+
+        case MeterState::SCAN_CC2_MEASURE_WAIT:
+            if (get_timestamp() < meter_wait_until_ts) { break; }
+
+            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            cc2_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+
+            // Restore previous state
+            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            sw0.MEAS_CC1 = meter_backup_cc1;
+            sw0.MEAS_CC2 = meter_backup_cc2;
+            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+
+            if (emulate_vbus_ok) {
+                vbus_ok_emulator_last_measure_ts = get_timestamp();
+
+                auto prev_vbus_ok = vbus_ok.load();
+                auto new_vbus_ok = (cc1_cache != TCPC_CC_LEVEL::NONE) ||
+                    (cc2_cache != TCPC_CC_LEVEL::NONE);
+
+                vbus_ok.store(new_vbus_ok);
+                if (new_vbus_ok != prev_vbus_ok) {
+                    DRV_LOG("Emulator: VBUS changed by CC1/CC2 scan");
+                    pass_up(MsgTcpcWakeup());
+                }
+            }
+
+            sync_scan_cc.mark_finished();
+            meter_state = MeterState::IDLE;
+            pass_up(MsgTcpcWakeup());
+
+            break;
     }
+
+    return true;
+}
+
+bool Fusb302Rtos::handle_meter() {
+    bool repeat = false;
+
+    while (1) {
+        DRV_FAIL_ON_ERROR(meter_tick(repeat));
+        if (!repeat) { break; }
+    }
+
     return true;
 }
 
@@ -462,43 +558,13 @@ bool Fusb302Rtos::handle_timer() {
         // Rearm CC requests if debounce interval passed
         if (polarity == TCPC_POLARITY::NONE) {
             if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + FULL_CC_SCAN_DEBOUNCE_MS) &&
-                (sem_req_cc_scan.load() == 0)) {
-                sem_req_cc_scan.fetch_add(1);
+                !sync_scan_cc.is_enquired() && !sync_scan_cc.is_started()) {
+                sync_scan_cc.enquire();
             }
         } else {
             if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + ACTIVE_CC_DEBOUNCE_MS) &&
-                (sem_req_cc_active.load() == 0)) {
-                sem_req_cc_active.fetch_add(1);
-            }
-        }
-    }
-
-    // "Tasks"
-
-    if (sem_req_cc_scan.load()) {
-        auto sem_ver = sem_req_cc_scan.load();
-        while (1) {
-            if (!fusb_scan_cc()) { break; }
-            vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
-            if (sem_req_cc_scan.compare_exchange_strong(sem_ver, 0)) {
-                state.clear(TCPC_CALL_FLAG::REQ_CC_BOTH);
-                pass_up(MsgTcpcWakeup());
-                break;
-            }
-        }
-    }
-
-    if (sem_req_cc_active.load()) {
-        auto sem_ver = sem_req_cc_active.load();
-        while (1) {
-            // on failure - postpone to next tick
-            if (!handle_get_active_cc()) { break; }
-            vbus_ok_emulator_last_measure_ts = hal.get_timestamp();
-
-            if (sem_req_cc_active.compare_exchange_strong(sem_ver, 0)) {
-                state.clear(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
-                pass_up(MsgTcpcWakeup());
-                break;
+                !sync_active_cc.is_enquired() && !sync_active_cc.is_started()) {
+                sync_active_cc.enquire();
             }
         }
     }
@@ -508,36 +574,33 @@ bool Fusb302Rtos::handle_timer() {
 }
 
 bool Fusb302Rtos::handle_tcpc_calls() {
-    // Simple requests
-    while (flags.test_and_clear(DRV_FLAG::API_CALL)) {
-        if (flags.test_and_clear(DRV_FLAG::ENQUIRED_HR_SEND)) {
-            fusb_hr_send_begin();
-        }
+    if (sync_hr_send.is_enquired()) {
+        DRV_LOG_ON_ERROR(fusb_hr_send_begin());
+    }
 
-        if (state.test(TCPC_CALL_FLAG::SET_POLARITY)) {
-            DRV_FAIL_ON_ERROR(fusb_set_polarity(call_arg_set_polarity));
-            state.clear(TCPC_CALL_FLAG::SET_POLARITY);
-            pass_up(MsgTcpcWakeup());
-        }
+    if (sync_set_polarity.is_enquired()) {
+        sync_set_polarity.mark_started();
+        DRV_LOG_ON_ERROR(fusb_set_polarity(sync_set_polarity.get_param()));
+        sync_set_polarity.mark_finished();
+        pass_up(MsgTcpcWakeup());
+    }
 
-        if (state.test(TCPC_CALL_FLAG::SET_RX_ENABLE)) {
-            DRV_FAIL_ON_ERROR(fusb_set_rx_enable(call_arg_set_rx_enable));
-            state.clear(TCPC_CALL_FLAG::SET_RX_ENABLE);
-            pass_up(MsgTcpcWakeup());
-        }
+    if (sync_rx_enable.is_enquired()) {
+        sync_rx_enable.mark_started();
+        DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
+        sync_rx_enable.mark_finished();
+        pass_up(MsgTcpcWakeup());
+    }
 
-        if (state.test(TCPC_CALL_FLAG::BIST_CARRIER_ENABLE)) {
-            Control1 ctl1;
-            HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctl1.raw_value));
-            ctl1.BIST_MODE2 = call_arg_bist_carrier_enable;
-            HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctl1.raw_value));
-            state.clear(TCPC_CALL_FLAG::BIST_CARRIER_ENABLE);
-            pass_up(MsgTcpcWakeup());
-        }
+    if (sync_bist_carrier_enable.is_enquired()) {
+        sync_bist_carrier_enable.mark_started();
+        DRV_LOG_ON_ERROR(fusb_bist(sync_bist_carrier_enable.get_param()));
+        sync_bist_carrier_enable.mark_finished();
+        pass_up(MsgTcpcWakeup());
+    }
 
-        if (flags.test_and_clear(DRV_FLAG::ENQUIRED_TRANSMIT)) {
-            DRV_FAIL_ON_ERROR(fusb_tx_pkt());
-        }
+    if (sync_transmit.is_enquired()) {
+        DRV_LOG_ON_ERROR(fusb_tx_pkt_begin());
     }
 
     return true;
@@ -599,20 +662,8 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 }
 
 //
-// TCPC methods. All async ones just forward data to task().
+// TCPC API methods.
 //
-
-void Fusb302Rtos::req_cc_both() {
-    state.set(TCPC_CALL_FLAG::REQ_CC_BOTH);
-    sem_req_cc_scan.fetch_add(1);
-    kick_task();
-}
-
-void Fusb302Rtos::req_cc_active() {
-    state.set(TCPC_CALL_FLAG::REQ_CC_ACTIVE);
-    sem_req_cc_active.fetch_add(1);
-    kick_task();
-}
 
 auto Fusb302Rtos::get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type {
     switch (cc) {
@@ -637,44 +688,8 @@ bool Fusb302Rtos::is_vbus_ok() {
     return vbus_ok.load();
 }
 
-void Fusb302Rtos::set_polarity(TCPC_POLARITY::Type active_cc) {
-    call_arg_set_polarity = active_cc;
-    state.set(TCPC_CALL_FLAG::SET_POLARITY);
-    flags.set(DRV_FLAG::API_CALL);
-    kick_task();
-}
-
-void Fusb302Rtos::set_rx_enable(bool enable) {
-    call_arg_set_rx_enable = enable;
-    state.set(TCPC_CALL_FLAG::SET_RX_ENABLE);
-    flags.set(DRV_FLAG::API_CALL);
-    kick_task();
-}
-
 bool Fusb302Rtos::fetch_rx_data(PD_CHUNK& data) {
     return rx_queue.pop(data);
-}
-
-void Fusb302Rtos::transmit(const PD_CHUNK& tx_info) {
-    call_arg_transmit = tx_info;
-    state.set(TCPC_CALL_FLAG::TRANSMIT);
-    flags.set(DRV_FLAG::ENQUIRED_TRANSMIT);
-    flags.set(DRV_FLAG::API_CALL);
-    kick_task();
-}
-
-void Fusb302Rtos::bist_carrier_enable(bool enable) {
-    call_arg_bist_carrier_enable = enable;
-    state.set(TCPC_CALL_FLAG::BIST_CARRIER_ENABLE);
-    flags.set(DRV_FLAG::API_CALL);
-    kick_task();
-}
-
-void Fusb302Rtos::hr_send() {
-    state.set(TCPC_CALL_FLAG::HARD_RESET);
-    flags.set(DRV_FLAG::ENQUIRED_HR_SEND);
-    flags.set(DRV_FLAG::API_CALL);
-    kick_task();
 }
 
 } // namespace fusb302

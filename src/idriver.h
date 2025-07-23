@@ -67,23 +67,6 @@ namespace TCPC_TRANSMIT_STATUS {
     };
 };
 
-// Those flags display pending TCPC calls. Some flags can be not necessary,
-// when TCPC is memory mapped instead of I2C.
-namespace TCPC_CALL_FLAG {
-    enum Type {
-        REQ_CC_BOTH,
-        REQ_CC_ACTIVE,
-        SET_POLARITY,
-        SET_RX_ENABLE,
-        TRANSMIT,
-        BIST_CARRIER_ENABLE,
-        HARD_RESET,
-        FLAGS_COUNT
-    };
-};
-
-using TCPC_STATE = AtomicBits<TCPC_CALL_FLAG::FLAGS_COUNT>;
-
 namespace SOP_TYPE {
     enum Type {
         SOP = 0,
@@ -135,20 +118,18 @@ public:
 
 class ITCPC {
 public:
-    // Return bitfield of flags to track stacked commands
-    virtual TCPC_STATE& get_state() = 0;
-
     // Since TCPC hardware can be async (connected via i2c instead of direct
     // memory mapping), all commands go via several steps:
     //
-    // 1. Send command (request) and wait until complete
-    // 2. Monitor state flags, to wait for complete
-    // 3. Read fetched data, if expected (for example, CC line level)
+    // 1. Send command what to do (req_xxx)
+    // 2. Monitor status, wait for complete (is_xxx_done)
+    // 3. Optionally, read fetched data (for example, CC line level)
     //
 
     // Request to fetch both CC1/CC2 lines levels. May be slow, because switches
     // measurement block. Used for initial connection/polarity detection only.
-    virtual void req_cc_both() = 0;
+    virtual void req_scan_cc() = 0;
+    virtual bool is_scan_cc_done() = 0;
 
     // After polarity detected, measurement block is attached to active
     // CC line instantly. Such requests are fast, because no
@@ -159,9 +140,10 @@ public:
     //
     // Note, detach is polled by TCPC internally. Direct call of this function
     // required for 3.0+ Sink transfers only, to sync last value.
-    virtual void req_cc_active() = 0;
+    virtual void req_active_cc() = 0;
+    virtual bool is_active_cc_done() = 0;
 
-    // Get fetched data after req_cc_both/req_cc_secondary completed.
+    // Get fetched data after req_scan_cc/req_active_cc completed.
     virtual TCPC_CC_LEVEL::Type get_cc(TCPC_CC::Type cc) = 0;
 
     // Spec requires VBUS detection. While we can use CC1/CC2 instead,
@@ -170,22 +152,27 @@ public:
 
     // Note, any other actions should NOT reset selected polarity. It's updated
     // only by this call, when new cable connect detected.
-    virtual void set_polarity(TCPC_POLARITY::Type active_cc) = 0;
+    virtual void req_set_polarity(TCPC_POLARITY::Type active_cc) = 0;
+    virtual bool is_set_polarity_done() = 0;
 
     // Note, this should flush RX/TX FIFO on disable,
     // and TX FIFO (only) on enable.
-    virtual void set_rx_enable(bool enable) = 0;
+    virtual void req_rx_enable(bool enable) = 0;
+    virtual bool is_rx_enable_done() = 0;
 
     // Fetch pending RX data.
     virtual bool fetch_rx_data(PD_CHUNK& data) = 0;
 
     // Transmit packet in tx_info
-    virtual void transmit(const PD_CHUNK& tx_info) = 0;
+    virtual void req_transmit(const PD_CHUNK& tx_info) = 0;
+    virtual bool is_transmit_done() = 0;
 
     // On/off BIST carrier
-    virtual void bist_carrier_enable(bool enable) = 0;
+    virtual void req_bist_carrier_enable(bool enable) = 0;
+    virtual bool is_bist_carrier_enable_done() = 0;
 
-    virtual void hr_send() = 0;
+    virtual void req_hr_send() = 0;
+    virtual bool is_hr_send_done() = 0;
 
     virtual auto get_hw_features() -> TCPC_HW_FEATURES = 0;
 };

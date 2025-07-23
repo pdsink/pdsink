@@ -50,14 +50,14 @@ public:
         tc.log_state();
 
         tc.sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
-        tc.tcpc.set_polarity(TCPC_POLARITY::NONE);
+        tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
     }
 
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::SET_POLARITY)) { return No_State_Change; }
+        if (tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
         if (!vbus_ok) {
@@ -93,7 +93,7 @@ public:
 
         tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
         tc.prev_cc2 = TCPC_CC_LEVEL::NONE;
-        tc.tcpc.req_cc_both();
+        tc.tcpc.req_scan_cc();
         tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
@@ -105,10 +105,10 @@ public:
             if (!tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
 
             tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
-            tc.tcpc.req_cc_both();
+            tc.tcpc.req_scan_cc();
         }
 
-        if (tc.tcpc.get_state().test(TCPC_CALL_FLAG::REQ_CC_BOTH)) { return No_State_Change; }
+        if (tc.tcpc.is_scan_cc_done()) { return No_State_Change; }
 
         if (!tc.tcpc.is_vbus_ok()) { return TC_DETACHED; }
 
@@ -120,7 +120,7 @@ public:
             (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::RP_3_0)) &&
             (cc1 == tc.prev_cc1 || cc2 == tc.prev_cc2))
         {
-            tc.tcpc.set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
+            tc.tcpc.req_set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
             return TC_SINK_ATTACHED;
         }
 

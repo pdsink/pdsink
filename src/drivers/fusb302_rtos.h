@@ -8,6 +8,7 @@
 
 #include "fusb302_regs.h"
 #include "idriver.h"
+#include "utils/leapsync.h"
 #include "utils/spsc_overwrite_queue.h"
 
 namespace pd {
@@ -43,11 +44,6 @@ namespace DRV_FLAG {
         FUSB_SETUP_DONE,
         FUSB_SETUP_FAILED,
         TIMER_EVENT,
-
-        API_CALL,
-        ENQUIRED_HR_SEND,
-        ENQUIRED_TRANSMIT,
-
         FLAGS_COUNT
     };
 };
@@ -76,18 +72,52 @@ public:
     //
     // TCPC
     //
-    auto get_state() -> TCPC_STATE& override { return state; };
-
-    void req_cc_both() override;
-    void req_cc_active() override;
+    void req_scan_cc() override {
+        sync_scan_cc.enquire();
+        kick_task();
+    };
+    bool is_scan_cc_done() override { return sync_scan_cc.is_ready(); };
+    void req_active_cc() override {
+        sync_active_cc.enquire();
+        kick_task();
+    };
+    bool is_active_cc_done() override { return sync_active_cc.is_ready(); };
     auto get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type override;
+
     bool is_vbus_ok() override;
-    void set_polarity(TCPC_POLARITY::Type active_cc) override;
-    void set_rx_enable(bool enable) override;
+
+    void req_set_polarity(TCPC_POLARITY::Type active_cc) override {
+        sync_set_polarity.enquire(active_cc);
+        kick_task();
+    };
+    bool is_set_polarity_done() override { return sync_set_polarity.is_ready(); };
+
+    void req_rx_enable(bool enable) override {
+        sync_rx_enable.enquire(enable);
+        kick_task();
+    };
+    bool is_rx_enable_done() override { return sync_rx_enable.is_ready(); };
+
     bool fetch_rx_data(PD_CHUNK& data) override;
-    void transmit(const PD_CHUNK& tx_info) override;
-    void bist_carrier_enable(bool enable) override;
-    void hr_send() override;
+
+    void req_transmit(const PD_CHUNK& tx_info) override {
+        call_arg_transmit = tx_info;
+        sync_transmit.enquire();
+        kick_task();
+    };
+    bool is_transmit_done() override { return sync_transmit.is_ready(); };
+
+    void req_bist_carrier_enable(bool enable) override {
+        sync_bist_carrier_enable.enquire(enable);
+        kick_task();
+    };
+    bool is_bist_carrier_enable_done() override { return sync_bist_carrier_enable.is_ready(); };
+
+    void req_hr_send() override {
+        sync_hr_send.enquire();
+        kick_task();
+    };
+    bool is_hr_send_done() override { return sync_hr_send.is_ready(); };
 
     auto get_hw_features() -> TCPC_HW_FEATURES override { return tcpc_hw_features; };
 
@@ -104,7 +134,8 @@ private:
     bool handle_interrupt();
     bool handle_timer();
     bool handle_tcpc_calls();
-    bool handle_get_active_cc();
+    bool handle_meter();
+    bool meter_tick(bool &retry);
 
     void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);
     void pass_up(const etl::imessage& msg) {
@@ -117,12 +148,12 @@ private:
     bool fusb_set_rx_enable(bool enable);
     bool fusb_flush_rx_fifo();
     bool fusb_flush_tx_fifo();
-    bool fusb_scan_cc();
-    bool fusb_tx_pkt();
+    bool fusb_tx_pkt_begin();
+    void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status);
     bool fusb_rx_pkt();
-    void fusb_complete_tx(TCPC_TRANSMIT_STATUS::Type status);
     bool fusb_hr_send_begin();
     bool fusb_hr_send_end();
+    bool fusb_bist(bool enable);
 
     Sink& sink;
     IFusb302RtosHal& hal;
@@ -133,15 +164,14 @@ private:
     bool emulate_vbus_ok;
     uint64_t vbus_ok_emulator_last_measure_ts{0};
 
-    TCPC_STATE state{};
     spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
-    etl::atomic<uint32_t> sem_req_cc_active{0};
-    etl::atomic<uint32_t> sem_req_cc_scan{0};
+
     // Marks of signal activity, to measure CC at safe periods
+    // TODO: remove
     bool activity_on{false};
     uint64_t last_activity_ts{0};
 
@@ -153,11 +183,31 @@ private:
         .unchunked_ext_msg = false
     };
 
-    // TCPC call arguments, used for state transitions to task().
-    TCPC_POLARITY::Type call_arg_set_polarity{};
-    bool call_arg_set_rx_enable{};
+    // Call sync  + param store primitives
+    LeapSync<> sync_scan_cc;
+    LeapSync<> sync_active_cc;
+    LeapSync<TCPC_POLARITY::Type> sync_set_polarity;
+    LeapSync<bool> sync_rx_enable;
+    LeapSync<> sync_transmit;
+    LeapSync<bool> sync_bist_carrier_enable;
+    LeapSync<> sync_hr_send;
+
+    // Not atomic, but fixed buffer size - ok for our needs.
     PD_CHUNK call_arg_transmit{};
-    bool call_arg_bist_carrier_enable{};
+
+    enum class MeterState {
+        IDLE,
+        CC_ACTIVE_BEGIN,
+        CC_ACTIVE_MEASURE_WAIT,
+        CC_ACTIVE_END,
+        SCAN_CC_BEGIN,
+        SCAN_CC1_MEASURE_WAIT,
+        SCAN_CC2_MEASURE_WAIT,
+    };
+    MeterState meter_state{MeterState::IDLE};
+    uint64_t meter_wait_until_ts{0};
+    uint8_t meter_backup_cc1{0};
+    uint8_t meter_backup_cc2{0};
 };
 
 } // namespace fusb302
