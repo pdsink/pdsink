@@ -73,7 +73,7 @@ bool Fusb302Rtos::fusb_setup() {
     // Read ID to check connection
     DeviceID id;
     HAL_FAIL_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
-    DRV_LOG("FUSB302 ID: VER=%d, PROD=%d, REV=%d",
+    DRV_LOG("FUSB302 ID: VER={}, PROD={}, REV={}",
         id.VERSION_ID, id.PRODUCT_ID, id.REVISION_ID);
 
     // Power up all blocks
@@ -103,17 +103,18 @@ bool Fusb302Rtos::fusb_setup() {
 
     // Setup controls/switches. Rely on defaults, modify only the necessary bits.
 
-    Control2 ctrl2;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control2::addr, ctrl2.raw_value));
-    ctrl2.MODE = 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control2::addr, ctrl2.raw_value));
-
     Switches1 sw1;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.AUTO_CRC = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
     DRV_FAIL_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
+
+    if (!emulate_vbus_ok) {
+        Status0 status0;
+        HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+        vbus_ok.store(static_cast<bool>(status0.VBUSOK));
+    }
 
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
@@ -388,10 +389,17 @@ bool Fusb302Rtos::handle_interrupt() {
     return true;
 }
 
+// Since FUSB302 does not allow make different measurements in parallel,
+// do all in single place to avoid collisions. Also, use simple FSM to implement
+// non-blocking delays.
 bool Fusb302Rtos::meter_tick(bool &repeat) {
     repeat = false;
     Status0 status0;
     Switches0 sw0;
+
+    // Should be 250uS, but FreeRTOS not allows that precise timing.
+    // Use 2 timer ticks (2ms) to guarantee at least 1ms after jitter.
+    static constexpr uint32_t MEASURE_DELAY_MS = 2;
 
     switch (meter_state) {
         case MeterState::IDLE:
@@ -474,8 +482,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             // Technically, 250uS is ok, but precise match would be platform-dependant
             // and, probably, blocking. We rely on FreeRTOS ticks instead.
             // Minimal value is 1, and we add one more to guard against jitter.
-            meter_wait_until_ts = get_timestamp() + 2;
-            meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
+            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
+            meter_state = MeterState::SCAN_CC1_MEASURE_WAIT;
             repeat = true;
             break;
 
@@ -490,7 +498,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC1 = 0;
             sw0.MEAS_CC2 = 1;
             HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
-            meter_wait_until_ts = get_timestamp() + 2;
+            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
             meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
             repeat = true;
 
@@ -616,6 +624,7 @@ void Fusb302Rtos::task() {
         handle_interrupt();
         handle_timer();
         handle_tcpc_calls();
+        handle_meter();
     }
 }
 
