@@ -116,11 +116,9 @@ public:
         auto cc2 = tc.tcpc.get_cc(TCPC_CC::CC2);
 
         // We may have different SRC attached, but only PD-capable is acceptable
-        if (((cc1 == TCPC_CC_LEVEL::RP_3_0 && cc2 == TCPC_CC_LEVEL::NONE) ||
-            (cc1 == TCPC_CC_LEVEL::NONE && cc2 == TCPC_CC_LEVEL::RP_3_0)) &&
-            (cc1 == tc.prev_cc1 || cc2 == tc.prev_cc2))
+        if ((cc1 != cc2) && (cc1 == tc.prev_cc1) && (cc2 == tc.prev_cc2))
         {
-            tc.tcpc.req_set_polarity(cc1 == TCPC_CC_LEVEL::RP_3_0 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
+            tc.tcpc.req_set_polarity(cc1 > cc2 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
             return TC_SINK_ATTACHED;
         }
 
@@ -144,10 +142,10 @@ public:
     auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        // If active CC become zero => cable detached
-        // Note, value of active CC is updated by driver automatically. Here
-        // we just quick-read cache, without boring chip request/debouncing.
-        if (tc.tcpc.get_cc(TCPC_CC::ACTIVE) == TCPC_CC_LEVEL::NONE) {
+        // TODO: Actually, we should check Safe0v. Check, if we should be more
+        // strict here. In theory, active CC also could be used, but it has
+        // lot of zeroes during BMC transfers to filter out.
+        if (!tc.tcpc.is_vbus_ok()) {
             return TC_DETACHED;
         }
         return No_State_Change;
