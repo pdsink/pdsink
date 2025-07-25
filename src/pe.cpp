@@ -318,7 +318,7 @@ public:
                     pe.sink.dpm->notify(MsgDpm_HandshakeDone());
                 }
 
-                if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
+                if (pe.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
                     pe.sink.dpm->notify(MsgDpm_NewPowerLevel(true));
                 }
 
@@ -339,7 +339,7 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
-                if (pe.dpm_requests.test_and_clear(DPM_REQUEST::NEW_POWER_LEVEL)) {
+                if (pe.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
                     pe.sink.dpm->notify(MsgDpm_NewPowerLevel(false));
                 }
 
@@ -437,7 +437,7 @@ public:
         } else {
             // Force enter EPR mode if possible
             if (pe.is_epr_mode_available()) {
-                pe.dpm_requests.set(DPM_REQUEST::EPR_MODE_ENTRY);
+                pe.dpm_requests.set(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
             }
         }
 
@@ -583,31 +583,31 @@ public:
 
             pe.flags.set(PE_FLAG::AMS_ACTIVE);
 
-            if (pe.dpm_requests.test(DPM_REQUEST::EPR_MODE_ENTRY)) {
+            if (pe.dpm_requests.test(DPM_REQUEST_FLAG::EPR_MODE_ENTRY)) {
                 if (pe.is_in_epr_mode()) {
                     PE_LOG("EPR mode entry requested, but already in EPR mode");
-                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                    pe.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else if (!pe.is_epr_mode_available()) {
                     PE_LOG("EPR mode entry requested, but not allowed");
-                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                    pe.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else {
                     return PE_SNK_Send_EPR_Mode_Entry;
                 }
             }
 
-            if (pe.dpm_requests.test(DPM_REQUEST::NEW_POWER_LEVEL)) {
+            if (pe.dpm_requests.test(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
                 return PE_SNK_Select_Capability;
             }
 
-            if (pe.dpm_requests.test(DPM_REQUEST::GET_PPS_STATUS)) {
+            if (pe.dpm_requests.test(DPM_REQUEST_FLAG::GET_PPS_STATUS)) {
                 return PE_Dpm_Get_PPS_Status;
             }
 
-            if (pe.dpm_requests.test(DPM_REQUEST::GET_REVISION)) {
+            if (pe.dpm_requests.test(DPM_REQUEST_FLAG::GET_REVISION)) {
                 return PE_Dpm_Get_Revision;
             }
 
-            if (pe.dpm_requests.test(DPM_REQUEST::GET_SRC_INFO)) {
+            if (pe.dpm_requests.test(DPM_REQUEST_FLAG::GET_SRC_INFO)) {
                 return PE_Dpm_Get_Source_Info;
             }
 
@@ -999,7 +999,7 @@ public:
                 }
 
                 pe.flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
-                pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                pe.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
                 PE_LOG("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
 
@@ -1041,7 +1041,7 @@ public:
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_SUCCEEDED) {
                     pe.flags.set(PE_FLAG::IN_EPR_MODE);
-                    pe.dpm_requests.clear(DPM_REQUEST::EPR_MODE_ENTRY);
+                    pe.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
                     return PE_SNK_Wait_for_Capabilities;
                 }
@@ -1202,7 +1202,7 @@ public:
                 result = msg.read32(0);
             }
 
-            pe.dpm_requests.clear(DPM_REQUEST::GET_PPS_STATUS);
+            pe.dpm_requests.clear(DPM_REQUEST_FLAG::GET_PPS_STATUS);
             pe.sink.dpm->notify(MsgDpm_PPSStatus(result));
             return PE_SNK_Ready;
         }
@@ -1248,7 +1248,7 @@ public:
                 result = msg.read32(0);
             }
 
-            pe.dpm_requests.clear(DPM_REQUEST::GET_REVISION);
+            pe.dpm_requests.clear(DPM_REQUEST_FLAG::GET_REVISION);
             pe.sink.dpm->notify(MsgDpm_PartnerRevision(result));
             return PE_SNK_Ready;
         }
@@ -1294,7 +1294,7 @@ public:
                 result = msg.read32(0);
             }
 
-            pe.dpm_requests.clear(DPM_REQUEST::GET_SRC_INFO);
+            pe.dpm_requests.clear(DPM_REQUEST_FLAG::GET_SRC_INFO);
             pe.sink.dpm->notify(MsgDpm_SourceInfo(result));
             return PE_SNK_Ready;
         }
@@ -1313,8 +1313,8 @@ public:
 };
 
 
-PE::PE(Sink& sink, PRL& prl, ITCPC& tcpc)
-    : etl::fsm(0), sink{sink}, prl{prl}, tcpc{tcpc}
+PE::PE(Port& port, Sink& sink, PRL& prl, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, sink{sink}, prl{prl}, tcpc{tcpc}
 {
     sink.pe = this;
 

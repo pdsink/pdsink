@@ -1,14 +1,14 @@
 #pragma once
 
-#include "data_objects.h"
-#include "idriver.h"
-#include "timers.h"
-#include "utils/atomic_bits.h"
-
 #include <etl/atomic.h>
-
 #include <stddef.h>
 #include <stdint.h>
+
+#include "data_objects.h"
+#include "idriver.h"
+#include "port.h"
+#include "timers.h"
+#include "utils/atomic_bits.h"
 
 namespace pd {
 
@@ -19,7 +19,12 @@ class PRL;
 
 class Sink {
 public:
-    Sink() = default;
+    Sink(Port& port) : port{port} {}
+
+    // Disable unexpected use
+    Sink() = delete;
+    Sink(const Sink&) = delete;
+    Sink& operator=(const Sink&) = delete;
 
     void start();
 
@@ -35,10 +40,7 @@ public:
     PE* pe{nullptr};
     IDPM* dpm{nullptr};
     PRL* prl{nullptr};
-
-    // Disable unexpected use
-    Sink(const Sink&) = delete;
-    Sink& operator=(const Sink&) = delete;
+    Port& port;
 
 private:
     void loop();

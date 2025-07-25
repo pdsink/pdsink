@@ -13,6 +13,7 @@
 #include "../src/dpm.h"
 #include "../src/idriver.h"
 #include "../src/pe.h"
+#include "../src/port.h"
 #include "../src/prl.h"
 #include "../src/sink.h"
 #include "../src/tc.h"

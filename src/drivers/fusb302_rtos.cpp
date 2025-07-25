@@ -54,8 +54,8 @@ namespace TX_TKN {
     static constexpr uint8_t TX_OFF = 0xFE;
 }
 
-Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal)
-    : sink{sink}, hal{hal}
+Fusb302Rtos::Fusb302Rtos(Port& port, Sink& sink, IFusb302RtosHal& hal)
+    : port{port}, sink{sink}, hal{hal}
 {
     sink.driver = this;
 }

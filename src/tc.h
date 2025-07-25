@@ -6,10 +6,11 @@
 //
 #pragma once
 
+#include <etl/fsm.h>
+
 #include "data_objects.h"
 #include "idriver.h"
-
-#include <etl/fsm.h>
+#include "port.h"
 
 namespace pd {
 
@@ -17,16 +18,18 @@ class Sink;
 
 class TC : public etl::fsm {
 public:
-    TC(Sink& sink, ITCPC& tcpc);
-    void dispatch(const MsgPdEvents& events);
-    void log_state();
-    bool is_connected();
+    TC(Port& port, Sink& sink, ITCPC& tcpc);
 
     // Disable unexpected use
     TC() = delete;
     TC(const TC&) = delete;
     TC& operator=(const TC&) = delete;
 
+    void dispatch(const MsgPdEvents& events);
+    void log_state();
+    bool is_connected();
+
+    Port& port;
     Sink& sink;
     ITCPC& tcpc;
 

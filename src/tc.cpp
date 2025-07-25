@@ -153,7 +153,7 @@ public:
 };
 
 
-TC::TC(Sink& sink, ITCPC& tcpc) : etl::fsm(0), sink{sink}, tcpc{tcpc} {
+TC::TC(Port& port, Sink& sink, ITCPC& tcpc) : etl::fsm(0), port{port}, sink{sink}, tcpc{tcpc} {
     sink.tc = this;
 
     static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{

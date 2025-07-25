@@ -1,27 +1,15 @@
 #pragma once
 
+#include <etl/fsm.h>
+
 #include "data_objects.h"
 #include "idriver.h"
+#include "pe_defs.h"
+#include "port.h"
 #include "prl.h"
 #include "utils/atomic_bits.h"
 
-#include <etl/fsm.h>
-
 namespace pd {
-
-// Boolean flags to organize  simple DPM requests queue
-namespace DPM_REQUEST {
-    enum Type {
-        UNUSED, // Skip 0 to simplify current request checks
-        NEW_POWER_LEVEL,
-        EPR_MODE_ENTRY,
-        GET_PPS_STATUS,
-        GET_SRC_INFO,
-        GET_REVISION,
-
-        REQUEST_COUNT
-    };
-}; // namespace DPM_REQUEST
 
 namespace PE_REQUEST_PROGRESS {
     enum Type {
@@ -35,41 +23,15 @@ namespace PE_REQUEST_PROGRESS {
 class Sink;
 class PRL;
 
-namespace PE_FLAG {
-    enum Type {
-        // Flags of message transfer (set by PRL)
-        TX_COMPLETE,   // Message sent
-        MSG_DISCARDED, // Outgoing message discarded by new incoming one
-        MSG_RECEIVED,  // Got reply OR new message (which discarded outgoing transfer)
-
-        // By default PRL error usually causes soft reset. This flag can be set
-        // at state entry when custom handling needed. Then error will rise
-        // PROTOCOL_ERROR flag instead.
-        FORWARD_PRL_ERROR,
-        PROTOCOL_ERROR,
-
-        HAS_EXPLICIT_CONTRACT,
-        IN_EPR_MODE,
-        AMS_ACTIVE,
-        AMS_FIRST_MSG_SENT,
-        EPR_AUTO_ENTER_DISABLED,
-
-        // Minor local flags to control states behaviour
-        WAIT_DPM_TRANSIT_TO_DEFAULT,
-        PRL_HARD_RESET_PENDING,
-        IS_FROM_EVALUATE_CAPABILITY,
-        HR_BY_CAPS_TIMEOUT,
-        DO_SOFT_RESET_ON_UNSUPPORTED,
-        CAN_SEND_SOFT_RESET,
-        TRANSMIT_REQUEST_SUCCEEDED,
-
-        FLAGS_COUNT
-    };
-};
-
 class PE : public etl::fsm {
 public:
-    PE(Sink& sink, PRL& prl, ITCPC& tcpc);
+    PE(Port& port, Sink& sink, PRL& prl, ITCPC& tcpc);
+
+    // Disable unexpected use
+    PE() = delete;
+    PE(const PE&) = delete;
+    PE& operator=(const PE&) = delete;
+
     void log_state();
     void init();
     void dispatch(const MsgPdEvents& events, const bool pd_enabled);
@@ -105,11 +67,6 @@ public:
     auto check_request_progress_run() -> PE_REQUEST_PROGRESS::Type;
     void check_request_progress_exit();
 
-    // Disable unexpected use
-    PE() = delete;
-    PE(const PE&) = delete;
-    PE& operator=(const PE&) = delete;
-
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
 
     AtomicBits<PE_FLAG::FLAGS_COUNT> flags{};
@@ -123,8 +80,9 @@ public:
     //
     // Micro-queue for DPM requests (set of flags)
     //
-    AtomicBits<DPM_REQUEST::REQUEST_COUNT> dpm_requests{};
+    AtomicBits<DPM_REQUEST_FLAG::REQUEST_COUNT> dpm_requests{};
 
+    Port& port;
     Sink& sink;
     PRL& prl;
     ITCPC& tcpc;

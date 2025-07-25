@@ -1350,8 +1350,9 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-PRL::PRL(Sink& sink, IDriver& tcpc)
-    : sink{sink},
+PRL::PRL(Port& port, Sink& sink, IDriver& tcpc)
+    : port{port},
+    sink{sink},
     tcpc{tcpc},
     prl_tx{*this},
     prl_rx{*this},

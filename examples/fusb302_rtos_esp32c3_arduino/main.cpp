@@ -5,20 +5,21 @@
 // For HW with disconnected VBUS pin. Let's see if that works.
 class Driver : public pd::fusb302::Fusb302Rtos {
 public:
-    Driver(pd::Sink& sink, pd::fusb302::Fusb302RtosHalEsp32& hal)
-        : Fusb302Rtos(sink, hal) {}
+    Driver(pd::Port& port, pd::Sink& sink, pd::fusb302::Fusb302RtosHalEsp32& hal)
+        : Fusb302Rtos(port, sink, hal) {}
 
     bool is_vbus_ok() override { return true; }
 };
 
 
-pd::Sink sink;
+pd::Port port;
+pd::Sink sink(port);
 pd::fusb302::Fusb302RtosHalEsp32 fusb302_hal;
-Driver driver(sink, fusb302_hal);
-pd::PRL prl(sink, driver);
-pd::PE pe(sink, prl, driver);
-pd::TC tc(sink, driver);
-pd::DPM dpm(sink, pe);
+Driver driver(port, sink, fusb302_hal);
+pd::PRL prl(port, sink, driver);
+pd::PE pe(port, sink, prl, driver);
+pd::TC tc(port, sink, driver);
+pd::DPM dpm(port, sink, pe);
 
 Blinker<LedDriver> blinker;
 

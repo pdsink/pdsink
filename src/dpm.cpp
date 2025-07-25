@@ -5,7 +5,7 @@
 
 namespace pd {
 
-DPM::DPM(Sink& sink, PE& pe) : sink{sink}, pe{pe} {
+DPM::DPM(Port& port, Sink& sink, PE& pe) : port{port}, sink{sink}, pe{pe} {
     sink.dpm = this;
 };
 
@@ -231,7 +231,7 @@ void DPM::trigger_fixed(uint32_t mv) {
 
     // If explicit contract already exists, request new power level
     if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-        pe.dpm_requests.set(DPM_REQUEST::NEW_POWER_LEVEL);
+        pe.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
     }
 }
 void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
@@ -241,7 +241,7 @@ void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
 
     // If explicit contract already exists, request new power level
     if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-        pe.dpm_requests.set(DPM_REQUEST::NEW_POWER_LEVEL);
+        pe.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
     }
 }
 

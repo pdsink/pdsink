@@ -1,8 +1,9 @@
 #pragma once
 
-#include "data_objects.h"
-
 #include <etl/fsm.h>
+
+#include "data_objects.h"
+#include "port.h"
 
 namespace pd {
 
@@ -88,7 +89,7 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Sink& sink, PE& pe);
+    DPM(Port& port, Sink& sink, PE& pe);
 
     // Disable unexpected use
     DPM() = delete;
@@ -139,6 +140,7 @@ public:
     PDO_LIST sink_rdo_list;
 
 private:
+    Port& port;
     Sink& sink;
     PE& pe;
 };

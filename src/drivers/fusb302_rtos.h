@@ -8,6 +8,7 @@
 
 #include "fusb302_regs.h"
 #include "idriver.h"
+#include "port.h"
 #include "utils/leapsync.h"
 #include "utils/spsc_overwrite_queue.h"
 
@@ -55,7 +56,7 @@ class Fusb302Rtos;
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
 public:
-    Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal);
+    Fusb302Rtos(Port& port, Sink& sink, IFusb302RtosHal& hal);
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
@@ -155,6 +156,7 @@ private:
     bool fusb_hr_send_end();
     bool fusb_bist(bool enable);
 
+    Port& port;
     Sink& sink;
     IFusb302RtosHal& hal;
     etl::imessage_router* msg_router{nullptr};

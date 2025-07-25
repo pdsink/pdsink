@@ -1,11 +1,12 @@
 #pragma once
 
-#include "data_objects.h"
-#include "idriver.h"
-#include "utils/atomic_bits.h"
-
 #include <etl/cyclic_value.h>
 #include <etl/fsm.h>
+
+#include "data_objects.h"
+#include "idriver.h"
+#include "port.h"
+#include "utils/atomic_bits.h"
 
 namespace pd {
 
@@ -135,7 +136,7 @@ private:
 
 class PRL {
 public:
-    PRL(Sink& sink, IDriver& tcpc);
+    PRL(Port& port, Sink& sink, IDriver& tcpc);
     void dispatch(const MsgPdEvents& events, const bool pd_enabled);
     void init(bool from_hr_fsm = false);
 
@@ -194,6 +195,7 @@ public:
     // is enough.
     PD_REVISION::Type revision{PD_REVISION::REV30};
 
+    Port& port;
     Sink& sink;
     IDriver& tcpc;
 
