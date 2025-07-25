@@ -208,10 +208,10 @@ public:
 
         if (rch.flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
             auto& prl = rch.prl;
-            auto& chunk = prl.rx_chunk;
+            auto& chunk = prl.port.rx_chunk;
 
             // Copy header to output struct
-            prl.rx_emsg.header = chunk.header;
+            prl.port.rx_emsg.header = chunk.header;
 
             if (chunk.header.extended) {
                 PD_EXT_HEADER ehdr{chunk.read16(0)};
@@ -221,11 +221,11 @@ public:
                     // on first chunk, but this place looks more obvious
                     rch.chunk_number_expected = 0;
 
-                    prl.rx_emsg.clear();
+                    prl.port.rx_emsg.clear();
                     // Save header (with message type) in both tx and rx structs.
                     // Tx may be used in chunk requests.
-                    prl.rx_emsg.header = chunk.header;
-                    prl.tx_emsg.header = chunk.header;
+                    prl.port.rx_emsg.header = chunk.header;
+                    prl.port.tx_emsg.header = chunk.header;
                     return RCH_Processing_Extended_Message;
                 }
 
@@ -240,8 +240,8 @@ public:
             }
 
             // Non-extended message
-            prl.rx_emsg = chunk;
-            prl.rx_emsg.resize_by_data_obj_count();
+            prl.port.rx_emsg = chunk;
+            prl.port.rx_emsg.resize_by_data_obj_count();
             return RCH_Pass_Up_Message;
         }
         return No_State_Change;
@@ -269,8 +269,8 @@ public:
         auto& rch = get_fsm_context();
         rch.log_state();
 
-        auto& chunk = rch.prl.rx_chunk;
-        auto& msg = rch.prl.rx_emsg;
+        auto& chunk = rch.prl.port.rx_chunk;
+        auto& msg = rch.prl.port.rx_emsg;
 
         PD_EXT_HEADER ehdr{chunk.read16(0)};
 
@@ -312,10 +312,10 @@ public:
         // Block PE timeout timer for multichunk responses, it should not fail
         prl.port.timers.stop(PD_TIMEOUT::tSenderResponse);
 
-        auto& chunk = prl.tx_chunk;
+        auto& chunk = prl.port.tx_chunk;
 
         PD_HEADER hdr{0};
-        hdr.message_type = prl.rx_emsg.header.message_type;
+        hdr.message_type = prl.port.rx_emsg.header.message_type;
         hdr.data_obj_count = 1;
         hdr.extended = 1;
 
@@ -377,7 +377,7 @@ public:
         auto& rch = get_fsm_context();
 
         if (rch.flags.test(RCH_FLAG::RX_ENQUEUED)) {
-            auto& chunk = rch.prl.rx_chunk;
+            auto& chunk = rch.prl.port.rx_chunk;
             auto& hdr = chunk.header;
 
             // Spec requires to inform PE immediately about new message on
@@ -418,8 +418,8 @@ public:
         auto& prl = rch.prl;
 
         if (prl.flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
-            prl.rx_emsg = prl.rx_chunk;
-            prl.rx_emsg.resize_by_data_obj_count();
+            prl.port.rx_emsg = prl.port.rx_chunk;
+            prl.port.rx_emsg.resize_by_data_obj_count();
             prl.sink.pe->on_message_received();
         }
 
@@ -464,7 +464,7 @@ public:
                 return TCH_Report_Error;
             }
 
-            if (prl.tx_emsg.header.extended && prl.chunking()) {
+            if (prl.port.tx_emsg.header.extended && prl.chunking()) {
                 return TCH_Prepare_To_Send_Chunked_Message;
             }
             return TCH_Pass_Down_Message;
@@ -485,8 +485,8 @@ public:
         // NOTE: add unchunked ext msg data copy
 
         // Copy data to chunk & fill data object count
-        prl.tx_chunk = prl.tx_emsg;
-        prl.tx_chunk.header.data_obj_count = (prl.tx_emsg.data_size() + 3) >> 2;
+        prl.port.tx_chunk = prl.port.tx_emsg;
+        prl.port.tx_chunk.header.data_obj_count = (prl.port.tx_emsg.data_size() + 3) >> 2;
 
         prl.prl_tx.flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
         return TCH_Wait_For_Transmision_Complete;
@@ -558,21 +558,21 @@ public:
         auto& prl = tch.prl;
         tch.log_state();
 
-        int tail_len = prl.tx_emsg.data_size() - tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
+        int tail_len = prl.port.tx_emsg.data_size() - tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
         int chunk_data_len = etl::min(tail_len, MaxExtendedMsgChunkLen);
 
         PD_EXT_HEADER ehdr{0};
-        ehdr.data_size = prl.tx_emsg.data_size();
+        ehdr.data_size = prl.port.tx_emsg.data_size();
         ehdr.chunk_number = tch.chunk_number_to_send;
         ehdr.chunked = 1;
 
-        prl.tx_chunk.clear();
-        prl.tx_chunk.append16(ehdr.raw_value);
+        prl.port.tx_chunk.clear();
+        prl.port.tx_chunk.append16(ehdr.raw_value);
         auto offset = tch.chunk_number_to_send * MaxExtendedMsgChunkLen;
-        prl.tx_chunk.append_from(prl.tx_emsg, offset, offset + chunk_data_len);
+        prl.port.tx_chunk.append_from(prl.port.tx_emsg, offset, offset + chunk_data_len);
 
-        prl.tx_chunk.header = prl.tx_emsg.header;
-        prl.tx_chunk.header.data_obj_count = (prl.tx_chunk.data_size() + 3) >> 2;
+        prl.port.tx_chunk.header = prl.port.tx_emsg.header;
+        prl.port.tx_chunk.header.data_obj_count = (prl.port.tx_chunk.data_size() + 3) >> 2;
 
         if (tch.prl.flags.test_and_clear(PRL_FLAG::ABORT)) {
             return TCH_Wait_For_Transmision_Complete;
@@ -608,7 +608,7 @@ public:
 
         // Reached msg size => last chunk sent
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
-            if (max_bytes >= prl.tx_emsg.data_size()) {
+            if (max_bytes >= prl.port.tx_emsg.data_size()) {
                 return TCH_Message_Sent;
             }
 
@@ -642,8 +642,8 @@ public:
         auto& prl = tch.prl;
 
         if (tch.flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
-            if (prl.rx_emsg.header.extended) {
-                PD_EXT_HEADER ehdr{prl.rx_chunk.read16(0)};
+            if (prl.port.rx_emsg.header.extended) {
+                PD_EXT_HEADER ehdr{prl.port.rx_chunk.read16(0)};
 
                 if (ehdr.request_chunk) {
                     if (ehdr.chunk_number == tch.chunk_number_to_send) {
@@ -771,7 +771,7 @@ public:
         auto& prl_tx = get_fsm_context();
 
         // For first AMS message need to wait SinkTxOK CC level
-        if (!prl_tx.prl.sink.pe->is_ams_active()) {
+        if (!prl_tx.prl.port.is_ams_active()) {
             prl_tx.flags.clear(PRL_TX_FLAG::START_OF_AMS_DETECTED);
         } else {
             if (!prl_tx.flags.test(PRL_TX_FLAG::START_OF_AMS_DETECTED)) {
@@ -782,7 +782,7 @@ public:
 
         // For non-AMS messages, or after first AMS message
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED)) {
-            auto& tx_chunk = prl_tx.prl.tx_chunk;
+            auto& tx_chunk = prl_tx.prl.port.tx_chunk;
 
             if (tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
                 return PRL_Tx_Layer_Reset_for_Transmit;
@@ -1030,7 +1030,7 @@ public:
         }
 
         // Soft reset passed without delay
-        if (prl_tx.prl.tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+        if (prl_tx.prl.port.tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             prl_tx.flags.clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
             return PRL_Tx_Layer_Reset_for_Transmit;
         }
@@ -1073,9 +1073,9 @@ public:
             return No_State_Change;
         }
 
-        if (!prl.tcpc.fetch_rx_data(prl.rx_chunk)) { return No_State_Change; }
+        if (!prl.tcpc.fetch_rx_data(prl.port.rx_chunk)) { return No_State_Change; }
 
-        if (prl.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+        if (prl.port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             return PRL_Rx_Layer_Reset_for_Receive;
         }
 
@@ -1134,7 +1134,7 @@ public:
         auto& prl_rx = get_fsm_context();
         prl_rx.log_state();
 
-        if (prl_rx.msg_id_stored == prl_rx.prl.rx_chunk.header.message_id) {
+        if (prl_rx.msg_id_stored == prl_rx.prl.port.rx_chunk.header.message_id) {
             // Ignore duplicated
             return PRL_Rx_Wait_for_PHY_Message;
         }
@@ -1152,11 +1152,11 @@ public:
 
         auto& prl = prl_rx.prl;
 
-        prl_rx.msg_id_stored = prl.rx_chunk.header.message_id;
+        prl_rx.msg_id_stored = prl.port.rx_chunk.header.message_id;
 
         // Rev 3.2 says ping is deprecated => Ignore it completely
         // (it should not discard, affect chunking and so on).
-        if (prl.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Ping)) { return PRL_Rx_Wait_for_PHY_Message; }
+        if (prl.port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Ping)) { return PRL_Rx_Wait_for_PHY_Message; }
 
         prl.prl_tx.receive(MsgTransitTo(PRL_Tx_Discard_Message));
 
@@ -1472,8 +1472,8 @@ void PRL::on_pe_hard_reset_done() {
 void PRL::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
     PD_HEADER hdr{};
     hdr.message_type = msgt;
-    tx_emsg.clear();
-    tx_emsg.header = hdr;
+    port.tx_emsg.clear();
+    port.tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
     port.wakeup();
@@ -1482,7 +1482,7 @@ void PRL::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
 void PRL::send_data_msg(PD_DATA_MSGT::Type msgt) {
     PD_HEADER hdr{};
     hdr.message_type = msgt;
-    tx_emsg.header = hdr;
+    port.tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
     port.wakeup();
@@ -1492,15 +1492,15 @@ void PRL::send_ext_msg(PD_EXT_MSGT::Type msgt) {
     PD_HEADER hdr{};
     hdr.message_type = msgt;
     hdr.extended = 1;
-    tx_emsg.header = hdr;
+    port.tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
     port.wakeup();
 }
 
 void PRL::tcpc_enquire_msg() {
-    tx_chunk.header.message_id = prl_tx.msg_id_counter;
-    tx_chunk.header.spec_revision = revision;
+    port.tx_chunk.header.message_id = prl_tx.msg_id_counter;
+    port.tx_chunk.header.spec_revision = revision;
 
     // Clear PRL_TX "output" flags
     prl_tx.flags.clear(PRL_TX_FLAG::TX_COMPLETED);
@@ -1509,7 +1509,7 @@ void PRL::tcpc_enquire_msg() {
     // Rearm TCPC TX status.
     prl_tx.tcpc_tx_status = TCPC_TRANSMIT_STATUS::WAITING;
 
-    tcpc.req_transmit(tx_chunk);
+    tcpc.req_transmit(port.tx_chunk);
 }
 
 void PRL::tx_enquire_chunk() {

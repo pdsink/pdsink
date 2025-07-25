@@ -1,11 +1,10 @@
 #include "common_macros.h"
 #include "dpm.h"
-#include "pe.h"
 #include "sink.h"
 
 namespace pd {
 
-DPM::DPM(Port& port, Sink& sink, PE& pe) : port{port}, sink{sink}, pe{pe} {
+DPM::DPM(Port& port, Sink& sink) : port{port}, sink{sink} {
     sink.dpm = this;
 };
 
@@ -230,8 +229,8 @@ void DPM::trigger_fixed(uint32_t mv) {
     trigger_mode = FIXED;
 
     // If explicit contract already exists, request new power level
-    if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-        pe.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
+    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+        port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
     }
 }
 void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
@@ -240,8 +239,8 @@ void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
     trigger_mode = SPR_PPS;
 
     // If explicit contract already exists, request new power level
-    if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-        pe.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
+    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+        port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
     }
 }
 

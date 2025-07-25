@@ -20,7 +20,7 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port, Sink& sink, PE& pe);
+    DPM(Port& port, Sink& sink);
 
     // Disable unexpected use
     DPM() = delete;
@@ -73,7 +73,6 @@ public:
 private:
     Port& port;
     Sink& sink;
-    PE& pe;
 };
 
 } // namespace pd

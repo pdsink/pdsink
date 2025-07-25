@@ -182,13 +182,6 @@ public:
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
     AtomicBits<PRL_FLAG::FLAGS_COUNT> flags{};
 
-    PD_MSG rx_emsg;
-    PD_MSG tx_emsg;
-
-    // Internal buffers to construct/split messages
-    PD_CHUNK rx_chunk;
-    PD_CHUNK tx_chunk;
-
     // In full PD stack we should keep separate revision for all SOP*.
     // But in sink we talk with charger only, and single revision for `SOP`
     // is enough.
