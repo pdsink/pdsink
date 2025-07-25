@@ -4,6 +4,7 @@
 
 #include "data_objects.h"
 #include "idriver.h"
+#include "messages.h"
 #include "pe_defs.h"
 #include "port.h"
 #include "prl.h"
@@ -34,7 +35,7 @@ public:
 
     void log_state();
     void init();
-    void dispatch(const MsgPdEvents& events, const bool pd_enabled);
+    void dispatch(const MsgSysUpdate& events, const bool pd_enabled);
 
     PD_MSG& get_rx_msg();
     PD_MSG& get_tx_msg();

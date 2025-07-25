@@ -14,14 +14,18 @@ void Sink::loop() {
             return;
         }
 
-        MsgPdEvents msg_events{event_group.exchange(0)};
-        if (msg_events.has_timeout()) timers.cleanup();
+        auto e_group = event_group.exchange(0);
 
-        tc->dispatch(msg_events);
+        if (e_group & Sink::EVENT_TIMER_MSK) {
+            port.timers.set_time(last_timer_ts.load());
+            port.timers.cleanup();
+        }
+
+        tc->dispatch(MsgSysUpdate{});
         auto connected = tc->is_connected();
 
-        pe->dispatch(msg_events, connected);
-        prl->dispatch(msg_events, connected);
+        pe->dispatch(MsgSysUpdate{}, connected);
+        prl->dispatch(MsgSysUpdate{}, connected);
 
         // Let's rearm timer if needed. 2 cases are possible:
         //
@@ -31,14 +35,16 @@ void Sink::loop() {
         // This is NOT needed for periodic 1ms timer without rearm support.
 
         if (driver->is_rearm_supported()) {
-            if (timers.timers_changed.exchange(false) ||
-                msg_events.has_timeout())
+            if (port.timers.timers_changed.exchange(false) ||
+                (e_group & Sink::EVENT_TIMER_MSK))
             {
-                auto next_exp{timers.get_next_expiration()};
+                auto next_exp{port.timers.get_next_expiration()};
                 if (next_exp != Timers::NO_EXPIRE)
                 {
                     if (next_exp == 0) {
-                        set_event(PD_EVENT::TIMER);
+                        // Rearm timer event and add deferred call
+                        event_group.fetch_or(Sink::EVENT_TIMER_MSK);
+                        loop_flags.set(HAS_DEFERRED_FL);
                     } else {
                         driver->rearm(next_exp);
                     }
@@ -53,9 +59,7 @@ void Sink::loop() {
 void Sink::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
-    timers.set_time_provider(
-        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(*driver)
-    );
+    port.msgbus.subscribe(task_msg_listener);
 
     driver->start();
     prl->init();
@@ -63,7 +67,17 @@ void Sink::start() {
     tc->start();
 
     loop_flags.clear(IS_IN_LOOP_FL);
-    set_event(PD_EVENT::TIMER);
+}
+
+void Task_MsgListener::on_receive(const MsgTask_Wakeup& msg) {
+    sink.event_group.fetch_or(Sink::EVENT_WAKEUP_MSK);
+    sink.loop();
+}
+
+void Task_MsgListener::on_receive(const MsgTask_Timer& msg) {
+    sink.last_timer_ts.store(msg.timestamp);
+    sink.event_group.fetch_or(Sink::EVENT_TIMER_MSK);
+    sink.loop();
 }
 
 } // namespace pd

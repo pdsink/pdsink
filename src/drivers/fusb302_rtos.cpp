@@ -5,6 +5,7 @@
 #include <etl/vector.h>
 #include "sink.h"
 #include "fusb302_rtos.h"
+#include "messages.h"
 
 namespace pd {
 
@@ -277,7 +278,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
             DRV_LOG("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());
             rx_queue.push(pkt);
-            pass_up(MsgTcpcWakeup());
+            port.wakeup();
         }
 
         HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
@@ -302,7 +303,7 @@ bool Fusb302Rtos::fusb_hr_send_begin() {
 bool Fusb302Rtos::fusb_hr_send_end() {
     // TODO: (?) add chip reset
     sync_hr_send.mark_finished();
-    pass_up(MsgTcpcWakeup());
+    port.wakeup();
     return true;
 }
 
@@ -329,7 +330,7 @@ bool Fusb302Rtos::handle_interrupt() {
         if (interrupt.I_VBUSOK) {
             vbus_ok.store(status0.VBUSOK);
             DRV_LOG("IRQ: VBUS changed");
-            pass_up(MsgTcpcWakeup());
+            port.wakeup();
         }
 
         if (interrupta.I_HARDRST) {
@@ -434,7 +435,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::CC_ACTIVE_END:
             sync_active_cc.mark_finished();
             meter_state = MeterState::IDLE;
-            pass_up(MsgTcpcWakeup());
+            port.wakeup();
             break;
 
         case MeterState::SCAN_CC_BEGIN:
@@ -486,7 +487,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             sync_scan_cc.mark_finished();
             meter_state = MeterState::IDLE;
-            pass_up(MsgTcpcWakeup());
+            port.wakeup();
 
             break;
     }
@@ -508,7 +509,7 @@ bool Fusb302Rtos::handle_meter() {
 bool Fusb302Rtos::handle_timer() {
     if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return true; }
 
-    pass_up(MsgTimerEvent());
+    port.notify_task(MsgTask_Timer{get_timestamp()});
     return true;
 }
 
@@ -521,21 +522,21 @@ bool Fusb302Rtos::handle_tcpc_calls() {
         sync_set_polarity.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_polarity(sync_set_polarity.get_param()));
         sync_set_polarity.mark_finished();
-        pass_up(MsgTcpcWakeup());
+        port.wakeup();
     }
 
     if (sync_rx_enable.is_enquired()) {
         sync_rx_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
         sync_rx_enable.mark_finished();
-        pass_up(MsgTcpcWakeup());
+        port.wakeup();
     }
 
     if (sync_bist_carrier_enable.is_enquired()) {
         sync_bist_carrier_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_bist(sync_bist_carrier_enable.get_param()));
         sync_bist_carrier_enable.mark_finished();
-        pass_up(MsgTcpcWakeup());
+        port.wakeup();
     }
 
     if (sync_transmit.is_enquired()) {
@@ -580,6 +581,10 @@ void Fusb302Rtos::start() {
     );
 
     hal.start();
+
+    // Force port.timers time sync, before used in TC/PE/PRL
+    port.notify_task(MsgTask_Timer{get_timestamp()});
+
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {

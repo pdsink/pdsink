@@ -5,6 +5,7 @@
 
 #include "data_objects.h"
 #include "idriver.h"
+#include "messages.h"
 #include "port.h"
 #include "utils/atomic_bits.h"
 
@@ -122,13 +123,11 @@ PRL_TCH(PRL& prl);
     PRL& prl;
 };
 
-class TcpcEventHandler : public etl::message_router<TcpcEventHandler, MsgTcpcHardReset, MsgTcpcWakeup, MsgTcpcTransmitStatus> {
+class TcpcEventHandler : public etl::message_router<TcpcEventHandler, MsgTcpcHardReset, MsgTcpcTransmitStatus> {
 public:
     TcpcEventHandler(PRL& prl);
     void on_receive(const MsgTcpcHardReset& msg);
-    void on_receive(const MsgTcpcWakeup& msg);
     void on_receive(const MsgTcpcTransmitStatus& msg);
-    void on_receive(const MsgTimerEvent& msg);
     void on_receive_unknown(const etl::imessage& msg);
 private:
     PRL& prl;
@@ -137,7 +136,7 @@ private:
 class PRL {
 public:
     PRL(Port& port, Sink& sink, IDriver& tcpc);
-    void dispatch(const MsgPdEvents& events, const bool pd_enabled);
+    void dispatch(const MsgSysUpdate& events, const bool pd_enabled);
     void init(bool from_hr_fsm = false);
 
     // False if unchunked ext messages supported by both partners. In our case

@@ -3,6 +3,7 @@
 #include <etl/message_bus.h>
 
 #include "pe_defs.h"
+#include "messages.h"
 #include "timers.h"
 #include "utils/atomic_bits.h"
 
@@ -40,11 +41,12 @@ public:
 
     etl::message_bus<ROUTER_ID::ROUTERS_COUNT> msgbus;
 
-    void notify_task(etl::imessage& msg) { msgbus.receive(ROUTER_ID::TASK, msg); }
-    void notify_tc(etl::imessage& msg) { msgbus.receive(ROUTER_ID::TC, msg); }
-    void notify_pe(etl::imessage& msg) { msgbus.receive(ROUTER_ID::PE, msg); }
-    void notify_prl(etl::imessage& msg) { msgbus.receive(ROUTER_ID::PRL, msg); }
-    void notify_dpm(etl::imessage& msg) { msgbus.receive(ROUTER_ID::DPM, msg); }
+    void notify_task(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::TASK, msg); }
+    void notify_tc(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::TC, msg); }
+    void notify_pe(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::PE, msg); }
+    void notify_prl(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::PRL, msg); }
+    void notify_dpm(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::DPM, msg); }
+    void wakeup() { msgbus.receive(ROUTER_ID::TASK, MsgTask_Wakeup()); }
 };
 
 } // namespace pd

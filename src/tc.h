@@ -25,7 +25,7 @@ public:
     TC(const TC&) = delete;
     TC& operator=(const TC&) = delete;
 
-    void dispatch(const MsgPdEvents& events);
+    void dispatch(const MsgSysUpdate& events);
     void log_state();
     bool is_connected();
 

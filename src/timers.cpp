@@ -5,7 +5,7 @@ namespace pd {
 void Timers::start(int timer_id, uint32_t us_time) {
     active.set(timer_id);
     disabled.clear(timer_id);
-    expire_at[timer_id] = get_time() + us_time;
+    expire_at[timer_id] = now + us_time;
     timers_changed.store(true);
 }
 
@@ -24,7 +24,7 @@ void Timers::stop_range(const PD_TIMEOUT::Type& range) {
 
 auto Timers::is_expired(int timer_id) -> bool {
     if (active.test(timer_id)) {
-        if (get_time() >= expire_at[timer_id]) {
+        if (now >= expire_at[timer_id]) {
             deactivate(timer_id);
             return true;
         }
@@ -45,7 +45,6 @@ void Timers::cleanup() {
 auto Timers::get_next_expiration() -> int32_t {
     constexpr int32_t MAX_EXPIRE = 0x7FFFFFFF;
 
-    auto now = get_time();
     int32_t min = MAX_EXPIRE;
 
     for (auto i = 0; i < PD_TIMER::PD_TIMER_COUNT; i++) {

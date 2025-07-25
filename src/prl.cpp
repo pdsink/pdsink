@@ -180,7 +180,7 @@ auto on_event(const MsgTransitTo& event) -> etl::fsm_state_id_t { \
 }
 
 #define ON_EVENT_NOTHING \
-auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t { \
+auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -188,7 +188,7 @@ auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t { 
 ////////////////////////////////////////////////////////////////////////////////
 // [rev3.2] 6.12.2.1.2 Chunked Rx State Diagram
 
-class RCH_Wait_For_Message_From_Protocol_Layer_State : public etl::fsm_state<PRL_RCH, RCH_Wait_For_Message_From_Protocol_Layer_State, RCH_Wait_For_Message_From_Protocol_Layer, MsgPdEvents, MsgTransitTo> {
+class RCH_Wait_For_Message_From_Protocol_Layer_State : public etl::fsm_state<PRL_RCH, RCH_Wait_For_Message_From_Protocol_Layer_State, RCH_Wait_For_Message_From_Protocol_Layer, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -203,7 +203,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& rch = get_fsm_context();
 
         if (rch.flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
@@ -248,7 +248,7 @@ public:
     }
 };
 
-class RCH_Pass_Up_Message_State : public etl::fsm_state<PRL_RCH, RCH_Pass_Up_Message_State, RCH_Pass_Up_Message, MsgPdEvents, MsgTransitTo> {
+class RCH_Pass_Up_Message_State : public etl::fsm_state<PRL_RCH, RCH_Pass_Up_Message_State, RCH_Pass_Up_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -261,7 +261,7 @@ public:
     }
 };
 
-class RCH_Processing_Extended_Message_State : public etl::fsm_state<PRL_RCH, RCH_Processing_Extended_Message_State, RCH_Processing_Extended_Message, MsgPdEvents, MsgTransitTo> {
+class RCH_Processing_Extended_Message_State : public etl::fsm_state<PRL_RCH, RCH_Processing_Extended_Message_State, RCH_Processing_Extended_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -300,7 +300,7 @@ public:
     }
 };
 
-class RCH_Requesting_Chunk_State : public etl::fsm_state<PRL_RCH, RCH_Requesting_Chunk_State, RCH_Requesting_Chunk, MsgPdEvents, MsgTransitTo> {
+class RCH_Requesting_Chunk_State : public etl::fsm_state<PRL_RCH, RCH_Requesting_Chunk_State, RCH_Requesting_Chunk, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -310,7 +310,7 @@ public:
 
         auto& prl = rch.prl;
         // Block PE timeout timer for multichunk responses, it should not fail
-        prl.sink.timers.stop(PD_TIMEOUT::tSenderResponse);
+        prl.port.timers.stop(PD_TIMEOUT::tSenderResponse);
 
         auto& chunk = prl.tx_chunk;
 
@@ -334,7 +334,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& rch = get_fsm_context();
         auto& prl_tx = rch.prl.prl_tx;
 
@@ -360,7 +360,7 @@ public:
     }
 };
 
-class RCH_Waiting_Chunk_State : public etl::fsm_state<PRL_RCH, RCH_Waiting_Chunk_State, RCH_Waiting_Chunk, MsgPdEvents, MsgTransitTo> {
+class RCH_Waiting_Chunk_State : public etl::fsm_state<PRL_RCH, RCH_Waiting_Chunk_State, RCH_Waiting_Chunk, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -368,12 +368,12 @@ public:
         auto& rch = get_fsm_context();
         rch.log_state();
 
-        rch.prl.sink.timers.start(PD_TIMEOUT::tChunkSenderResponse);
-        rch.prl.sink.timers.start(PD_TIMEOUT::tSenderResponse);
+        rch.prl.port.timers.start(PD_TIMEOUT::tChunkSenderResponse);
+        rch.prl.port.timers.start(PD_TIMEOUT::tSenderResponse);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& rch = get_fsm_context();
 
         if (rch.flags.test(RCH_FLAG::RX_ENQUEUED)) {
@@ -395,7 +395,7 @@ public:
             return RCH_Processing_Extended_Message;
         }
 
-        if (rch.prl.sink.timers.is_expired(PD_TIMEOUT::tChunkSenderResponse)) {
+        if (rch.prl.port.timers.is_expired(PD_TIMEOUT::tChunkSenderResponse)) {
             rch.error = PRL_ERROR::RCH_SEQUENCE_TIMEOUT;
             return RCH_Report_Error;
         }
@@ -405,11 +405,11 @@ public:
 
     void on_exit_state() override {
         auto& rch = get_fsm_context();
-        rch.prl.sink.timers.stop(PD_TIMEOUT::tChunkSenderResponse);
+        rch.prl.port.timers.stop(PD_TIMEOUT::tChunkSenderResponse);
     }
 };
 
-class RCH_Report_Error_State : public etl::fsm_state<PRL_RCH, RCH_Report_Error_State, RCH_Report_Error, MsgPdEvents, MsgTransitTo> {
+class RCH_Report_Error_State : public etl::fsm_state<PRL_RCH, RCH_Report_Error_State, RCH_Report_Error, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -437,7 +437,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCH_Wait_For_Message_Request_From_Policy_Engine_State : public etl::fsm_state<PRL_TCH, TCH_Wait_For_Message_Request_From_Policy_Engine_State, TCH_Wait_For_Message_Request_From_Policy_Engine, MsgPdEvents, MsgTransitTo> {
+class TCH_Wait_For_Message_Request_From_Policy_Engine_State : public etl::fsm_state<PRL_TCH, TCH_Wait_For_Message_Request_From_Policy_Engine_State, TCH_Wait_For_Message_Request_From_Policy_Engine, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -449,7 +449,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tch = get_fsm_context();
         auto& prl = tch.prl;
 
@@ -473,7 +473,7 @@ public:
     }
 };
 
-class TCH_Pass_Down_Message_State : public etl::fsm_state<PRL_TCH, TCH_Pass_Down_Message_State, TCH_Pass_Down_Message, MsgPdEvents, MsgTransitTo> {
+class TCH_Pass_Down_Message_State : public etl::fsm_state<PRL_TCH, TCH_Pass_Down_Message_State, TCH_Pass_Down_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -493,11 +493,11 @@ public:
     }
 };
 
-class TCH_Wait_For_Transmision_Complete_State : public etl::fsm_state<PRL_TCH, TCH_Wait_For_Transmision_Complete_State, TCH_Wait_For_Transmision_Complete, MsgPdEvents, MsgTransitTo> {
+class TCH_Wait_For_Transmision_Complete_State : public etl::fsm_state<PRL_TCH, TCH_Wait_For_Transmision_Complete_State, TCH_Wait_For_Transmision_Complete, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tch = get_fsm_context();
         auto& prl_tx = tch.prl.prl_tx;
 
@@ -520,7 +520,7 @@ public:
     }
 };
 
-class TCH_Message_Sent_State : public etl::fsm_state<PRL_TCH, TCH_Message_Sent_State, TCH_Message_Sent, MsgPdEvents, MsgTransitTo> {
+class TCH_Message_Sent_State : public etl::fsm_state<PRL_TCH, TCH_Message_Sent_State, TCH_Message_Sent, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -536,7 +536,7 @@ public:
     }
 };
 
-class TCH_Prepare_To_Send_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Prepare_To_Send_Chunked_Message_State, TCH_Prepare_To_Send_Chunked_Message, MsgPdEvents, MsgTransitTo> {
+class TCH_Prepare_To_Send_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Prepare_To_Send_Chunked_Message_State, TCH_Prepare_To_Send_Chunked_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -549,7 +549,7 @@ public:
     }
 };
 
-class TCH_Construct_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Construct_Chunked_Message_State, TCH_Construct_Chunked_Message, MsgPdEvents, MsgTransitTo> {
+class TCH_Construct_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Construct_Chunked_Message_State, TCH_Construct_Chunked_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -583,11 +583,11 @@ public:
     }
 };
 
-class TCH_Sending_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Sending_Chunked_Message_State, TCH_Sending_Chunked_Message, MsgPdEvents, MsgTransitTo> {
+class TCH_Sending_Chunked_Message_State : public etl::fsm_state<PRL_TCH, TCH_Sending_Chunked_Message_State, TCH_Sending_Chunked_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tch = get_fsm_context();
         auto& prl = tch.prl;
         auto& prl_tx = prl.prl_tx;
@@ -615,7 +615,7 @@ public:
             if (tch.flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
                 // If tx/rx events received at once, kick loop to ensure
                 // next state is executed.
-                tch.prl.sink.wakeup();
+                tch.prl.port.wakeup();
             }
             return TCH_Wait_Chunk_Request;
         }
@@ -624,7 +624,7 @@ public:
     }
 };
 
-class TCH_Wait_Chunk_Request_State : public etl::fsm_state<PRL_TCH, TCH_Wait_Chunk_Request_State, TCH_Wait_Chunk_Request, MsgPdEvents, MsgTransitTo> {
+class TCH_Wait_Chunk_Request_State : public etl::fsm_state<PRL_TCH, TCH_Wait_Chunk_Request_State, TCH_Wait_Chunk_Request, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -633,11 +633,11 @@ public:
         tch.log_state();
 
         tch.chunk_number_to_send++;
-        tch.prl.sink.timers.start(PD_TIMEOUT::tChunkSenderRequest);
+        tch.prl.port.timers.start(PD_TIMEOUT::tChunkSenderRequest);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tch = get_fsm_context();
         auto& prl = tch.prl;
 
@@ -663,7 +663,7 @@ public:
             return TCH_Message_Received;
         }
 
-        if (tch.prl.sink.timers.is_expired(PD_TIMEOUT::tChunkSenderRequest)) {
+        if (tch.prl.port.timers.is_expired(PD_TIMEOUT::tChunkSenderRequest)) {
             tch.error = PRL_ERROR::TCH_SEQUENCE_TIMEOUT;
             return TCH_Report_Error;
         }
@@ -673,11 +673,11 @@ public:
 
     void on_exit_state() override {
         auto& tch = get_fsm_context();
-        tch.prl.sink.timers.stop(PD_TIMEOUT::tChunkSenderRequest);
+        tch.prl.port.timers.stop(PD_TIMEOUT::tChunkSenderRequest);
     }
 };
 
-class TCH_Message_Received_State : public etl::fsm_state<PRL_TCH, TCH_Message_Received_State, TCH_Message_Received, MsgPdEvents, MsgTransitTo> {
+class TCH_Message_Received_State : public etl::fsm_state<PRL_TCH, TCH_Message_Received_State, TCH_Message_Received, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -689,7 +689,7 @@ public:
         // Forward msg to RCH
         if (tch.flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
             prl.prl_rch.flags.set(RCH_FLAG::RX_ENQUEUED);
-            prl.sink.wakeup();
+            prl.port.wakeup();
         }
 
         if (tch.flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
@@ -700,7 +700,7 @@ public:
     }
 };
 
-class TCH_Report_Error_State : public etl::fsm_state<PRL_TCH, TCH_Report_Error_State, TCH_Report_Error, MsgPdEvents, MsgTransitTo> {
+class TCH_Report_Error_State : public etl::fsm_state<PRL_TCH, TCH_Report_Error_State, TCH_Report_Error, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -728,7 +728,7 @@ public:
 //   but currently only branches for hardware-supported GoodCRC are actual.
 //   This should be revisited and cleaned if software CRC support is not actual.
 
-class PRL_Tx_PHY_Layer_Reset_State : public etl::fsm_state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_PHY_Layer_Reset_State : public etl::fsm_state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -740,7 +740,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
         if (prl.tcpc.is_rx_enable_done()) {
@@ -748,12 +748,12 @@ public:
         }
 
         // Kick to guarantee next state run
-        prl.sink.wakeup();
+        prl.port.wakeup();
         return PRL_Tx_Wait_for_Message_Request;
     }
 };
 
-class PRL_Tx_Wait_for_Message_Request_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Wait_for_Message_Request_State, PRL_Tx_Wait_for_Message_Request, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Wait_for_Message_Request_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Wait_for_Message_Request_State, PRL_Tx_Wait_for_Message_Request, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -767,7 +767,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
 
         // For first AMS message need to wait SinkTxOK CC level
@@ -794,7 +794,7 @@ public:
     }
 };
 
-class PRL_Tx_Layer_Reset_for_Transmit_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Layer_Reset_for_Transmit_State, PRL_Tx_Layer_Reset_for_Transmit, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Layer_Reset_for_Transmit_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Layer_Reset_for_Transmit_State, PRL_Tx_Layer_Reset_for_Transmit, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -816,7 +816,7 @@ public:
     }
 };
 
-class PRL_Tx_Construct_Message_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Construct_Message_State, PRL_Tx_Construct_Message, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Construct_Message_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Construct_Message_State, PRL_Tx_Construct_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -830,7 +830,7 @@ public:
 };
 
 // Here we wait for "GoodCRC" or failure.
-class PRL_Tx_Wait_for_PHY_Response_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Wait_for_PHY_Response_State, PRL_Tx_Wait_for_PHY_Response, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Wait_for_PHY_Response_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Wait_for_PHY_Response_State, PRL_Tx_Wait_for_PHY_Response, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -840,12 +840,12 @@ public:
 
         // Timer should be used ONLY when hardware confirmation not supported
         if (!prl_tx.prl.tcpc.get_hw_features().tx_goodcrc_receive) {
-            prl_tx.prl.sink.timers.start(PD_TIMEOUT::tReceive);
+            prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
         }
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
 
         if (prl_tx.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
@@ -863,7 +863,7 @@ public:
         }
 
         // Actual only for software CRC processing
-        if (prl_tx.prl.sink.timers.is_expired(PD_TIMEOUT::tReceive)) {
+        if (prl_tx.prl.port.timers.is_expired(PD_TIMEOUT::tReceive)) {
             return PRL_Tx_Check_RetryCounter;
         }
 
@@ -872,11 +872,11 @@ public:
 
     auto on_exit_state() -> void {
         auto& prl_tx = get_fsm_context();
-        prl_tx.prl.sink.timers.stop(PD_TIMEOUT::tReceive);
+        prl_tx.prl.port.timers.stop(PD_TIMEOUT::tReceive);
     }
 };
 
-class PRL_Tx_Match_MessageID_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Match_MessageID_State, PRL_Tx_Match_MessageID, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Match_MessageID_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Match_MessageID_State, PRL_Tx_Match_MessageID, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -890,7 +890,7 @@ public:
     }
 };
 
-class PRL_Tx_Message_Sent_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Message_Sent_State, PRL_Tx_Message_Sent, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Message_Sent_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Message_Sent_State, PRL_Tx_Message_Sent, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -902,13 +902,13 @@ public:
         prl_tx.flags.set(PRL_TX_FLAG::TX_COMPLETED);
 
         // Ensure one more loop run, when RCH requests next chunk
-        prl_tx.prl.sink.wakeup();
+        prl_tx.prl.port.wakeup();
 
         return PRL_Tx_Wait_for_Message_Request;
     }
 };
 
-class PRL_Tx_Check_RetryCounter_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Check_RetryCounter_State, PRL_Tx_Check_RetryCounter, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Check_RetryCounter_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Check_RetryCounter_State, PRL_Tx_Check_RetryCounter, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -942,7 +942,7 @@ public:
     }
 };
 
-class PRL_Tx_Transmission_Error_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Transmission_Error_State, PRL_Tx_Transmission_Error, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Transmission_Error_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Transmission_Error_State, PRL_Tx_Transmission_Error, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -958,11 +958,11 @@ public:
     }
 };
 
-class PRL_Tx_Discard_Message_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Discard_Message_State, PRL_Tx_Discard_Message, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Discard_Message_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Discard_Message_State, PRL_Tx_Discard_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
 
         // Do discard, if any TX chunk processing:
@@ -981,7 +981,7 @@ public:
     }
 };
 
-class PRL_Tx_Snk_Start_of_AMS_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Snk_Start_of_AMS_State, PRL_Tx_Snk_Start_of_AMS, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Snk_Start_of_AMS_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Snk_Start_of_AMS_State, PRL_Tx_Snk_Start_of_AMS, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -996,7 +996,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
 
         if (prl_tx.flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED)) {
@@ -1006,7 +1006,7 @@ public:
     }
 };
 
-class PRL_Tx_Snk_Pending_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Snk_Pending_State, PRL_Tx_Snk_Pending, MsgPdEvents, MsgTransitTo> {
+class PRL_Tx_Snk_Pending_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Snk_Pending_State, PRL_Tx_Snk_Pending, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -1020,7 +1020,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
         auto& tcpc = prl_tx.prl.tcpc;
 
@@ -1055,11 +1055,11 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 // [rev3.2] 6.12.2.3 Protocol Layer Message Reception
 
-class PRL_Rx_Wait_for_PHY_Message_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Wait_for_PHY_Message_State, PRL_Rx_Wait_for_PHY_Message, MsgPdEvents, MsgTransitTo> {
+class PRL_Rx_Wait_for_PHY_Message_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Wait_for_PHY_Message_State, PRL_Rx_Wait_for_PHY_Message, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
         if (prl.prl_rch.flags.test(RCH_FLAG::RX_ENQUEUED)) {
@@ -1069,7 +1069,7 @@ public:
             //
             // This is not expected to happen, because we do multiple RCH/TCH
             // calls.
-            prl.sink.wakeup();
+            prl.port.wakeup();
             return No_State_Change;
         }
 
@@ -1083,7 +1083,7 @@ public:
     }
 };
 
-class PRL_Rx_Layer_Reset_for_Receive_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Layer_Reset_for_Receive_State, PRL_Rx_Layer_Reset_for_Receive, MsgPdEvents, MsgTransitTo> {
+class PRL_Rx_Layer_Reset_for_Receive_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Layer_Reset_for_Receive_State, PRL_Rx_Layer_Reset_for_Receive, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1113,7 +1113,7 @@ public:
     }
 };
 
-class PRL_Rx_Send_GoodCRC_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Send_GoodCRC_State, PRL_Rx_Send_GoodCRC, MsgPdEvents, MsgTransitTo> {
+class PRL_Rx_Send_GoodCRC_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Send_GoodCRC_State, PRL_Rx_Send_GoodCRC, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1126,7 +1126,7 @@ public:
     }
 };
 
-class PRL_Rx_Check_MessageID_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Check_MessageID_State, PRL_Rx_Check_MessageID, MsgPdEvents, MsgTransitTo> {
+class PRL_Rx_Check_MessageID_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Check_MessageID_State, PRL_Rx_Check_MessageID, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1142,7 +1142,7 @@ public:
     }
 };
 
-class PRL_Rx_Store_MessageID_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Store_MessageID_State, PRL_Rx_Store_MessageID, MsgPdEvents, MsgTransitTo> {
+class PRL_Rx_Store_MessageID_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Store_MessageID_State, PRL_Rx_Store_MessageID, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1188,11 +1188,11 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 // [rev3.2] 6.12.2.4 Hard Reset operation
 
-class PRL_HR_IDLE_State : public etl::fsm_state<PRL_HR, PRL_HR_IDLE_State, PRL_HR_IDLE, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_IDLE_State : public etl::fsm_state<PRL_HR, PRL_HR_IDLE_State, PRL_HR_IDLE, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl_hr = get_fsm_context().prl.prl_hr;
         if (prl_hr.flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER) ||
             prl_hr.flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PE))
@@ -1203,7 +1203,7 @@ public:
     }
 };
 
-class PRL_HR_Reset_Layer_State : public etl::fsm_state<PRL_HR, PRL_HR_Reset_Layer_State, PRL_HR_Reset_Layer, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_Reset_Layer_State : public etl::fsm_state<PRL_HR, PRL_HR_Reset_Layer_State, PRL_HR_Reset_Layer, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -1227,7 +1227,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC operation complete
@@ -1243,7 +1243,7 @@ public:
     }
 };
 
-class PRL_HR_Indicate_Hard_Reset_State : public etl::fsm_state<PRL_HR, PRL_HR_Indicate_Hard_Reset_State, PRL_HR_Indicate_Hard_Reset, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_Indicate_Hard_Reset_State : public etl::fsm_state<PRL_HR, PRL_HR_Indicate_Hard_Reset_State, PRL_HR_Indicate_Hard_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1256,7 +1256,7 @@ public:
     }
 };
 
-class PRL_HR_Request_Hard_Reset_State : public etl::fsm_state<PRL_HR, PRL_HR_Request_Hard_Reset_State, PRL_HR_Request_Hard_Reset, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_Request_Hard_Reset_State : public etl::fsm_state<PRL_HR, PRL_HR_Request_Hard_Reset_State, PRL_HR_Request_Hard_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -1268,7 +1268,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC call to complete
@@ -1279,7 +1279,7 @@ public:
     }
 };
 
-class PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State, PRL_HR_Wait_for_PHY_Hard_Reset_Complete, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State, PRL_HR_Wait_for_PHY_Hard_Reset_Complete, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -1287,13 +1287,13 @@ public:
         auto& hr = get_fsm_context();
         hr.log_state();
 
-        hr.prl.sink.timers.start(PD_TIMEOUT::tHardResetComplete);
+        hr.prl.port.timers.start(PD_TIMEOUT::tHardResetComplete);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
-        if (prl.sink.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
+        if (prl.port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
         return No_State_Change;
@@ -1301,11 +1301,11 @@ public:
 
     void on_exit_state() override {
         auto& prl = get_fsm_context().prl;
-        prl.sink.timers.stop(PD_TIMEOUT::tHardResetComplete);
+        prl.port.timers.stop(PD_TIMEOUT::tHardResetComplete);
     }
 };
 
-class PRL_HR_PHY_Hard_Reset_Requested_State : public etl::fsm_state<PRL_HR, PRL_HR_PHY_Hard_Reset_Requested_State, PRL_HR_PHY_Hard_Reset_Requested, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_PHY_Hard_Reset_Requested_State : public etl::fsm_state<PRL_HR, PRL_HR_PHY_Hard_Reset_Requested_State, PRL_HR_PHY_Hard_Reset_Requested, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1318,11 +1318,11 @@ public:
     }
 };
 
-class PRL_HR_Wait_for_PE_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_Wait_for_PE_Hard_Reset_Complete_State, PRL_HR_Wait_for_PE_Hard_Reset_Complete, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_Wait_for_PE_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_Wait_for_PE_Hard_Reset_Complete_State, PRL_HR_Wait_for_PE_Hard_Reset_Complete, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& hr = get_fsm_context();
 
         if (hr.flags.test_and_clear(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE)) {
@@ -1332,7 +1332,7 @@ public:
     }
 };
 
-class PRL_HR_PE_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_PE_Hard_Reset_Complete_State, PRL_HR_PE_Hard_Reset_Complete, MsgPdEvents, MsgTransitTo> {
+class PRL_HR_PE_Hard_Reset_Complete_State : public etl::fsm_state<PRL_HR, PRL_HR_PE_Hard_Reset_Complete_State, PRL_HR_PE_Hard_Reset_Complete, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1391,13 +1391,13 @@ void PRL::init(bool from_hr_fsm) {
     reset_msg_counters();
     reset_revision();
 
-    sink.timers.stop_range(PD_TIMERS_RANGE::PRL);
+    port.timers.stop_range(PD_TIMERS_RANGE::PRL);
 
     // Ensure loop repeat to continue PE States, which wait for PRL run.
-    sink.wakeup();
+    port.wakeup();
 }
 
-void PRL::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
+void PRL::dispatch(const MsgSysUpdate& events, const bool pd_enabled) {
     switch (local_state) {
         case LS_DISABLED:
             if (!pd_enabled) { break; }
@@ -1476,7 +1476,7 @@ void PRL::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
     tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PRL::send_data_msg(PD_DATA_MSGT::Type msgt) {
@@ -1485,7 +1485,7 @@ void PRL::send_data_msg(PD_DATA_MSGT::Type msgt) {
     tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PRL::send_ext_msg(PD_EXT_MSGT::Type msgt) {
@@ -1495,7 +1495,7 @@ void PRL::send_ext_msg(PD_EXT_MSGT::Type msgt) {
     tx_emsg.header = hdr;
 
     prl_tch.flags.set(TCH_FLAG::MSG_ENQUEUED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PRL::tcpc_enquire_msg() {
@@ -1516,7 +1516,7 @@ void PRL::tx_enquire_chunk() {
     prl_tx.flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     prl_tx.flags.clear(PRL_TX_FLAG::TX_ERROR);
     prl_tx.flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PRL::report_pending_error() {
@@ -1626,17 +1626,11 @@ TcpcEventHandler::TcpcEventHandler(PRL& prl) : prl{prl} {};
 
 void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcHardReset& msg) {
     prl.prl_hr.flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER);
-    prl.sink.wakeup();
-}
-void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcWakeup& msg) {
-    prl.sink.wakeup();
+    prl.port.wakeup();
 }
 void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcTransmitStatus& msg) {
     prl.prl_tx.tcpc_tx_status = msg.status;
-    prl.sink.wakeup();
-}
-void TcpcEventHandler::on_receive(__maybe_unused const MsgTimerEvent& msg) {
-    prl.sink.set_event(PD_EVENT::TIMER);
+    prl.port.wakeup();
 }
 void TcpcEventHandler::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
     PRL_LOG("Unknown TCPC event");

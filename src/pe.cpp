@@ -108,7 +108,7 @@ auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_sta
 }
 
 #define ON_EVENT_NOTHING \
-auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t { \
+auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -117,7 +117,7 @@ auto on_event(const MsgTransitTo& event) -> etl::fsm_state_id_t { \
     return event.state_id; \
 }
 
-class PE_SNK_Startup_State : public etl::fsm_state<PE, PE_SNK_Startup_State, PE_SNK_Startup, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Startup_State : public etl::fsm_state<PE, PE_SNK_Startup_State, PE_SNK_Startup, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -130,7 +130,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.prl.is_running()) { return No_State_Change; }
@@ -139,7 +139,7 @@ public:
 };
 
 
-class PE_SNK_Discovery_State : public etl::fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Discovery_State : public etl::fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
@@ -151,7 +151,7 @@ public:
 };
 
 
-class PE_SNK_Wait_for_Capabilities_State : public etl::fsm_state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Wait_for_Capabilities_State : public etl::fsm_state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -159,11 +159,11 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        pe.sink.timers.start(PD_TIMEOUT::tTypeCSinkWaitCap);
+        pe.port.timers.start(PD_TIMEOUT::tTypeCSinkWaitCap);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -183,7 +183,7 @@ public:
             }
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tTypeCSinkWaitCap)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tTypeCSinkWaitCap)) {
             pe.flags.set(PE_FLAG::HR_BY_CAPS_TIMEOUT);
             return PE_SNK_Hard_Reset;
         }
@@ -191,12 +191,12 @@ public:
     }
 
     void on_exit_state() override {
-        get_fsm_context().sink.timers.stop(PD_TIMEOUT::tTypeCSinkWaitCap);
+        get_fsm_context().port.timers.stop(PD_TIMEOUT::tTypeCSinkWaitCap);
     }
 };
 
 
-class PE_SNK_Evaluate_Capability_State : public etl::fsm_state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Evaluate_Capability_State : public etl::fsm_state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
@@ -238,7 +238,7 @@ public:
 // upgrade. This upgrade is not part of PD spec, but for Sink-only device
 // it's the good place to keep things simple.
 //
-class PE_SNK_Select_Capability_State : public etl::fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Select_Capability_State : public etl::fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -275,14 +275,14 @@ public:
         }
 
         pe.check_request_progress_enter();
-        pe.sink.timers.stop(PD_TIMEOUT::tSinkRequest);
+        pe.port.timers.stop(PD_TIMEOUT::tSinkRequest);
 
         // Don't break on error, process errors manually.
         pe.flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -331,7 +331,7 @@ public:
                 if (pe.flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
                     // Pend another retry. Spec requires to init this timer
                     // on PE_SNK_Ready enter, but it looks more convenient here.
-                    pe.sink.timers.start(PD_TIMEOUT::tSinkRequest);
+                    pe.port.timers.start(PD_TIMEOUT::tSinkRequest);
                     return PE_SNK_Ready;
                 }
                 return PE_SNK_Wait_for_Capabilities;
@@ -353,7 +353,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -369,7 +369,7 @@ public:
 };
 
 
-class PE_SNK_Transition_Sink_State : public etl::fsm_state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Transition_Sink_State : public etl::fsm_state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -381,9 +381,9 @@ public:
         // timer. Use proper one for setup, but SPR one for clear/check
         // (because clear/check use the same timer ID).
         if (pe.flags.test(PE_FLAG::IN_EPR_MODE)) {
-            pe.sink.timers.start(PD_TIMEOUT::tPSTransition_EPR);
+            pe.port.timers.start(PD_TIMEOUT::tPSTransition_EPR);
         } else {
-            pe.sink.timers.start(PD_TIMEOUT::tPSTransition_SPR);
+            pe.port.timers.start(PD_TIMEOUT::tPSTransition_SPR);
         }
 
         // Any PRL error at this stage should cause hard reset.
@@ -391,7 +391,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -402,7 +402,7 @@ public:
             return PE_SNK_Hard_Reset;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tPSTransition_SPR)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tPSTransition_SPR)) {
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
@@ -411,12 +411,12 @@ public:
     void on_exit_state() override {
         auto& pe = get_fsm_context();
         pe.flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-        pe.sink.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
+        pe.port.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
     }
 };
 
 
-class PE_SNK_Ready_State : public etl::fsm_state<PE, PE_SNK_Ready_State, PE_SNK_Ready, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Ready_State : public etl::fsm_state<PE, PE_SNK_Ready_State, PE_SNK_Ready, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -433,7 +433,7 @@ public:
 
         if (pe.is_in_epr_mode()) {
             // If we are in EPR mode, rearm timer for EPR Keep Alive request
-            pe.sink.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
+            pe.port.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
         } else {
             // Force enter EPR mode if possible
             if (pe.is_epr_mode_available()) {
@@ -444,15 +444,15 @@ public:
         if (pe.is_in_pps_contract()) {
             // PPS contract should be refreshed at least every 10s
             // of inactivity. We use 5s for sure.
-            pe.sink.timers.start(PD_TIMEOUT::tPPSRequest);
+            pe.port.timers.start(PD_TIMEOUT::tPPSRequest);
         }
 
         // Ensure to run after state enter, to proceed pending things (DPM requests)
-        pe.sink.wakeup();
+        pe.port.wakeup();
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         bool sr_on_unsupported = pe.flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
@@ -564,10 +564,10 @@ public:
 
         // Special case, process postponed src caps request. If pending - don't
         // try DPM requests queue.
-        if (!pe.sink.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
+        if (!pe.port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
-            if (pe.sink.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
-                pe.sink.timers.stop(PD_TIMEOUT::tSinkRequest);
+            if (pe.port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
+                pe.port.timers.stop(PD_TIMEOUT::tSinkRequest);
                 return PE_SNK_Select_Capability;
             }
         }
@@ -618,11 +618,11 @@ public:
         // Keep-alive for EPR mode / PPS contract
         //
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSinkEPRKeepAlive)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSinkEPRKeepAlive)) {
             return PE_SNK_EPR_Keep_Alive;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
             return PE_SNK_Select_Capability;
         }
 
@@ -634,14 +634,14 @@ public:
 
     void on_exit_state() override {
         auto& pe = get_fsm_context();
-        pe.sink.timers.stop(PD_TIMEOUT::tSinkEPRKeepAlive);
-        pe.sink.timers.stop(PD_TIMEOUT::tPPSRequest);
+        pe.port.timers.stop(PD_TIMEOUT::tSinkEPRKeepAlive);
+        pe.port.timers.stop(PD_TIMEOUT::tPPSRequest);
         pe.flags.clear(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
     }
 };
 
 
-class PE_SNK_Give_Sink_Cap_State : public etl::fsm_state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Give_Sink_Cap_State : public etl::fsm_state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -677,7 +677,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -690,7 +690,7 @@ public:
 };
 
 
-class PE_SNK_EPR_Keep_Alive_State : public etl::fsm_state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_EPR_Keep_Alive_State : public etl::fsm_state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -712,7 +712,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -740,7 +740,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -755,7 +755,7 @@ public:
 };
 
 
-class PE_SNK_Hard_Reset_State : public etl::fsm_state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Hard_Reset_State : public etl::fsm_state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -776,7 +776,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
@@ -787,7 +787,7 @@ public:
 };
 
 
-class PE_SNK_Transition_to_default_State : public etl::fsm_state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Transition_to_default_State : public etl::fsm_state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -801,11 +801,11 @@ public:
         // If need to pend - call `wait_dpm_transit_to_default(true)` in
         // event handler, and `wait_dpm_transit_to_default(false)` to continue.
         pe.sink.dpm->notify(MsgDpm_TransitToDefault());
-        pe.sink.wakeup();
+        pe.port.wakeup();
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
@@ -818,7 +818,7 @@ public:
 
 
 // Come here, when received soft reset from SRC
-class PE_SNK_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -832,7 +832,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -854,7 +854,7 @@ public:
 };
 
 
-class PE_SNK_Send_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Send_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -876,7 +876,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         // Wait until PRL layer ready
@@ -902,7 +902,7 @@ public:
         }
 
         if (pe.flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR) ||
-            pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse))
+            pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse))
         {
             return PE_SNK_Hard_Reset;
         }
@@ -917,7 +917,7 @@ public:
 };
 
 
-class PE_SNK_Send_Not_Supported_State : public etl::fsm_state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Send_Not_Supported_State : public etl::fsm_state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -935,7 +935,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -946,7 +946,7 @@ public:
 };
 
 
-class PE_SNK_Source_Alert_Received_State : public etl::fsm_state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Source_Alert_Received_State : public etl::fsm_state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
@@ -958,7 +958,7 @@ public:
 };
 
 
-class PE_SNK_Send_EPR_Mode_Entry_State : public etl::fsm_state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_Send_EPR_Mode_Entry_State : public etl::fsm_state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -977,12 +977,12 @@ public:
         pe.send_data_msg(PD_DATA_MSGT::EPR_Mode);
         pe.check_request_progress_enter();
 
-        pe.sink.timers.start(PD_TIMEOUT::tEnterEPR);
+        pe.port.timers.start(PD_TIMEOUT::tEnterEPR);
 
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -1012,7 +1012,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1027,11 +1027,11 @@ public:
 };
 
 
-class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -1052,7 +1052,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
             return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
@@ -1060,11 +1060,11 @@ public:
 };
 
 
-class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received, MsgPdEvents, MsgTransitTo> {
+class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.is_in_spr_contract()) {
@@ -1080,7 +1080,7 @@ public:
 };
 
 
-class PE_BIST_Carrier_Mode_State : public etl::fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode, MsgPdEvents, MsgTransitTo> {
+class PE_BIST_Carrier_Mode_State : public etl::fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -1092,7 +1092,7 @@ public:
 
         if (bdo.mode == BIST_MODE::Carrier) {
             pe.tcpc.req_bist_carrier_enable(true);
-            pe.sink.timers.start(PD_TIMEOUT::tBISTCarrierMode);
+            pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
             return No_State_Change;
         }
 
@@ -1104,10 +1104,10 @@ public:
         return PE_SNK_Ready;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
             pe.tcpc.req_bist_carrier_enable(false);
             return PE_SNK_Ready;
         }
@@ -1121,7 +1121,7 @@ public:
 };
 
 
-class PE_Give_Revision_State : public etl::fsm_state<PE, PE_Give_Revision_State, PE_Give_Revision, MsgPdEvents, MsgTransitTo> {
+class PE_Give_Revision_State : public etl::fsm_state<PE, PE_Give_Revision_State, PE_Give_Revision, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -1143,7 +1143,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -1154,7 +1154,7 @@ public:
 };
 
 
-class PE_Src_Disabled_State : public etl::fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled, MsgPdEvents, MsgTransitTo> {
+class PE_Src_Disabled_State : public etl::fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
@@ -1175,7 +1175,7 @@ public:
 };
 
 
-class PE_Dpm_Get_PPS_Status_State : public etl::fsm_state<PE, PE_Dpm_Get_PPS_Status_State, PE_Dpm_Get_PPS_Status, MsgPdEvents, MsgTransitTo> {
+class PE_Dpm_Get_PPS_Status_State : public etl::fsm_state<PE, PE_Dpm_Get_PPS_Status_State, PE_Dpm_Get_PPS_Status, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -1188,7 +1188,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1207,7 +1207,7 @@ public:
             return PE_SNK_Ready;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1221,7 +1221,7 @@ public:
 };
 
 
-class PE_Dpm_Get_Revision_State : public etl::fsm_state<PE, PE_Dpm_Get_Revision_State, PE_Dpm_Get_Revision, MsgPdEvents, MsgTransitTo> {
+class PE_Dpm_Get_Revision_State : public etl::fsm_state<PE, PE_Dpm_Get_Revision_State, PE_Dpm_Get_Revision, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -1234,7 +1234,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1253,7 +1253,7 @@ public:
             return PE_SNK_Ready;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1267,7 +1267,7 @@ public:
 };
 
 
-class PE_Dpm_Get_Source_Info_State : public etl::fsm_state<PE, PE_Dpm_Get_Source_Info_State, PE_Dpm_Get_Source_Info, MsgPdEvents, MsgTransitTo> {
+class PE_Dpm_Get_Source_Info_State : public etl::fsm_state<PE, PE_Dpm_Get_Source_Info_State, PE_Dpm_Get_Source_Info, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
 
@@ -1280,7 +1280,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1299,7 +1299,7 @@ public:
             return PE_SNK_Ready;
         }
 
-        if (pe.sink.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1357,10 +1357,10 @@ void PE::init() {
     flags.clear_all();
     dpm_requests.clear_all();
     start();
-    sink.timers.stop_range(PD_TIMERS_RANGE::PE);
+    port.timers.stop_range(PD_TIMERS_RANGE::PE);
 }
 
-void PE::dispatch(const MsgPdEvents& events, const bool pd_enabled) {
+void PE::dispatch(const MsgSysUpdate& events, const bool pd_enabled) {
     switch (local_state) {
         case LS_DISABLED:
             if (!pd_enabled) { break; }
@@ -1390,7 +1390,7 @@ auto PE::get_tx_msg() -> PD_MSG& { return prl.tx_emsg; }
 //
 void PE::on_message_received() {
     flags.set(PE_FLAG::MSG_RECEIVED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::on_message_sent() {
@@ -1400,26 +1400,26 @@ void PE::on_message_sent() {
     }
 
     flags.set(PE_FLAG::TX_COMPLETE);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::on_prl_soft_reset_from_partner() {
     if (!is_started()) { return; }
     receive(MsgTransitTo(PE_SNK_Soft_Reset));
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::on_prl_hard_reset_from_partner() {
     if (!is_started()) { return; }
     tcpc.req_bist_carrier_enable(false);
     receive(MsgTransitTo(PE_SNK_Transition_to_default));
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::on_prl_hard_reset_sent() {
     if (!is_started()) { return; }
     flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
-    sink.wakeup();
+    port.wakeup();
 }
 
 //
@@ -1430,7 +1430,7 @@ void PE::on_prl_hard_reset_sent() {
 void PE::on_prl_report_error(PRL_ERROR err) {
     if (flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
         flags.set(PE_FLAG::PROTOCOL_ERROR);
-        sink.wakeup();
+        port.wakeup();
         return;
     }
 
@@ -1438,7 +1438,7 @@ void PE::on_prl_report_error(PRL_ERROR err) {
         err ==PRL_ERROR::TCH_SEND_FAIL)
     {
         receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
-        sink.wakeup();
+        port.wakeup();
         return;
     }
 
@@ -1451,17 +1451,17 @@ void PE::on_prl_report_error(PRL_ERROR err) {
             flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
         receive(MsgTransitTo(PE_SNK_Ready));
-        sink.wakeup();
+        port.wakeup();
         return;
     }
 
     receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::on_prl_report_discard() {
     flags.set(PE_FLAG::MSG_DISCARDED);
-    sink.wakeup();
+    port.wakeup();
 }
 
 void PE::wait_dpm_transit_to_default(bool enable) {
@@ -1469,7 +1469,7 @@ void PE::wait_dpm_transit_to_default(bool enable) {
         flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
     } else {
         flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
-        sink.wakeup();
+        port.wakeup();
     }
 }
 
@@ -1533,12 +1533,12 @@ auto PE::is_in_pps_contract() const -> bool {
 //
 
 void PE::check_request_progress_enter() {
-    sink.timers.stop(PD_TIMEOUT::tSenderResponse);
+    port.timers.stop(PD_TIMEOUT::tSenderResponse);
     flags.clear(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
 }
 
 void PE::check_request_progress_exit() {
-    sink.timers.stop(PD_TIMEOUT::tSenderResponse);
+    port.timers.stop(PD_TIMEOUT::tSenderResponse);
 }
 
 auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
@@ -1556,7 +1556,7 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
         // Wait for GoodCRC
         if (flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             flags.set(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
-            sink.timers.start(PD_TIMEOUT::tSenderResponse);
+            port.timers.start(PD_TIMEOUT::tSenderResponse);
             return PE_REQUEST_PROGRESS::FINISHED;
         }
         return PE_REQUEST_PROGRESS::PENDING;

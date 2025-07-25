@@ -41,7 +41,7 @@ auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_sta
 
 
 
-class TC_DETACHED_State : public etl::fsm_state<TC, TC_DETACHED_State, TC_DETACHED, MsgPdEvents> {
+class TC_DETACHED_State : public etl::fsm_state<TC, TC_DETACHED_State, TC_DETACHED, MsgSysUpdate> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -49,28 +49,28 @@ public:
         auto& tc = get_fsm_context();
         tc.log_state();
 
-        tc.sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+        tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
         tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         if (tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
         if (!vbus_ok) {
-            tc.sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+            tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
             return No_State_Change;
         }
 
-        if (tc.sink.timers.is_disabled(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
-            tc.sink.timers.start(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+        if (tc.port.timers.is_disabled(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
+            tc.port.timers.start(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
             return No_State_Change;
         }
 
-        if (tc.sink.timers.is_expired(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
+        if (tc.port.timers.is_expired(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
             return TC_DETECTING;
         }
 
@@ -78,12 +78,12 @@ public:
     }
 
     void on_exit_state() override {
-        get_fsm_context().sink.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+        get_fsm_context().port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
     }
 };
 
 
-class TC_DETECTING_State : public etl::fsm_state<TC, TC_DETECTING_State, TC_DETECTING, MsgPdEvents> {
+class TC_DETECTING_State : public etl::fsm_state<TC, TC_DETECTING_State, TC_DETECTING, MsgSysUpdate> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT;
 
@@ -94,17 +94,17 @@ public:
         tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
         tc.prev_cc2 = TCPC_CC_LEVEL::NONE;
         tc.tcpc.req_scan_cc();
-        tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (!tc.sink.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
-            if (!tc.sink.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
+        if (!tc.port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
+            if (!tc.port.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
 
-            tc.sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+            tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
             tc.tcpc.req_scan_cc();
         }
 
@@ -124,22 +124,22 @@ public:
 
         tc.prev_cc1 = cc1;
         tc.prev_cc2 = cc2;
-        tc.sink.timers.start(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.start(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& sink = get_fsm_context().sink;
-        sink.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        auto& tc = get_fsm_context();
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
     }
 };
 
 
-class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED, MsgPdEvents> {
+class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED, MsgSysUpdate> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgPdEvents& event) -> etl::fsm_state_id_t {
+    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         // TODO: Actually, we should check Safe0v. Check, if we should be more
@@ -169,7 +169,7 @@ void TC::log_state() {
     TC_LOG("TC state => %s", tc_state_to_desc(get_state_id()));
 }
 
-void TC::dispatch(const MsgPdEvents& events) {
+void TC::dispatch(const MsgSysUpdate& events) {
     receive(events);
 }
 
