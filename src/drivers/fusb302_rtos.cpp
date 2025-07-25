@@ -54,8 +54,8 @@ namespace TX_TKN {
     static constexpr uint8_t TX_OFF = 0xFE;
 }
 
-Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal, bool emulate_vbus_ok)
-    : sink{sink}, hal{hal}, emulate_vbus_ok{emulate_vbus_ok}
+Fusb302Rtos::Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal)
+    : sink{sink}, hal{hal}
 {
     sink.driver = this;
 }
@@ -85,9 +85,7 @@ bool Fusb302Rtos::fusb_setup() {
 
     Mask1 mask{0xFF};
     mask.M_COLLISION = 0;
-    mask.M_ACTIVITY = 0; // used to debounce active CC levels reading
-    mask.M_ALERT = 0;
-    if (!emulate_vbus_ok) { mask.M_VBUSOK = 0; }
+    mask.M_VBUSOK = 0;
     HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
 
     Maska maska{0xFF};
@@ -110,11 +108,9 @@ bool Fusb302Rtos::fusb_setup() {
 
     DRV_FAIL_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
 
-    if (!emulate_vbus_ok) {
-        Status0 status0;
-        HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-        vbus_ok.store(static_cast<bool>(status0.VBUSOK));
-    }
+    Status0 status0;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+    vbus_ok.store(static_cast<bool>(status0.VBUSOK));
 
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
@@ -155,7 +151,6 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY::Type polarity) {
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
     this->polarity = polarity;
-    last_activity_ts = hal.get_timestamp();
     return true;
 }
 
@@ -331,13 +326,6 @@ bool Fusb302Rtos::handle_interrupt() {
         HAL_FAIL_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
         HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
 
-        if (interrupt.I_ACTIVITY) {
-            DRV_LOG("IRQ: activity detected");
-            // ANY toggle => pop last activity mark
-            last_activity_ts = get_timestamp();
-        }
-        activity_on = status0.ACTIVITY;
-
         if (interrupt.I_VBUSOK) {
             vbus_ok.store(status0.VBUSOK);
             DRV_LOG("IRQ: VBUS changed");
@@ -377,13 +365,6 @@ bool Fusb302Rtos::handle_interrupt() {
         if (interruptb.I_GCRCSENT) {
             DRV_LOG("IRQ: GoodCRC sent");
             fusb_rx_pkt();
-        }
-
-        if (interrupt.I_ALERT) {
-            DRV_LOG("IRQ: ALERT received (fifo overflow)");
-            // Fuckup. Reset FIFO-s for sure.
-            fusb_flush_rx_fifo();
-            fusb_flush_tx_fifo();
         }
     }
     return true;
@@ -438,19 +419,6 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
                 const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
                 if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
                 else { cc2_cache = cc_new; }
-
-                if (emulate_vbus_ok) {
-                    vbus_ok_emulator_last_measure_ts = get_timestamp();
-
-                    auto prev_vbus_ok = vbus_ok.load();
-                    auto new_vbus_ok = (cc_new != TCPC_CC_LEVEL::NONE);
-
-                    vbus_ok.store(new_vbus_ok);
-                    if (new_vbus_ok != prev_vbus_ok) {
-                        DRV_LOG("Emulator: VBUS changed by Active CC");
-                        pass_up(MsgTcpcWakeup());
-                    }
-                }
             }
 
             meter_state = MeterState::CC_ACTIVE_END;
@@ -516,20 +484,6 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = meter_backup_cc2;
             HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
-            if (emulate_vbus_ok) {
-                vbus_ok_emulator_last_measure_ts = get_timestamp();
-
-                auto prev_vbus_ok = vbus_ok.load();
-                auto new_vbus_ok = (cc1_cache != TCPC_CC_LEVEL::NONE) ||
-                    (cc2_cache != TCPC_CC_LEVEL::NONE);
-
-                vbus_ok.store(new_vbus_ok);
-                if (new_vbus_ok != prev_vbus_ok) {
-                    DRV_LOG("Emulator: VBUS changed by CC1/CC2 scan");
-                    pass_up(MsgTcpcWakeup());
-                }
-            }
-
             sync_scan_cc.mark_finished();
             meter_state = MeterState::IDLE;
             pass_up(MsgTcpcWakeup());
@@ -553,29 +507,6 @@ bool Fusb302Rtos::handle_meter() {
 
 bool Fusb302Rtos::handle_timer() {
     if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return true; }
-
-    // Update last activity timestamp if activity is on. This is used to
-    // calculate safe time for active CC measure
-    if (activity_on) { last_activity_ts = get_timestamp(); }
-
-    if (emulate_vbus_ok) {
-        // In VBUS_OK emulation mode enforce probe requests
-        static constexpr uint32_t ACTIVE_CC_DEBOUNCE_MS = 100;
-        static constexpr uint32_t FULL_CC_SCAN_DEBOUNCE_MS = 40;
-
-        // Rearm CC requests if debounce interval passed
-        if (polarity == TCPC_POLARITY::NONE) {
-            if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + FULL_CC_SCAN_DEBOUNCE_MS) &&
-                !sync_scan_cc.is_enquired() && !sync_scan_cc.is_started()) {
-                sync_scan_cc.enquire();
-            }
-        } else {
-            if ((get_timestamp() > vbus_ok_emulator_last_measure_ts + ACTIVE_CC_DEBOUNCE_MS) &&
-                !sync_active_cc.is_enquired() && !sync_active_cc.is_started()) {
-                sync_active_cc.enquire();
-            }
-        }
-    }
 
     pass_up(MsgTimerEvent());
     return true;

@@ -55,7 +55,7 @@ class Fusb302Rtos;
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
 public:
-    Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal, bool emulate_vbus_ok = false);
+    Fusb302Rtos(Sink& sink, IFusb302RtosHal& hal);
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
@@ -161,19 +161,11 @@ private:
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
-    bool emulate_vbus_ok;
-    uint64_t vbus_ok_emulator_last_measure_ts{0};
-
     spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
-
-    // Marks of signal activity, to measure CC at safe periods
-    // TODO: remove
-    bool activity_on{false};
-    uint64_t last_activity_ts{0};
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_goodcrc_send = true,
