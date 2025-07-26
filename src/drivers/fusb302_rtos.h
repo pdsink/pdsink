@@ -14,7 +14,7 @@
 
 namespace pd {
 
-class Sink;
+class Task;
 
 namespace fusb302 {
 
@@ -56,7 +56,7 @@ class Fusb302Rtos;
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
 public:
-    Fusb302Rtos(Port& port, Sink& sink, IFusb302RtosHal& hal);
+    Fusb302Rtos(Port& port, Task& task, IFusb302RtosHal& hal);
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
@@ -131,7 +131,7 @@ public:
 
     AtomicBits<DRV_FLAG::FLAGS_COUNT> flags{};
 private:
-    void task();
+    void task_loop();
     bool handle_interrupt();
     bool handle_timer();
     bool handle_tcpc_calls();
@@ -157,7 +157,7 @@ private:
     bool fusb_bist(bool enable);
 
     Port& port;
-    Sink& sink;
+    Task& task;
     IFusb302RtosHal& hal;
     etl::imessage_router* msg_router{nullptr};
     bool started{false};

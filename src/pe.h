@@ -22,7 +22,7 @@ namespace PE_REQUEST_PROGRESS {
     };
 }; // namespace PE_REQUEST_PROGRESS
 
-class Sink;
+class Task;
 class PRL;
 class PE;
 
@@ -55,7 +55,7 @@ private:
 
 class PE : public etl::fsm {
 public:
-    PE(Port& port, Sink& sink, IDPM& dpm, PRL& prl, ITCPC& tcpc);
+    PE(Port& port, Task& task, IDPM& dpm, PRL& prl, ITCPC& tcpc);
 
     // Disable unexpected use
     PE() = delete;
@@ -88,7 +88,7 @@ public:
     uint32_t rdo_to_request{0};
 
     Port& port;
-    Sink& sink;
+    Task& task;
     IDPM& dpm;
     PRL& prl;
     ITCPC& tcpc;

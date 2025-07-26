@@ -16,7 +16,7 @@ class TC;
 class PE;
 class IDPM;
 class PRL;
-class Sink;
+class Task;
 
 using Task_EventListener_Base = etl::message_router<class Task_EventListener,
     MsgTask_Wakeup,
@@ -24,22 +24,22 @@ using Task_EventListener_Base = etl::message_router<class Task_EventListener,
 
 class Task_EventListener : public Task_EventListener_Base {
 public:
-    Task_EventListener(Sink& sink) : Task_EventListener_Base(ROUTER_ID::TASK), sink(sink) {}
+    Task_EventListener(Task& task) : Task_EventListener_Base(ROUTER_ID::TASK), task(task) {}
     void on_receive(const MsgTask_Wakeup& msg);
     void on_receive(const MsgTask_Timer& msg);
     void on_receive_unknown(const etl::imessage& msg) {};
 private:
-    Sink& sink;
+    Task& task;
 };
 
-class Sink {
+class Task {
 public:
-    Sink(Port& port) : port{port}, task_event_listener{*this} {}
+    Task(Port& port) : port{port}, task_event_listener{*this} {}
 
     // Disable unexpected use
-    Sink() = delete;
-    Sink(const Sink&) = delete;
-    Sink& operator=(const Sink&) = delete;
+    Task() = delete;
+    Task(const Task&) = delete;
+    Task& operator=(const Task&) = delete;
 
     void start();
     void loop();

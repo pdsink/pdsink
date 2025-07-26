@@ -2,7 +2,7 @@
 #include "dpm.h"
 #include "pe.h"
 #include "pd_conf.h"
-#include "sink.h"
+#include "task.h"
 #include "tc.h"
 
 #include <etl/algorithm.h>
@@ -1313,10 +1313,10 @@ public:
 };
 
 
-PE::PE(Port& port, Sink& sink, IDPM& dpm, PRL& prl, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, sink{sink}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
+PE::PE(Port& port, Task& task, IDPM& dpm, PRL& prl, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, task{task}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
-    sink.pe = this;
+    task.pe = this;
 
     static etl::array<etl::ifsm_state*, PE_State::PE_STATE_COUNT> pe_state_list = {{
         new PE_SNK_Startup_State(),

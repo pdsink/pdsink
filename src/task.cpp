@@ -1,12 +1,12 @@
 #include "dpm.h"
 #include "pe.h"
 #include "prl.h"
-#include "sink.h"
+#include "task.h"
 #include "tc.h"
 
 namespace pd {
 
-void Sink::loop() {
+void Task::loop() {
     do {
         if (loop_flags.test_and_set(IS_IN_LOOP_FL)) {
             // If processing in progress - postpone call to avoid recursion.
@@ -16,7 +16,7 @@ void Sink::loop() {
 
         auto e_group = event_group.exchange(0);
 
-        if (e_group & Sink::EVENT_TIMER_MSK) { port.timers.cleanup(); }
+        if (e_group & Task::EVENT_TIMER_MSK) { port.timers.cleanup(); }
 
         port.notify_tc(MsgSysUpdate{});
 
@@ -32,14 +32,14 @@ void Sink::loop() {
 
         if (driver->is_rearm_supported()) {
             if (port.timers.timers_changed.exchange(false) ||
-                (e_group & Sink::EVENT_TIMER_MSK))
+                (e_group & Task::EVENT_TIMER_MSK))
             {
                 auto next_exp{port.timers.get_next_expiration()};
                 if (next_exp != Timers::NO_EXPIRE)
                 {
                     if (next_exp == 0) {
                         // Rearm timer event and add deferred call
-                        event_group.fetch_or(Sink::EVENT_TIMER_MSK);
+                        event_group.fetch_or(Task::EVENT_TIMER_MSK);
                         loop_flags.set(HAS_DEFERRED_FL);
                     } else {
                         driver->rearm(next_exp);
@@ -52,7 +52,7 @@ void Sink::loop() {
     } while (loop_flags.test_and_clear(HAS_DEFERRED_FL));
 }
 
-void Sink::start() {
+void Task::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
     port.timers.set_time_provider(
@@ -69,13 +69,13 @@ void Sink::start() {
 }
 
 void Task_EventListener::on_receive(const MsgTask_Wakeup& msg) {
-    sink.event_group.fetch_or(Sink::EVENT_WAKEUP_MSK);
-    sink.loop();
+    task.event_group.fetch_or(Task::EVENT_WAKEUP_MSK);
+    task.loop();
 }
 
 void Task_EventListener::on_receive(const MsgTask_Timer& msg) {
-    sink.event_group.fetch_or(Sink::EVENT_TIMER_MSK);
-    sink.loop();
+    task.event_group.fetch_or(Task::EVENT_TIMER_MSK);
+    task.loop();
 }
 
 } // namespace pd

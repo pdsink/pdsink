@@ -1,6 +1,6 @@
 #include "common_macros.h"
 #include "pd_conf.h"
-#include "sink.h"
+#include "task.h"
 #include "tc.h"
 
 #include <etl/array.h>
@@ -161,10 +161,10 @@ public:
     }
 };
 
-TC::TC(Port& port, Sink& sink, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, sink{sink}, tcpc{tcpc}, tc_event_listener{*this}
+TC::TC(Port& port, Task& task, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, task{task}, tcpc{tcpc}, tc_event_listener{*this}
 {
-    sink.tc = this;
+    task.tc = this;
 
     static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{
         new TC_DETACHED_State(),

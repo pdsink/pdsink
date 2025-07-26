@@ -3,7 +3,7 @@
 #if defined(USE_FUSB302_RTOS)
 
 #include <etl/vector.h>
-#include "sink.h"
+#include "task.h"
 #include "fusb302_rtos.h"
 #include "messages.h"
 
@@ -55,10 +55,10 @@ namespace TX_TKN {
     static constexpr uint8_t TX_OFF = 0xFE;
 }
 
-Fusb302Rtos::Fusb302Rtos(Port& port, Sink& sink, IFusb302RtosHal& hal)
-    : port{port}, sink{sink}, hal{hal}
+Fusb302Rtos::Fusb302Rtos(Port& port, Task& task, IFusb302RtosHal& hal)
+    : port{port}, task{task}, hal{hal}
 {
-    sink.driver = this;
+    task.driver = this;
 }
 
 bool Fusb302Rtos::fusb_setup() {
@@ -546,7 +546,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     return true;
 }
 
-void Fusb302Rtos::task() {
+void Fusb302Rtos::task_loop() {
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) { fusb_setup(); }
 
     while (true) {
@@ -565,7 +565,7 @@ void Fusb302Rtos::start() {
 
     auto result = xTaskCreate(
         [](void* params) {
-            static_cast<Fusb302Rtos*>(params)->task();
+            static_cast<Fusb302Rtos*>(params)->task_loop();
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
 

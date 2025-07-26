@@ -12,7 +12,7 @@
 
 namespace pd {
 
-class Sink;
+class Task;
 class PRL;
 
 namespace PRL_FLAG {
@@ -132,7 +132,7 @@ private:
 
 class PRL {
 public:
-    PRL(Port& port, Sink& sink, IDriver& tcpc);
+    PRL(Port& port, Task& task, IDriver& tcpc);
     void init(bool from_hr_fsm = false);
 
     // False if unchunked ext messages supported by both partners. In our case
@@ -179,7 +179,7 @@ public:
     PD_REVISION::Type revision{PD_REVISION::REV30};
 
     Port& port;
-    Sink& sink;
+    Task& task;
     IDriver& tcpc;
 
     PRL_Tx prl_tx;

@@ -5,23 +5,23 @@
 // For HW with disconnected VBUS pin. Let's see if that works.
 class Driver : public pd::fusb302::Fusb302Rtos {
 public:
-    Driver(pd::Port& port, pd::Sink& sink, pd::fusb302::Fusb302RtosHalEsp32& hal)
-        : Fusb302Rtos(port, sink, hal) {}
+    Driver(pd::Port& port, pd::Task& task, pd::fusb302::Fusb302RtosHalEsp32& hal)
+        : Fusb302Rtos(port, task, hal) {}
 
     bool is_vbus_ok() override { return true; }
 };
 
 
 pd::Port port;
-pd::Sink sink(port);
-pd::DPM dpm(port, sink);
+pd::Task task(port);
+pd::DPM dpm(port, task);
 
 pd::fusb302::Fusb302RtosHalEsp32 fusb302_hal;
-Driver driver(port, sink, fusb302_hal);
+Driver driver(port, task, fusb302_hal);
 
-pd::PRL prl(port, sink, driver);
-pd::PE pe(port, sink, dpm, prl, driver);
-pd::TC tc(port, sink, driver);
+pd::PRL prl(port, task, driver);
+pd::PE pe(port, task, dpm, prl, driver);
+pd::TC tc(port, task, driver);
 
 Blinker<LedDriver> blinker;
 
@@ -45,7 +45,7 @@ void setup() {
     pinMode(20, OUTPUT); digitalWrite(20, LOW);
 
     // Activate PD stack
-    sink.start();
+    task.start();
 
     LOG_INFO("Setup complete");
 }

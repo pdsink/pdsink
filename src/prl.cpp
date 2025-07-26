@@ -2,7 +2,7 @@
 #include "pd_conf.h"
 #include "pe.h"
 #include "prl.h"
-#include "sink.h"
+#include "task.h"
 #include "tc.h"
 
 #include <etl/array.h>
@@ -1350,9 +1350,9 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-PRL::PRL(Port& port, Sink& sink, IDriver& tcpc)
+PRL::PRL(Port& port, Task& task, IDriver& tcpc)
     : port{port},
-    sink{sink},
+    task{task},
     tcpc{tcpc},
     prl_tx{*this},
     prl_rx{*this},

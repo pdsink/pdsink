@@ -1,11 +1,11 @@
 #include "common_macros.h"
 #include "dpm.h"
-#include "sink.h"
+#include "task.h"
 
 namespace pd {
 
-DPM::DPM(Port& port, Sink& sink) : port{port}, sink{sink} {
-    sink.dpm = this;
+DPM::DPM(Port& port, Task& task) : port{port}, task{task} {
+    task.dpm = this;
 };
 
 //

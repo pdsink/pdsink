@@ -14,7 +14,7 @@
 
 namespace pd {
 
-class Sink;
+class Task;
 
 using TC_EventListener_Base = etl::message_router<class TC_EventListener, MsgSysUpdate>;
 
@@ -29,7 +29,7 @@ private:
 
 class TC : public etl::fsm {
 public:
-    TC(Port& port, Sink& sink, ITCPC& tcpc);
+    TC(Port& port, Task& task, ITCPC& tcpc);
 
     // Disable unexpected use
     TC() = delete;
@@ -39,7 +39,7 @@ public:
     void log_state();
 
     Port& port;
-    Sink& sink;
+    Task& task;
     ITCPC& tcpc;
 
     // Internal vars, used from states classes

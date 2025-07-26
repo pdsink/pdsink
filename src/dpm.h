@@ -7,7 +7,7 @@
 
 namespace pd {
 
-class Sink;
+class Task;
 class PE;
 
 class IDPM {
@@ -20,7 +20,7 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port, Sink& sink);
+    DPM(Port& port, Task& task);
 
     // Disable unexpected use
     DPM() = delete;
@@ -72,7 +72,7 @@ public:
 
 private:
     Port& port;
-    Sink& sink;
+    Task& task;
 };
 
 } // namespace pd
