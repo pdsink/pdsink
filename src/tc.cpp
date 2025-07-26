@@ -1,6 +1,7 @@
 #include "common_macros.h"
+#include "idriver.h"
 #include "pd_conf.h"
-#include "task.h"
+#include "port.h"
 #include "tc.h"
 
 #include <etl/array.h>
@@ -161,11 +162,9 @@ public:
     }
 };
 
-TC::TC(Port& port, Task& task, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, task{task}, tcpc{tcpc}, tc_event_listener{*this}
+TC::TC(Port& port, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, tcpc{tcpc}, tc_event_listener{*this}
 {
-    task.tc = this;
-
     static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{
         new TC_DETACHED_State(),
         new TC_DETECTING_State(),
@@ -177,6 +176,11 @@ TC::TC(Port& port, Task& task, ITCPC& tcpc)
 
 void TC::log_state() {
     TC_LOG("TC state => {}", tc_state_to_desc(get_state_id()));
+}
+
+void TC::setup() {
+    port.msgbus.subscribe(tc_event_listener);
+    start();
 }
 
 void TC_EventListener::on_receive(const MsgSysUpdate& msg) {

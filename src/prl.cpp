@@ -1,11 +1,10 @@
-#include "common_macros.h"
-#include "pd_conf.h"
-#include "pe.h"
-#include "prl.h"
-#include "task.h"
-#include "tc.h"
-
 #include <etl/array.h>
+
+#include "common_macros.h"
+#include "idriver.h"
+#include "pd_conf.h"
+#include "port.h"
+#include "prl.h"
 
 namespace pd {
 
@@ -1350,9 +1349,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-PRL::PRL(Port& port, Task& task, IDriver& tcpc)
+PRL::PRL(Port& port, IDriver& tcpc)
     : port{port},
-    task{task},
     tcpc{tcpc},
     prl_tx{*this},
     prl_rx{*this},
@@ -1361,6 +1359,10 @@ PRL::PRL(Port& port, Task& task, IDriver& tcpc)
     prl_tch{*this},
     prl_event_listener{*this}
 {}
+
+void PRL::setup() {
+    port.msgbus.subscribe(prl_event_listener);
+}
 
 void PRL::init(bool from_hr_fsm) {
     PE_LOG("PRL init");

@@ -9,18 +9,14 @@
 #include <etl/fsm.h>
 
 #include "data_objects.h"
-#include "idriver.h"
-#include "port.h"
 
 namespace pd {
-
-class Task;
 
 using TC_EventListener_Base = etl::message_router<class TC_EventListener, MsgSysUpdate>;
 
 class TC_EventListener : public TC_EventListener_Base {
 public:
-    TC_EventListener(TC& tc) : TC_EventListener_Base(ROUTER_ID::TC), tc(tc) {}
+    TC_EventListener(class TC& tc) : TC_EventListener_Base(ROUTER_ID::TC), tc(tc) {}
     void on_receive(const MsgSysUpdate& msg);
     void on_receive_unknown(const etl::imessage& msg);
 private:
@@ -29,7 +25,7 @@ private:
 
 class TC : public etl::fsm {
 public:
-    TC(Port& port, Task& task, ITCPC& tcpc);
+    TC(class Port& port, class ITCPC& tcpc);
 
     // Disable unexpected use
     TC() = delete;
@@ -37,9 +33,9 @@ public:
     TC& operator=(const TC&) = delete;
 
     void log_state();
+    void setup();
 
     Port& port;
-    Task& task;
     ITCPC& tcpc;
 
     // Internal vars, used from states classes

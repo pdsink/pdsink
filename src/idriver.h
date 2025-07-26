@@ -1,12 +1,6 @@
 #pragma once
 
-#include <etl/delegate.h>
-#include <etl/message_router.h>
-#include <etl/utility.h>
-#include <etl/vector.h>
-
 #include "data_objects.h"
-#include "utils/atomic_bits.h"
 
 namespace pd {
 
@@ -157,8 +151,7 @@ public:
 
 class IDriver: public ITCPC, public ITimer {
 public:
-    virtual void start() = 0;
-    virtual void set_msg_router(etl::imessage_router& router) = 0;
+    virtual void setup() = 0;
 };
 
 } // namespace pd

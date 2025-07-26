@@ -1,25 +1,23 @@
 #pragma once
 
 #include <etl/atomic.h>
-#include <etl/cyclic_value.h>
 #include <etl/delegate.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 #include "fusb302_regs.h"
 #include "idriver.h"
-#include "port.h"
+#include "utils/atomic_bits.h"
 #include "utils/leapsync.h"
 #include "utils/spsc_overwrite_queue.h"
 
 namespace pd {
 
-class Task;
+class Port;
 
 namespace fusb302 {
 
 // Hal messages to TCPC
-
 enum class HAL_EVENT_TYPE {
     Timer,
     FUSB302_Interrupt
@@ -29,7 +27,7 @@ using hal_event_handler_t = etl::delegate<void(HAL_EVENT_TYPE, bool)>;
 // Interface to abstract hardware use.
 class IFusb302RtosHal {
 public:
-    virtual void start() = 0;
+    virtual void setup() = 0;
     virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
     virtual uint64_t get_timestamp() = 0;
 
@@ -49,14 +47,11 @@ namespace DRV_FLAG {
     };
 };
 
-
-class Fusb302Rtos;
-
 // This class implements generic FUSB302B logic, and relies on FreeRTOS
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
 public:
-    Fusb302Rtos(Port& port, Task& task, IFusb302RtosHal& hal);
+    Fusb302Rtos(Port& port, IFusb302RtosHal& hal) : port{port}, hal{hal} {};
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
@@ -65,10 +60,8 @@ public:
     Fusb302Rtos(Fusb302Rtos&&) = delete;
     Fusb302Rtos& operator=(Fusb302Rtos&&) = delete;
 
-    void start() override;
-    void set_msg_router(etl::imessage_router& router) override {
-        msg_router = &router;
-    };
+    void setup() override;
+
 
     //
     // TCPC
@@ -131,7 +124,7 @@ public:
 
     AtomicBits<DRV_FLAG::FLAGS_COUNT> flags{};
 private:
-    void task_loop();
+    void task();
     bool handle_interrupt();
     bool handle_timer();
     bool handle_tcpc_calls();
@@ -139,9 +132,6 @@ private:
     bool meter_tick(bool &retry);
 
     void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);
-    void pass_up(const etl::imessage& msg) {
-        if (msg_router) { msg_router->receive(msg); }
-    }
     void kick_task(bool from_isr = false);
 
     bool fusb_setup();
@@ -157,9 +147,7 @@ private:
     bool fusb_bist(bool enable);
 
     Port& port;
-    Task& task;
     IFusb302RtosHal& hal;
-    etl::imessage_router* msg_router{nullptr};
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 

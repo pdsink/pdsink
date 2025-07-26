@@ -3,34 +3,34 @@
 #include <etl/fsm.h>
 
 #include "data_objects.h"
-#include "port.h"
 
 namespace pd {
 
-class Task;
-class PE;
+class Port; class PE;
 
 class IDPM {
 public:
+    virtual void setup() = 0;
     virtual uint32_t get_request_data_object(const etl::ivector<uint32_t>& src_caps) = 0;
     virtual PDO_LIST get_sink_pdo_list() = 0;
     virtual uint32_t get_epr_watts() = 0;
-    virtual void notify(const etl::imessage& msg) = 0;
 };
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port, Task& task);
+    DPM(Port& port) : port{port} {};
 
     // Disable unexpected use
     DPM() = delete;
     DPM(const DPM&) = delete;
     DPM& operator=(const DPM&) = delete;
 
-    // Override to listen events from PE
-    virtual void notify(const etl::imessage& msg) override {}
+    // You can override this method in inherited class, to listen events
+    // Router id should be `ROUTER_ID::DPM` (see port.h)
+    virtual void setup() override {
+        //port.msgbus.subscribe(dpm_event_listener);
+    }
 
-    //
     // Methods below provide default implementation of DPM logic
     // and can be customized
     //
@@ -72,7 +72,6 @@ public:
 
 private:
     Port& port;
-    Task& task;
 };
 
 } // namespace pd

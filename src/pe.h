@@ -3,12 +3,8 @@
 #include <etl/fsm.h>
 
 #include "data_objects.h"
-#include "dpm.h"
-#include "idriver.h"
 #include "messages.h"
 #include "pe_defs.h"
-#include "port.h"
-#include "prl.h"
 #include "utils/atomic_bits.h"
 
 namespace pd {
@@ -22,9 +18,7 @@ namespace PE_REQUEST_PROGRESS {
     };
 }; // namespace PE_REQUEST_PROGRESS
 
-class Task;
-class PRL;
-class PE;
+class Port; class IDPM; class ITCPC; class PE; class PRL;
 
 using PE_EventListener_Base = etl::message_router<class PE_EventListener,
     MsgSysUpdate,
@@ -55,7 +49,7 @@ private:
 
 class PE : public etl::fsm {
 public:
-    PE(Port& port, Task& task, IDPM& dpm, PRL& prl, ITCPC& tcpc);
+    PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc);
 
     // Disable unexpected use
     PE() = delete;
@@ -63,6 +57,7 @@ public:
     PE& operator=(const PE&) = delete;
 
     void log_state();
+    void setup();
     void init();
 
     // Helpers
@@ -70,7 +65,7 @@ public:
     void send_data_msg(PD_DATA_MSGT::Type msgt);
     void send_ext_msg(PD_EXT_MSGT::Type msgt);
 
-    bool is_in_epr_mode() const { return port.pe_flags.test(PE_FLAG::IN_EPR_MODE); }
+    bool is_in_epr_mode() const;
     bool is_in_spr_contract() const;
     bool is_in_pps_contract() const;
     bool is_epr_mode_available() const;
@@ -88,7 +83,6 @@ public:
     uint32_t rdo_to_request{0};
 
     Port& port;
-    Task& task;
     IDPM& dpm;
     PRL& prl;
     ITCPC& tcpc;

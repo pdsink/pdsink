@@ -69,7 +69,7 @@ void Fusb302RtosHalEsp32::init_pins() {
     ESP_ERROR_CHECK(gpio_isr_handler_add(int_io_pin, handler, this));
 }
 
-void Fusb302RtosHalEsp32::start() {
+void Fusb302RtosHalEsp32::setup() {
     if (started) { return; }
     started = true;
 

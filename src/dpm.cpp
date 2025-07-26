@@ -1,12 +1,8 @@
 #include "common_macros.h"
 #include "dpm.h"
-#include "task.h"
+#include "port.h"
 
 namespace pd {
-
-DPM::DPM(Port& port, Task& task) : port{port}, task{task} {
-    task.dpm = this;
-};
 
 //
 // Custom handlers. You are expected to override these in your application.

@@ -1,5 +1,7 @@
 #include "dpm.h"
+#include "idriver.h"
 #include "pe.h"
+#include "port.h"
 #include "prl.h"
 #include "task.h"
 #include "tc.h"
@@ -30,7 +32,7 @@ void Task::loop() {
         //
         // This is NOT needed for periodic 1ms timer without rearm support.
 
-        if (driver->is_rearm_supported()) {
+        if (driver.is_rearm_supported()) {
             if (port.timers.timers_changed.exchange(false) ||
                 (e_group & Task::EVENT_TIMER_MSK))
             {
@@ -42,7 +44,7 @@ void Task::loop() {
                         event_group.fetch_or(Task::EVENT_TIMER_MSK);
                         loop_flags.set(HAS_DEFERRED_FL);
                     } else {
-                        driver->rearm(next_exp);
+                        driver.rearm(next_exp);
                     }
                 }
             }
@@ -52,18 +54,20 @@ void Task::loop() {
     } while (loop_flags.test_and_clear(HAS_DEFERRED_FL));
 }
 
-void Task::start() {
+void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
     loop_flags.set(IS_IN_LOOP_FL);
 
     port.timers.set_time_provider(
-        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(*driver)
+        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(driver)
     );
+
     port.msgbus.subscribe(task_event_listener);
 
-    driver->start();
-    prl->init();
-    pe->init();
-    tc->start();
+    driver.setup();
+    prl.setup();
+    pe.setup();
+    dpm.setup();
+    tc.setup();
 
     loop_flags.clear(IS_IN_LOOP_FL);
 }

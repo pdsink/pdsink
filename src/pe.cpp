@@ -1,12 +1,13 @@
-#include "common_macros.h"
-#include "dpm.h"
-#include "pe.h"
-#include "pd_conf.h"
-#include "task.h"
-#include "tc.h"
-
 #include <etl/algorithm.h>
 #include <etl/array.h>
+
+#include "common_macros.h"
+#include "dpm.h"
+#include "idriver.h"
+#include "pd_conf.h"
+#include "pe.h"
+#include "port.h"
+#include "prl.h"
 
 namespace pd {
 
@@ -1313,11 +1314,9 @@ public:
 };
 
 
-PE::PE(Port& port, Task& task, IDPM& dpm, PRL& prl, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, task{task}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
+PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
-    task.pe = this;
-
     static etl::array<etl::ifsm_state*, PE_State::PE_STATE_COUNT> pe_state_list = {{
         new PE_SNK_Startup_State(),
         new PE_SNK_Discovery_State(),
@@ -1350,6 +1349,10 @@ PE::PE(Port& port, Task& task, IDPM& dpm, PRL& prl, ITCPC& tcpc)
 
 void PE::log_state() {
     PE_LOG("PE state => {}", pe_state_to_desc(get_state_id()));
+}
+
+void PE::setup() {
+    port.msgbus.subscribe(pe_event_listener);
 }
 
 void PE::init() {
@@ -1397,6 +1400,11 @@ auto PE::is_epr_mode_available() const -> bool {
 
     return fisrt_src_pdo.epr_capable;
 }
+
+bool PE::is_in_epr_mode() const {
+    return port.pe_flags.test(PE_FLAG::IN_EPR_MODE);
+}
+
 
 auto PE::is_in_spr_contract() const -> bool {
     const RDO_ANY rdo{rdo_contracted};

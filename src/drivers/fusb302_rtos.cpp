@@ -3,9 +3,9 @@
 #if defined(USE_FUSB302_RTOS)
 
 #include <etl/vector.h>
-#include "task.h"
 #include "fusb302_rtos.h"
 #include "messages.h"
+#include "port.h"
 
 namespace pd {
 
@@ -53,12 +53,6 @@ namespace TX_TKN {
     static constexpr uint8_t JAM_CRC = 0xFF;
     static constexpr uint8_t EOP = 0x14;
     static constexpr uint8_t TX_OFF = 0xFE;
-}
-
-Fusb302Rtos::Fusb302Rtos(Port& port, Task& task, IFusb302RtosHal& hal)
-    : port{port}, task{task}, hal{hal}
-{
-    task.driver = this;
 }
 
 bool Fusb302Rtos::fusb_setup() {
@@ -546,7 +540,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     return true;
 }
 
-void Fusb302Rtos::task_loop() {
+void Fusb302Rtos::task() {
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) { fusb_setup(); }
 
     while (true) {
@@ -560,12 +554,12 @@ void Fusb302Rtos::task_loop() {
     }
 }
 
-void Fusb302Rtos::start() {
+void Fusb302Rtos::setup() {
     if (started) { return; }
 
     auto result = xTaskCreate(
         [](void* params) {
-            static_cast<Fusb302Rtos*>(params)->task_loop();
+            static_cast<Fusb302Rtos*>(params)->task();
         }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
     );
 
@@ -580,7 +574,7 @@ void Fusb302Rtos::start() {
         hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
     );
 
-    hal.start();
+    hal.setup();
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {

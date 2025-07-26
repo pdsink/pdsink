@@ -4,19 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "data_objects.h"
-#include "idriver.h"
 #include "messages.h"
-#include "port.h"
 #include "utils/atomic_bits.h"
 
 namespace pd {
 
-class TC;
-class PE;
-class IDPM;
-class PRL;
-class Task;
+class Port; class Task; class TC; class IDPM; class PE; class PRL; class IDriver;
 
 using Task_EventListener_Base = etl::message_router<class Task_EventListener,
     MsgTask_Wakeup,
@@ -34,22 +27,16 @@ private:
 
 class Task {
 public:
-    Task(Port& port) : port{port}, task_event_listener{*this} {}
+    Task(Port& port, IDriver& driver) : port{port}, driver{driver}, task_event_listener{*this} {}
 
     // Disable unexpected use
     Task() = delete;
     Task(const Task&) = delete;
     Task& operator=(const Task&) = delete;
 
-    void start();
-    void loop();
+    void start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver);
 
-    IDriver* driver{nullptr};
-    TC* tc{nullptr};
-    PE* pe{nullptr};
-    IDPM* dpm{nullptr};
-    PRL* prl{nullptr};
-    Port& port;
+    void loop();
 
     static constexpr uint32_t EVENT_TIMER_MSK = 1ul << 0;
     static constexpr uint32_t EVENT_WAKEUP_MSK = 1ul << 1;
@@ -57,6 +44,8 @@ public:
     etl::atomic<uint32_t> event_group{0};
 
 private:
+    Port& port;
+    IDriver& driver;
 
     enum {
         IS_IN_LOOP_FL,

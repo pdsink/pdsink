@@ -4,16 +4,13 @@
 #include <etl/fsm.h>
 
 #include "data_objects.h"
-#include "idriver.h"
 #include "messages.h"
-#include "port.h"
 #include "prl_defs.h"
 #include "utils/atomic_bits.h"
 
 namespace pd {
 
-class Task;
-class PRL;
+class Port; class IDriver; class PRL;
 
 namespace PRL_FLAG {
     enum Type {
@@ -132,7 +129,8 @@ private:
 
 class PRL {
 public:
-    PRL(Port& port, Task& task, IDriver& tcpc);
+    PRL(Port& port, IDriver& tcpc);
+    void setup();
     void init(bool from_hr_fsm = false);
 
     // False if unchunked ext messages supported by both partners. In our case
@@ -179,7 +177,6 @@ public:
     PD_REVISION::Type revision{PD_REVISION::REV30};
 
     Port& port;
-    Task& task;
     IDriver& tcpc;
 
     PRL_Tx prl_tx;

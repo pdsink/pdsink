@@ -9,20 +9,10 @@
 
 namespace pd {
 
-namespace ROUTER_ID {
-    enum {
-        TASK = 1,
-        TC = 2,
-        PE = 3,
-        PRL = 4,
-        DPM = 5,
-        ROUTERS_COUNT = 5
-    };
-} // namespace ROUTER_ID
-
 //
 // Shared data storage, message bus and utility helpers.
 //
+
 class Port {
 public:
     Timers timers{};
@@ -60,12 +50,14 @@ public:
     void notify_pe(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::PE, msg); }
     void notify_prl(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::PRL, msg); }
     void notify_dpm(const etl::imessage& msg) { msgbus.receive(ROUTER_ID::DPM, msg); }
-    void wakeup() { msgbus.receive(ROUTER_ID::TASK, MsgTask_Wakeup()); }
+    void wakeup() { msgbus.receive(ROUTER_ID::TASK, MsgTask_Wakeup{}); }
 
     //
     // Helpers
     //
+
     bool is_ams_active() { return pe_flags.test(PE_FLAG::AMS_ACTIVE); }
+
     void wait_dpm_transit_to_default(bool enable) {
         if (enable) {
             pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
