@@ -79,22 +79,6 @@ namespace SOP_TYPE {
 }
 
 //
-// TCPC event messages
-//
-enum msg_driver_id {
-    MSG_TCPC_HARD_RESET = 20,
-    MSG_TCPC_TRANSMIT_STATUS,
-};
-
-class MsgTcpcHardReset : public etl::message<MSG_TCPC_HARD_RESET> {};
-
-class MsgTcpcTransmitStatus : public etl::message<MSG_TCPC_TRANSMIT_STATUS> {
-public:
-    explicit MsgTcpcTransmitStatus(TCPC_TRANSMIT_STATUS::Type status) : status{status} {}
-    TCPC_TRANSMIT_STATUS::Type status;
-};
-
-//
 // Interfaces
 //
 

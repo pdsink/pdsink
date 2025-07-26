@@ -14,12 +14,14 @@ public:
 
 pd::Port port;
 pd::Sink sink(port);
+pd::DPM dpm(port, sink);
+
 pd::fusb302::Fusb302RtosHalEsp32 fusb302_hal;
 Driver driver(port, sink, fusb302_hal);
+
 pd::PRL prl(port, sink, driver);
-pd::PE pe(port, sink, prl, driver);
+pd::PE pe(port, sink, dpm, prl, driver);
 pd::TC tc(port, sink, driver);
-pd::DPM dpm(port, sink);
 
 Blinker<LedDriver> blinker;
 

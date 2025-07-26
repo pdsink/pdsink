@@ -125,7 +125,7 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        pe.prl.on_soft_reset_from_pe();
+        pe.port.notify_prl(MsgToPrl_SoftResetFromPe{});
         pe.port.pe_flags.clear(PE_FLAG::HAS_EXPLICIT_CONTRACT);
         return No_State_Change;
     }
@@ -210,13 +210,13 @@ public:
         pe.prl.revision = static_cast<PD_REVISION::Type>(
             etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
 
-        pe.source_caps.clear();
+        pe.port.source_caps.clear();
         for (int i = 0, pdo_num = msg.data_size() >> 2; i < pdo_num; i++) {
-            pe.source_caps.push_back(msg.read32(i*4));
+            pe.port.source_caps.push_back(msg.read32(i*4));
         }
 
         pe.port.pe_flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
-        pe.port.notify_dpm(MsgDpm_SrcCapsReceived());
+        pe.port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
 };
@@ -249,11 +249,11 @@ public:
         // By spec, we should request PDO on previous stage. But for sink-only
         // this place looks more convenient, as unified DPM point for all cases.
         // This decision can be changed later, if needed.
-        RDO_ANY rdo{pe.sink.dpm->get_request_data_object(pe.source_caps)};
+        RDO_ANY rdo{pe.dpm.get_request_data_object(pe.port.source_caps)};
 
         // Minimal check for RDO validity.
         // DPM implementation MUST NOT return invalid data.
-        if (rdo.obj_position < 1 || rdo.obj_position > pe.source_caps.size()) {
+        if (rdo.obj_position < 1 || rdo.obj_position > pe.port.source_caps.size()) {
             PE_LOG("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
             return PE_SNK_Hard_Reset;
         }
@@ -267,7 +267,7 @@ public:
 
         if (pe.is_in_epr_mode()) {
             msg.append32(rdo.raw_value);
-            msg.append32(pe.source_caps[rdo.obj_position - 1]);
+            msg.append32(pe.port.source_caps[rdo.obj_position - 1]);
             pe.send_data_msg(PD_DATA_MSGT::EPR_Request);
         } else {
             msg.append32(rdo.raw_value);
@@ -315,14 +315,14 @@ public:
 
                 if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
                     // Report handshake complete, if first contract and should not try EPR
-                    pe.port.notify_dpm(MsgDpm_HandshakeDone());
+                    pe.port.notify_dpm(MsgToDpm_HandshakeDone());
                 }
 
                 if (pe.port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    pe.port.notify_dpm(MsgDpm_NewPowerLevel(true));
+                    pe.port.notify_dpm(MsgToDpm_NewPowerLevel(true));
                 }
 
-                pe.port.notify_dpm(MsgDpm_SelectCapDone());
+                pe.port.notify_dpm(MsgToDpm_SelectCapDone());
                 return PE_SNK_Transition_Sink;
             }
 
@@ -340,7 +340,7 @@ public:
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
                 if (pe.port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    pe.port.notify_dpm(MsgDpm_NewPowerLevel(false));
+                    pe.port.notify_dpm(MsgToDpm_NewPowerLevel(false));
                 }
 
                 if (pe.port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
@@ -627,7 +627,7 @@ public:
         }
 
         // If event caused no activity, emit idle to DPM
-        pe.port.notify_dpm(MsgDpm_Idle());
+        pe.port.notify_dpm(MsgToDpm_Idle());
 
         return No_State_Change;
     }
@@ -653,7 +653,7 @@ public:
         auto& msg = pe.port.tx_emsg;
         msg.clear();
 
-        auto caps = pe.sink.dpm->get_sink_pdo_list();
+        auto caps = pe.dpm.get_sink_pdo_list();
 
         // Fill data, length depends on request type
         for (int i = 0, max = caps.size(); i < max; i++) {
@@ -770,7 +770,7 @@ public:
         }
 
         pe.port.pe_flags.set(PE_FLAG::PRL_HARD_RESET_PENDING);
-        pe.prl.on_hard_reset_from_pe();
+        pe.port.notify_prl(MsgToPrl_HardResetFromPe{});
         pe.hard_reset_counter++;
 
         return No_State_Change;
@@ -800,7 +800,7 @@ public:
 
         // If need to pend - call `wait_dpm_transit_to_default(true)` in
         // event handler, and `wait_dpm_transit_to_default(false)` to continue.
-        pe.port.notify_dpm(MsgDpm_TransitToDefault());
+        pe.port.notify_dpm(MsgToDpm_TransitToDefault());
         pe.port.wakeup();
         return No_State_Change;
     }
@@ -809,7 +809,7 @@ public:
         auto& pe = get_fsm_context();
 
         if (!pe.port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
-            pe.prl.on_pe_hard_reset_done();
+            pe.port.notify_prl(MsgToPrl_PEHardResetDone{});
             return PE_SNK_Startup;
         }
         return No_State_Change;
@@ -871,7 +871,7 @@ public:
         pe.port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
         pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
-        pe.prl.on_soft_reset_from_pe();
+        pe.port.notify_prl(MsgToPrl_SoftResetFromPe{});
         pe.check_request_progress_enter();
         return No_State_Change;
     }
@@ -952,7 +952,7 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
-        pe.port.notify_dpm(MsgDpm_Alert(pe.port.rx_emsg.read32(0)));
+        pe.port.notify_dpm(MsgToDpm_Alert(pe.port.rx_emsg.read32(0)));
         return PE_SNK_Ready;
     }
 };
@@ -968,7 +968,7 @@ public:
 
         EPRMDO eprmdo{};
         eprmdo.action = EPR_MODE_ACTION::ENTER;
-        eprmdo.data = pe.sink.dpm->get_epr_watts();
+        eprmdo.data = pe.dpm.get_epr_watts();
 
         auto& msg = pe.port.tx_emsg;
         msg.clear();
@@ -1003,8 +1003,8 @@ public:
 
                 PE_LOG("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
 
-                pe.port.notify_dpm(MsgDpm_EPREntryFailed(eprmdo.raw_value));
-                pe.port.notify_dpm(MsgDpm_HandshakeDone());
+                pe.port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
+                pe.port.notify_dpm(MsgToDpm_HandshakeDone());
 
                 return PE_SNK_Ready;
             }
@@ -1162,7 +1162,7 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        pe.port.notify_dpm(MsgDpm_SrcDisabled());
+        pe.port.notify_dpm(MsgToDpm_SrcDisabled());
         return No_State_Change;
     }
 
@@ -1203,7 +1203,7 @@ public:
             }
 
             pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_PPS_STATUS);
-            pe.port.notify_dpm(MsgDpm_PPSStatus(result));
+            pe.port.notify_dpm(MsgToDpm_PPSStatus(result));
             return PE_SNK_Ready;
         }
 
@@ -1249,7 +1249,7 @@ public:
             }
 
             pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_REVISION);
-            pe.port.notify_dpm(MsgDpm_PartnerRevision(result));
+            pe.port.notify_dpm(MsgToDpm_PartnerRevision(result));
             return PE_SNK_Ready;
         }
 
@@ -1295,7 +1295,7 @@ public:
             }
 
             pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_SRC_INFO);
-            pe.port.notify_dpm(MsgDpm_SourceInfo(result));
+            pe.port.notify_dpm(MsgToDpm_SourceInfo(result));
             return PE_SNK_Ready;
         }
 
@@ -1313,8 +1313,8 @@ public:
 };
 
 
-PE::PE(Port& port, Sink& sink, PRL& prl, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, sink{sink}, prl{prl}, tcpc{tcpc}
+PE::PE(Port& port, Sink& sink, IDPM& dpm, PRL& prl, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, sink{sink}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
     sink.pe = this;
 
@@ -1349,7 +1349,7 @@ PE::PE(Port& port, Sink& sink, PRL& prl, ITCPC& tcpc)
 };
 
 void PE::log_state() {
-    PE_LOG("PE state => %s", pe_state_to_desc(get_state_id()));
+    PE_LOG("PE state => {}", pe_state_to_desc(get_state_id()));
 }
 
 void PE::init() {
@@ -1358,107 +1358,6 @@ void PE::init() {
     port.dpm_requests.clear_all();
     start();
     port.timers.stop_range(PD_TIMERS_RANGE::PE);
-}
-
-void PE::dispatch(const MsgSysUpdate& events, const bool pd_enabled) {
-    switch (local_state) {
-        case LS_DISABLED:
-            if (!pd_enabled) { break; }
-
-            __fallthrough;
-        case LS_INIT:
-            init();
-            local_state = LS_WORKING;
-
-            __fallthrough;
-        case LS_WORKING:
-            if (!pd_enabled) {
-                local_state = LS_DISABLED;
-                reset();
-                break;
-            }
-            receive(events);
-            break;
-    }
-}
-
-//
-// Notification handlers
-//
-void PE::on_message_received() {
-    port.pe_flags.set(PE_FLAG::MSG_RECEIVED);
-    port.wakeup();
-}
-
-void PE::on_message_sent() {
-    // Any successful sent inside AMS means first message was sent
-    if (port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
-        port.pe_flags.set(PE_FLAG::AMS_FIRST_MSG_SENT);
-    }
-
-    port.pe_flags.set(PE_FLAG::TX_COMPLETE);
-    port.wakeup();
-}
-
-void PE::on_prl_soft_reset_from_partner() {
-    if (!is_started()) { return; }
-    receive(MsgTransitTo(PE_SNK_Soft_Reset));
-    port.wakeup();
-}
-
-void PE::on_prl_hard_reset_from_partner() {
-    if (!is_started()) { return; }
-    tcpc.req_bist_carrier_enable(false);
-    receive(MsgTransitTo(PE_SNK_Transition_to_default));
-    port.wakeup();
-}
-
-void PE::on_prl_hard_reset_sent() {
-    if (!is_started()) { return; }
-    port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
-    port.wakeup();
-}
-
-//
-// 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
-//
-// NOTE: May be need care, spec is not clear
-//
-void PE::on_prl_report_error(PRL_ERROR err) {
-    if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
-        port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
-        port.wakeup();
-        return;
-    }
-
-    if (err == PRL_ERROR::RCH_SEND_FAIL ||
-        err ==PRL_ERROR::TCH_SEND_FAIL)
-    {
-        receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
-        port.wakeup();
-        return;
-    }
-
-    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) &&
-        port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
-        !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
-    {
-        // Discard is not possible without RX msg, but let's check for sure.
-        if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
-            port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
-        }
-        receive(MsgTransitTo(PE_SNK_Ready));
-        port.wakeup();
-        return;
-    }
-
-    receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
-    port.wakeup();
-}
-
-void PE::on_prl_report_discard() {
-    port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
-    port.wakeup();
 }
 
 //
@@ -1494,7 +1393,7 @@ auto PE::is_epr_mode_available() const -> bool {
         return false;
     }
 
-    const PDO_FIXED fisrt_src_pdo{source_caps[0]};
+    const PDO_FIXED fisrt_src_pdo{port.source_caps[0]};
 
     return fisrt_src_pdo.epr_capable;
 }
@@ -1508,7 +1407,7 @@ auto PE::is_in_pps_contract() const -> bool {
     if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
     const RDO_ANY rdo{rdo_contracted};
-    const PDO_SPR_PPS pdo{source_caps[rdo.obj_position-1]};
+    const PDO_SPR_PPS pdo{port.source_caps[rdo.obj_position-1]};
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
         pdo.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
@@ -1552,5 +1451,109 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
     return PE_REQUEST_PROGRESS::FINISHED;
 }
 
+void PE_EventListener::on_receive(const MsgSysUpdate& msg) {
+    switch (pe.local_state) {
+        case PE::LS_DISABLED:
+            if (!pe.port.is_attached) { break; }
+
+            __fallthrough;
+        case PE::LS_INIT:
+            pe.init();
+            pe.local_state = PE::LS_WORKING;
+
+            __fallthrough;
+        case PE::LS_WORKING:
+            if (!pe.port.is_attached) {
+                pe.local_state = PE::LS_DISABLED;
+                pe.reset();
+                break;
+            }
+            pe.receive(msg);
+            break;
+    }
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived& msg) {
+    pe.port.pe_flags.set(PE_FLAG::MSG_RECEIVED);
+    pe.port.wakeup();
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent& msg) {
+    // Any successful sent inside AMS means first message was sent
+    if (pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
+        pe.port.pe_flags.set(PE_FLAG::AMS_FIRST_MSG_SENT);
+    }
+
+    pe.port.pe_flags.set(PE_FLAG::TX_COMPLETE);
+    pe.port.wakeup();
+}
+
+//
+// 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
+//
+// NOTE: May be need care, spec is not clear
+//
+void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
+    auto& port = pe.port;
+    auto err = msg.error;
+
+    if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
+        port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
+        port.wakeup();
+        return;
+    }
+
+    if (err == PRL_ERROR::RCH_SEND_FAIL ||
+        err ==PRL_ERROR::TCH_SEND_FAIL)
+    {
+        pe.receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
+        port.wakeup();
+        return;
+    }
+
+    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) &&
+        port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
+        !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
+    {
+        // Discard is not possible without RX msg, but let's check for sure.
+        if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
+            port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
+        }
+        receive(MsgTransitTo(PE_SNK_Ready));
+        port.wakeup();
+        return;
+    }
+
+    receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
+    port.wakeup();
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard& msg) {
+    pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
+    pe.port.wakeup();
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner& msg) {
+    if (!pe.is_started()) { return; }
+    pe.receive(MsgTransitTo(PE_SNK_Soft_Reset));
+    pe.port.wakeup();
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner& msg) {
+    if (!pe.is_started()) { return; }
+    pe.tcpc.req_bist_carrier_enable(false);
+    pe.receive(MsgTransitTo(PE_SNK_Transition_to_default));
+    pe.port.wakeup();
+}
+
+void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent& msg) {
+    if (!pe.is_started()) { return; }
+    pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
+    pe.port.wakeup();
+}
+
+void PE_EventListener::on_receive_unknown(const etl::imessage& msg) {
+    PE_LOG("PE unknown message, id: {}", msg.get_message_id());
+}
 
 } // namespace pd

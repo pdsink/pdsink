@@ -49,6 +49,7 @@ public:
         auto& tc = get_fsm_context();
         tc.log_state();
 
+        tc.port.is_attached = false;
         tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
         tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
@@ -137,7 +138,15 @@ public:
 
 class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED, MsgSysUpdate> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT;
+    ON_UNKNOWN_EVENT_DEFAULT;
+
+    auto on_enter_state() -> etl::fsm_state_id_t override {
+        auto& tc = get_fsm_context();
+        tc.log_state();
+
+        tc.port.is_attached = true;
+        return No_State_Change;
+    }
 
     auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
@@ -152,8 +161,9 @@ public:
     }
 };
 
-
-TC::TC(Port& port, Sink& sink, ITCPC& tcpc) : etl::fsm(0), port{port}, sink{sink}, tcpc{tcpc} {
+TC::TC(Port& port, Sink& sink, ITCPC& tcpc)
+    : etl::fsm(0), port{port}, sink{sink}, tcpc{tcpc}, tc_event_listener{*this}
+{
     sink.tc = this;
 
     static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{
@@ -166,15 +176,15 @@ TC::TC(Port& port, Sink& sink, ITCPC& tcpc) : etl::fsm(0), port{port}, sink{sink
 };
 
 void TC::log_state() {
-    TC_LOG("TC state => %s", tc_state_to_desc(get_state_id()));
+    TC_LOG("TC state => {}", tc_state_to_desc(get_state_id()));
 }
 
-void TC::dispatch(const MsgSysUpdate& events) {
-    receive(events);
+void TC_EventListener::on_receive(const MsgSysUpdate& msg) {
+    tc.receive(msg);
 }
 
-auto TC::is_connected() -> bool {
-    return is_started() && get_state_id() == TC_SINK_ATTACHED;
+void TC_EventListener::on_receive_unknown(const etl::imessage& msg) {
+    TC_LOG("TC unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd

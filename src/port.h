@@ -27,6 +27,8 @@ class Port {
 public:
     Timers timers{};
 
+    bool is_attached{false};
+
     //
     // PE data
     //
@@ -37,6 +39,8 @@ public:
 
     PD_MSG rx_emsg{};
     PD_MSG tx_emsg{};
+
+    PDO_LIST source_caps{};
 
     //
     // PRL data

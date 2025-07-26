@@ -256,7 +256,7 @@ public:
         auto& rch = get_fsm_context();
         rch.log_state();
 
-        rch.prl.sink.pe->on_message_received();
+        rch.prl.port.notify_pe(MsgToPe_PrlMessageReceived{});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 };
@@ -420,7 +420,7 @@ public:
         if (prl.flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
             prl.port.rx_emsg = prl.port.rx_chunk;
             prl.port.rx_emsg.resize_by_data_obj_count();
-            prl.sink.pe->on_message_received();
+            prl.port.notify_pe(MsgToPe_PrlMessageReceived{});
         }
 
         // Error report can cause sending data (soft reset, for example)
@@ -459,7 +459,7 @@ public:
 
         if (tch.flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
             if (prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) {
-                tch.prl.sink.pe->on_prl_report_discard();
+                tch.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
                 tch.error = PRL_ERROR::TCH_ENQUIRE_DISCARDED;
                 return TCH_Report_Error;
             }
@@ -511,7 +511,7 @@ public:
         }
 
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
-            tch.prl.sink.pe->on_prl_report_discard();
+            tch.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
             tch.error = PRL_ERROR::TCH_DISCARDED;
             return TCH_Report_Error;
         }
@@ -528,7 +528,7 @@ public:
         auto& tch = get_fsm_context();
         tch.log_state();
 
-        tch.prl.sink.pe->on_message_sent();
+        tch.prl.port.notify_pe(MsgToPe_PrlMessageSent{});
         if (tch.flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
             return TCH_Message_Received;
         }
@@ -593,7 +593,7 @@ public:
         auto& prl_tx = prl.prl_tx;
 
         if (prl_tx.flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
-            tch.prl.sink.pe->on_prl_report_discard();
+            tch.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
             tch.error = PRL_ERROR::TCH_DISCARDED;
             return TCH_Report_Error;
         }
@@ -658,7 +658,7 @@ public:
             }
 
             // Not expected message
-            tch.prl.sink.pe->on_prl_report_discard();
+            tch.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
             tch.error = PRL_ERROR::TCH_DISCARDED;
             return TCH_Message_Received;
         }
@@ -693,7 +693,7 @@ public:
         }
 
         if (tch.flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
-            prl.sink.pe->on_prl_report_discard();
+            prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
         }
 
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -974,7 +974,7 @@ public:
             prl_tx.tcpc_tx_status == TCPC_TRANSMIT_STATUS::DISCARDED)
         {
             prl_tx.msg_id_counter++;
-            //prl_tx.prl.sink.pe->on_prl_report_discard();
+            //prl_tx.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
             prl_tx.flags.set(PRL_TX_FLAG::TX_DISCARDED);
         }
         return PRL_Tx_PHY_Layer_Reset;
@@ -1108,7 +1108,7 @@ public:
 
         prl.reset_msg_counters();
 
-        prl.sink.pe->on_prl_soft_reset_from_partner();
+        prl.port.notify_pe(MsgToPe_PrlSoftResetFromPartner{});
         return PRL_Rx_Send_GoodCRC;
     }
 };
@@ -1251,7 +1251,7 @@ public:
         auto& hr = get_fsm_context();
         hr.log_state();
 
-        hr.prl.sink.pe->on_prl_hard_reset_from_partner();
+        hr.prl.port.notify_pe(MsgToPe_PrlHardResetFromPartner{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 };
@@ -1313,7 +1313,7 @@ public:
         auto& hr = get_fsm_context();
         hr.log_state();
 
-        hr.prl.sink.pe->on_prl_hard_reset_sent();
+        hr.prl.port.notify_pe(MsgToPe_PrlHardResetSent{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 };
@@ -1358,10 +1358,9 @@ PRL::PRL(Port& port, Sink& sink, IDriver& tcpc)
     prl_rx{*this},
     prl_hr{*this},
     prl_rch{*this},
-    prl_tch{*this}
-{
-    tcpc.set_msg_router(tcpc_event_handler);
-}
+    prl_tch{*this},
+    prl_event_listener{*this}
+{}
 
 void PRL::init(bool from_hr_fsm) {
     PE_LOG("PRL init");
@@ -1395,78 +1394,6 @@ void PRL::init(bool from_hr_fsm) {
 
     // Ensure loop repeat to continue PE States, which wait for PRL run.
     port.wakeup();
-}
-
-void PRL::dispatch(const MsgSysUpdate& events, const bool pd_enabled) {
-    switch (local_state) {
-        case LS_DISABLED:
-            if (!pd_enabled) { break; }
-
-            __fallthrough;
-        case LS_INIT:
-            init();
-            local_state = LS_WORKING;
-
-            __fallthrough;
-        case LS_WORKING:
-            if (!pd_enabled) {
-                tcpc.req_rx_enable(false);
-                local_state = LS_DISABLED;
-                break;
-            }
-
-            prl_hr.receive(events);
-
-            if (prl_hr.get_state_id() != PRL_HR_IDLE) { break; }
-
-            // In theory, if RTOS with slow reaction used, it's possible to get
-            // both TX Complete and RX updates when transmission was requested
-
-            if (prl_tx.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED)
-            {
-                // If TCPC send finished - ensure to react before discarding
-                // by RX (if both events detected in the same time).
-                //
-                // - Skip TCPC fail here, because it can start retry.
-                // - Skip TCPC discard here, to expose by RX
-                //
-                // May be software CRC handling needs more care. But for
-                // hardware CRC this looks ok.
-                prl_tx.receive(events);
-            }
-
-            prl_rx.receive(events);
-            prl_rch.receive(events);
-            report_pending_error();
-            // First TCH call needed when PE enquired message, to start
-            // chunking / transfer.
-            prl_tch.receive(events);
-            report_pending_error();
-            prl_tx.receive(events);
-
-            //
-            // Repeat TCH/RCH calls for quick-consume previsous changes
-            //
-
-            // After transfer complete - PE should be notified, call TCH again.
-            prl_tch.receive(events);
-            report_pending_error();
-            // Repeat RCH call to land re-routed TCH message
-            prl_rch.receive(events);
-            report_pending_error();
-            break;
-    }
-}
-
-void PRL::on_soft_reset_from_pe() {
-    local_state = LS_INIT;
-}
-
-void PRL::on_hard_reset_from_pe() {
-    prl_hr.flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PE);
-}
-void PRL::on_pe_hard_reset_done() {
-    prl_hr.flags.set(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE);
 }
 
 void PRL::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
@@ -1521,10 +1448,10 @@ void PRL::tx_enquire_chunk() {
 
 void PRL::report_pending_error() {
     if (prl_rch.flags.test_and_clear(RCH_FLAG::RCH_ERROR_PENDING)) {
-        sink.pe->on_prl_report_error(prl_rch.error);
+        port.notify_pe(MsgToPe_PrlReportError{prl_rch.error});
     }
     if (prl_tch.flags.test_and_clear(TCH_FLAG::TCH_ERROR_PENDING)) {
-        sink.pe->on_prl_report_error(prl_tch.error);
+        port.notify_pe(MsgToPe_PrlReportError{prl_tch.error});
     }
 }
 
@@ -1544,7 +1471,7 @@ PRL_RCH::PRL_RCH(PRL& prl) : etl::fsm(0), prl{prl} {
 };
 
 void PRL_RCH::log_state() {
-    PRL_LOG("PRL_RCH state => %s", prl_rch_state_to_desc(get_state_id()));
+    PRL_LOG("PRL_RCH state => {}", prl_rch_state_to_desc(get_state_id()));
 }
 
 PRL_TCH::PRL_TCH(PRL& prl) : etl::fsm(0), prl{prl} {
@@ -1564,7 +1491,7 @@ PRL_TCH::PRL_TCH(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_TCH::log_state() {
-    PRL_LOG("PRL_TCH state => %s", prl_tch_state_to_desc(get_state_id()));
+    PRL_LOG("PRL_TCH state => {}", prl_tch_state_to_desc(get_state_id()));
 }
 
 PRL_Tx::PRL_Tx(PRL& prl) : etl::fsm(0), prl{prl} {
@@ -1586,7 +1513,7 @@ PRL_Tx::PRL_Tx(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_Tx::log_state() {
-    PRL_LOG("PRL_Tx state => %s", prl_tx_state_to_desc(get_state_id()));
+    PRL_LOG("PRL_Tx state => {}", prl_tx_state_to_desc(get_state_id()));
 }
 
 PRL_Rx::PRL_Rx(PRL& prl) : etl::fsm(0), prl{prl} {
@@ -1601,7 +1528,7 @@ PRL_Rx::PRL_Rx(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_Rx::log_state() {
-    PRL_LOG("PRL_Rx state => %s", prl_rx_state_to_desc(get_state_id()));
+    PRL_LOG("PRL_Rx state => {}", prl_rx_state_to_desc(get_state_id()));
 }
 
 PRL_HR::PRL_HR(PRL& prl) : etl::fsm(0), prl{prl} {
@@ -1619,21 +1546,95 @@ PRL_HR::PRL_HR(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_HR::log_state() {
-    PRL_LOG("PRL_HR state => %s", prl_hr_state_to_desc(get_state_id()));
+    PRL_LOG("PRL_HR state => {}", prl_hr_state_to_desc(get_state_id()));
 }
 
-TcpcEventHandler::TcpcEventHandler(PRL& prl) : prl{prl} {};
 
-void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcHardReset& msg) {
+void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
+    switch (prl.local_state) {
+        case PRL::LS_DISABLED:
+            if (!prl.port.is_attached) { break; }
+
+            __fallthrough;
+        case PRL::LS_INIT:
+            prl.init();
+            prl.local_state = PRL::LS_WORKING;
+
+            __fallthrough;
+        case PRL::LS_WORKING:
+            if (!prl.port.is_attached) {
+                prl.tcpc.req_rx_enable(false);
+                prl.local_state = PRL::LS_DISABLED;
+                break;
+            }
+
+            prl.prl_hr.receive(msg);
+
+            if (prl.prl_hr.get_state_id() != PRL_HR_IDLE) { break; }
+
+            // In theory, if RTOS with slow reaction used, it's possible to get
+            // both TX Complete and RX updates when transmission was requested
+
+            if (prl.prl_tx.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED)
+            {
+                // If TCPC send finished - ensure to react before discarding
+                // by RX (if both events detected in the same time).
+                //
+                // - Skip TCPC fail here, because it can start retry.
+                // - Skip TCPC discard here, to expose by RX
+                //
+                // May be software CRC handling needs more care. But for
+                // hardware CRC this looks ok.
+                prl.prl_tx.receive(msg);
+            }
+
+            prl.prl_rx.receive(msg);
+            prl.prl_rch.receive(msg);
+            prl.report_pending_error();
+            // First TCH call needed when PE enquired message, to start
+            // chunking / transfer.
+            prl.prl_tch.receive(msg);
+            prl.report_pending_error();
+            prl.prl_tx.receive(msg);
+
+            //
+            // Repeat TCH/RCH calls for quick-consume previous changes
+            //
+
+            // After transfer complete - PE should be notified, call TCH again.
+            prl.prl_tch.receive(msg);
+            prl.report_pending_error();
+            // Repeat RCH call to land re-routed TCH message
+            prl.prl_rch.receive(msg);
+            prl.report_pending_error();
+            break;
+    }
+}
+
+void PRL_EventListener::on_receive(const MsgToPrl_SoftResetFromPe& msg) {
+    prl.local_state = PRL::LS_INIT;
+}
+
+void PRL_EventListener::on_receive(const MsgToPrl_HardResetFromPe& msg) {
+    prl.prl_hr.flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PE);
+}
+
+void PRL_EventListener::on_receive(const MsgToPrl_PEHardResetDone& msg) {
+    prl.prl_hr.flags.set(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE);
+}
+
+void PRL_EventListener::on_receive(const MsgToPrl_TcpcHardReset& msg) {
     prl.prl_hr.flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER);
     prl.port.wakeup();
 }
-void TcpcEventHandler::on_receive(__maybe_unused const MsgTcpcTransmitStatus& msg) {
+
+void PRL_EventListener::on_receive(const MsgToPrl_TcpcTransmitStatus& msg) {
     prl.prl_tx.tcpc_tx_status = msg.status;
     prl.port.wakeup();
 }
-void TcpcEventHandler::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PRL_LOG("Unknown TCPC event");
+
+void PRL_EventListener::on_receive_unknown(const etl::imessage& msg) {
+    PRL_LOG("PRL unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd

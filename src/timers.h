@@ -102,8 +102,9 @@ public:
         timers_changed.store(false);
     }
 
-    // Set timestamp for all following calculations
-    void set_time(const uint64_t& ts) { now = ts; }
+    void set_time_provider(const GetTimeFunc& func) {
+        get_time_func = func;
+    }
 
     void start(int timer_id, uint32_t us_time);
     void stop(int timer_id);
@@ -136,7 +137,11 @@ public:
     etl::atomic<bool> timers_changed{false};
 
 private:
-    uint64_t now{0};
+    GetTimeFunc get_time_func;
+
+    uint64_t get_time() {
+        return get_time_func ? get_time_func() : 0;
+    }
 
     // After expiration, timer becomes deactivated, but not disabled, to
     // keep expire status.

@@ -184,7 +184,7 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
 void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status) {
     sync_transmit.mark_finished();
-    pass_up(MsgTcpcTransmitStatus(status));
+    port.notify_prl(MsgToPrl_TcpcTransmitStatus{status});
 }
 
 bool Fusb302Rtos::fusb_tx_pkt_begin() {
@@ -341,7 +341,7 @@ bool Fusb302Rtos::handle_interrupt() {
             // Cleanup buffers for sure
             rx_queue.clear_from_producer();
             sync_transmit.reset();
-            pass_up(MsgTcpcHardReset());
+            port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
 
         if (interrupta.I_HARDSENT) {
@@ -509,7 +509,7 @@ bool Fusb302Rtos::handle_meter() {
 bool Fusb302Rtos::handle_timer() {
     if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return true; }
 
-    port.notify_task(MsgTask_Timer{get_timestamp()});
+    port.notify_task(MsgTask_Timer{});
     return true;
 }
 
@@ -581,10 +581,6 @@ void Fusb302Rtos::start() {
     );
 
     hal.start();
-
-    // Force port.timers time sync, before used in TC/PE/PRL
-    port.notify_task(MsgTask_Timer{get_timestamp()});
-
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {

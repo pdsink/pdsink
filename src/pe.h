@@ -3,6 +3,7 @@
 #include <etl/fsm.h>
 
 #include "data_objects.h"
+#include "dpm.h"
 #include "idriver.h"
 #include "messages.h"
 #include "pe_defs.h"
@@ -23,10 +24,38 @@ namespace PE_REQUEST_PROGRESS {
 
 class Sink;
 class PRL;
+class PE;
+
+using PE_EventListener_Base = etl::message_router<class PE_EventListener,
+    MsgSysUpdate,
+    MsgToPe_PrlMessageReceived,
+    MsgToPe_PrlMessageSent,
+    MsgToPe_PrlReportError,
+    MsgToPe_PrlReportDiscard,
+    MsgToPe_PrlSoftResetFromPartner,
+    MsgToPe_PrlHardResetFromPartner,
+    MsgToPe_PrlHardResetSent>;
+
+    class PE_EventListener : public PE_EventListener_Base {
+public:
+    PE_EventListener(PE& pe) : PE_EventListener_Base(ROUTER_ID::PE), pe(pe) {}
+    void on_receive(const MsgSysUpdate& msg);
+    void on_receive(const MsgToPe_PrlMessageReceived& msg);
+    void on_receive(const MsgToPe_PrlMessageSent& msg);
+    void on_receive(const MsgToPe_PrlReportError& msg);
+    void on_receive(const MsgToPe_PrlReportDiscard& msg);
+    void on_receive(const MsgToPe_PrlSoftResetFromPartner& msg);
+    void on_receive(const MsgToPe_PrlHardResetFromPartner& msg);
+    void on_receive(const MsgToPe_PrlHardResetSent& msg);
+    void on_receive_unknown(const etl::imessage& msg);
+private:
+    PE& pe;
+};
+
 
 class PE : public etl::fsm {
 public:
-    PE(Port& port, Sink& sink, PRL& prl, ITCPC& tcpc);
+    PE(Port& port, Sink& sink, IDPM& dpm, PRL& prl, ITCPC& tcpc);
 
     // Disable unexpected use
     PE() = delete;
@@ -35,17 +64,6 @@ public:
 
     void log_state();
     void init();
-    void dispatch(const MsgSysUpdate& events, const bool pd_enabled);
-
-    // Notification handlers (from PRL)
-    void on_message_received();
-    void on_message_sent();
-    void on_prl_report_error(PRL_ERROR err);
-    void on_prl_report_discard();
-
-    void on_prl_soft_reset_from_partner();
-    void on_prl_hard_reset_from_partner();
-    void on_prl_hard_reset_sent();
 
     // Helpers
     void send_ctrl_msg(PD_CTRL_MSGT::Type msgt);
@@ -65,16 +83,17 @@ public:
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
 
     uint8_t hard_reset_counter{0};
-    PDO_LIST source_caps{};
-
     // Used to track contract type (SPR/EPR)
     uint32_t rdo_contracted{0};
     uint32_t rdo_to_request{0};
 
     Port& port;
     Sink& sink;
+    IDPM& dpm;
     PRL& prl;
     ITCPC& tcpc;
+
+    PE_EventListener pe_event_listener;
 };
 
 } // namespace pd

@@ -7,28 +7,13 @@
 #include "idriver.h"
 #include "messages.h"
 #include "port.h"
+#include "prl_defs.h"
 #include "utils/atomic_bits.h"
 
 namespace pd {
 
 class Sink;
 class PRL;
-
-enum class PRL_ERROR {
-    // Spec has too poor description of PE reactions on errors. Let's keep all
-    // details in report, to have more flexibility in error handler.
-
-    RCH_BAD_SEQUENCE,       // wrong input chunk (for chunked messages)
-    RCH_SEND_FAIL,          // failed to request next chunk (no GoodCRC)
-    RCH_SEQUENCE_DISCARDED, // new message interrupted sequence
-    RCH_SEQUENCE_TIMEOUT,   // no response for chunk request
-
-    TCH_ENQUIRE_DISCARDED,  // RCH busy, TCH can't accept new message
-    TCH_BAD_SEQUENCE,
-    TCH_SEND_FAIL,
-    TCH_DISCARDED,
-    TCH_SEQUENCE_TIMEOUT,
-};
 
 namespace PRL_FLAG {
     enum Type {
@@ -123,11 +108,23 @@ PRL_TCH(PRL& prl);
     PRL& prl;
 };
 
-class TcpcEventHandler : public etl::message_router<TcpcEventHandler, MsgTcpcHardReset, MsgTcpcTransmitStatus> {
+using PRL_EventListener_Base = etl::message_router<class PRL_EventListener,
+    MsgSysUpdate,
+    MsgToPrl_SoftResetFromPe,
+    MsgToPrl_HardResetFromPe,
+    MsgToPrl_PEHardResetDone,
+    MsgToPrl_TcpcHardReset,
+    MsgToPrl_TcpcTransmitStatus>;
+
+class PRL_EventListener : public PRL_EventListener_Base {
 public:
-    TcpcEventHandler(PRL& prl);
-    void on_receive(const MsgTcpcHardReset& msg);
-    void on_receive(const MsgTcpcTransmitStatus& msg);
+    PRL_EventListener(PRL& prl) : PRL_EventListener_Base(ROUTER_ID::PRL), prl(prl) {}
+    void on_receive(const MsgSysUpdate& msg);
+    void on_receive(const MsgToPrl_SoftResetFromPe& msg);
+    void on_receive(const MsgToPrl_HardResetFromPe& msg);
+    void on_receive(const MsgToPrl_PEHardResetDone& msg);
+    void on_receive(const MsgToPrl_TcpcHardReset& msg);
+    void on_receive(const MsgToPrl_TcpcTransmitStatus& msg);
     void on_receive_unknown(const etl::imessage& msg);
 private:
     PRL& prl;
@@ -136,7 +133,6 @@ private:
 class PRL {
 public:
     PRL(Port& port, Sink& sink, IDriver& tcpc);
-    void dispatch(const MsgSysUpdate& events, const bool pd_enabled);
     void init(bool from_hr_fsm = false);
 
     // False if unchunked ext messages supported by both partners. In our case
@@ -166,11 +162,6 @@ public:
     // Fill revision / message id fielts and send packet to TCPC driver
     void tcpc_enquire_msg();
 
-    // PE notifications handlers
-    void on_soft_reset_from_pe();
-    void on_hard_reset_from_pe();
-    void on_pe_hard_reset_done();
-
     // Helper to report PE errors outside of FSM.
     void report_pending_error();
 
@@ -191,12 +182,13 @@ public:
     Sink& sink;
     IDriver& tcpc;
 
-    TcpcEventHandler tcpc_event_handler{*this};
     PRL_Tx prl_tx;
     PRL_Rx prl_rx;
     PRL_HR prl_hr;
     PRL_RCH prl_rch;
     PRL_TCH prl_tch;
+
+    PRL_EventListener prl_event_listener;
 };
 
 } // namespace pd

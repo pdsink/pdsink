@@ -16,6 +16,17 @@ namespace pd {
 
 class Sink;
 
+using TC_EventListener_Base = etl::message_router<class TC_EventListener, MsgSysUpdate>;
+
+class TC_EventListener : public TC_EventListener_Base {
+public:
+    TC_EventListener(TC& tc) : TC_EventListener_Base(ROUTER_ID::TC), tc(tc) {}
+    void on_receive(const MsgSysUpdate& msg);
+    void on_receive_unknown(const etl::imessage& msg);
+private:
+    TC& tc;
+};
+
 class TC : public etl::fsm {
 public:
     TC(Port& port, Sink& sink, ITCPC& tcpc);
@@ -25,9 +36,7 @@ public:
     TC(const TC&) = delete;
     TC& operator=(const TC&) = delete;
 
-    void dispatch(const MsgSysUpdate& events);
     void log_state();
-    bool is_connected();
 
     Port& port;
     Sink& sink;
@@ -36,6 +45,8 @@ public:
     // Internal vars, used from states classes
     TCPC_CC_LEVEL::Type prev_cc1{TCPC_CC_LEVEL::NONE};
     TCPC_CC_LEVEL::Type prev_cc2{TCPC_CC_LEVEL::NONE};
+
+    TC_EventListener tc_event_listener;
 };
 
 } // namespace pd

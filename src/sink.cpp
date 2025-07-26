@@ -16,16 +16,12 @@ void Sink::loop() {
 
         auto e_group = event_group.exchange(0);
 
-        if (e_group & Sink::EVENT_TIMER_MSK) {
-            port.timers.set_time(last_timer_ts.load());
-            port.timers.cleanup();
-        }
+        if (e_group & Sink::EVENT_TIMER_MSK) { port.timers.cleanup(); }
 
-        tc->dispatch(MsgSysUpdate{});
-        auto connected = tc->is_connected();
+        port.notify_tc(MsgSysUpdate{});
 
-        pe->dispatch(MsgSysUpdate{}, connected);
-        prl->dispatch(MsgSysUpdate{}, connected);
+        port.notify_pe(MsgSysUpdate{});
+        port.notify_prl(MsgSysUpdate{});
 
         // Let's rearm timer if needed. 2 cases are possible:
         //
@@ -59,7 +55,10 @@ void Sink::loop() {
 void Sink::start() {
     loop_flags.set(IS_IN_LOOP_FL);
 
-    port.msgbus.subscribe(task_msg_listener);
+    port.timers.set_time_provider(
+        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(*driver)
+    );
+    port.msgbus.subscribe(task_event_listener);
 
     driver->start();
     prl->init();
@@ -69,13 +68,12 @@ void Sink::start() {
     loop_flags.clear(IS_IN_LOOP_FL);
 }
 
-void Task_MsgListener::on_receive(const MsgTask_Wakeup& msg) {
+void Task_EventListener::on_receive(const MsgTask_Wakeup& msg) {
     sink.event_group.fetch_or(Sink::EVENT_WAKEUP_MSK);
     sink.loop();
 }
 
-void Task_MsgListener::on_receive(const MsgTask_Timer& msg) {
-    sink.last_timer_ts.store(msg.timestamp);
+void Task_EventListener::on_receive(const MsgTask_Timer& msg) {
     sink.event_group.fetch_or(Sink::EVENT_TIMER_MSK);
     sink.loop();
 }

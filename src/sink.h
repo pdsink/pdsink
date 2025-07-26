@@ -18,11 +18,13 @@ class IDPM;
 class PRL;
 class Sink;
 
-using Task_MsgListener_Base = etl::message_router<class Task_MsgListener, MsgTask_Wakeup, MsgTask_Timer>;
+using Task_EventListener_Base = etl::message_router<class Task_EventListener,
+    MsgTask_Wakeup,
+    MsgTask_Timer>;
 
-class Task_MsgListener : public Task_MsgListener_Base {
+class Task_EventListener : public Task_EventListener_Base {
 public:
-    Task_MsgListener(Sink& sink) : Task_MsgListener_Base(ROUTER_ID::TASK), sink(sink) {}
+    Task_EventListener(Sink& sink) : Task_EventListener_Base(ROUTER_ID::TASK), sink(sink) {}
     void on_receive(const MsgTask_Wakeup& msg);
     void on_receive(const MsgTask_Timer& msg);
     void on_receive_unknown(const etl::imessage& msg) {};
@@ -32,7 +34,7 @@ private:
 
 class Sink {
 public:
-    Sink(Port& port) : port{port}, task_msg_listener{*this} {}
+    Sink(Port& port) : port{port}, task_event_listener{*this} {}
 
     // Disable unexpected use
     Sink() = delete;
@@ -53,7 +55,6 @@ public:
     static constexpr uint32_t EVENT_WAKEUP_MSK = 1ul << 1;
 
     etl::atomic<uint32_t> event_group{0};
-    etl::atomic<uint64_t> last_timer_ts{0};
 
 private:
 
@@ -64,7 +65,7 @@ private:
     };
     AtomicBits<LOOP_FLAGS_COUNT> loop_flags;
 
-    Task_MsgListener task_msg_listener;
+    Task_EventListener task_event_listener;
 };
 
 } // namespace pd
