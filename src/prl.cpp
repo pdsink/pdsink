@@ -5,6 +5,7 @@
 #include "pd_conf.h"
 #include "port.h"
 #include "prl.h"
+#include "utils/etl_state_pack.h"
 
 namespace pd {
 
@@ -1460,91 +1461,96 @@ void PRL::report_pending_error() {
 ////////////////////////////////////////////////////////////////////////////////
 // FSMs configs
 
+etl_ext::fsm_state_pack<
+    RCH_Wait_For_Message_From_Protocol_Layer_State,
+    RCH_Pass_Up_Message_State,
+    RCH_Processing_Extended_Message_State,
+    RCH_Requesting_Chunk_State,
+    RCH_Waiting_Chunk_State,
+    RCH_Report_Error_State
+> prl_rch_state_list;
+
 PRL_RCH::PRL_RCH(PRL& prl) : etl::fsm(0), prl{prl} {
-    static etl::array<etl::ifsm_state*, PRL_RCH_STATE_COUNT> state_list = {{
-        new RCH_Wait_For_Message_From_Protocol_Layer_State(),
-        new RCH_Pass_Up_Message_State(),
-        new RCH_Processing_Extended_Message_State(),
-        new RCH_Requesting_Chunk_State(),
-        new RCH_Waiting_Chunk_State(),
-        new RCH_Report_Error_State()
-    }};
-    set_states(state_list.data(), PRL_RCH_STATE_COUNT);
+    set_states(prl_rch_state_list.states, prl_rch_state_list.size);
 };
 
 void PRL_RCH::log_state() {
     PRL_LOG("PRL_RCH state => {}", prl_rch_state_to_desc(get_state_id()));
 }
 
+etl_ext::fsm_state_pack<
+    TCH_Wait_For_Message_Request_From_Policy_Engine_State,
+    TCH_Pass_Down_Message_State,
+    TCH_Wait_For_Transmision_Complete_State,
+    TCH_Message_Sent_State,
+    TCH_Prepare_To_Send_Chunked_Message_State,
+    TCH_Construct_Chunked_Message_State,
+    TCH_Sending_Chunked_Message_State,
+    TCH_Wait_Chunk_Request_State,
+    TCH_Message_Received_State,
+    TCH_Report_Error_State
+> prl_tch_state_list;
+
 PRL_TCH::PRL_TCH(PRL& prl) : etl::fsm(0), prl{prl} {
-    static etl::array<etl::ifsm_state*, PRL_TCH_STATE_COUNT> state_list = {
-        new TCH_Wait_For_Message_Request_From_Policy_Engine_State(),
-        new TCH_Pass_Down_Message_State(),
-        new TCH_Wait_For_Transmision_Complete_State(),
-        new TCH_Message_Sent_State(),
-        new TCH_Prepare_To_Send_Chunked_Message_State(),
-        new TCH_Construct_Chunked_Message_State(),
-        new TCH_Sending_Chunked_Message_State(),
-        new TCH_Wait_Chunk_Request_State(),
-        new TCH_Message_Received_State(),
-        new TCH_Report_Error_State()
-    };
-    set_states(state_list.data(), PRL_TCH_STATE_COUNT);
+    set_states(prl_tch_state_list.states, prl_tch_state_list.size);
 }
 
 void PRL_TCH::log_state() {
     PRL_LOG("PRL_TCH state => {}", prl_tch_state_to_desc(get_state_id()));
 }
 
+etl_ext::fsm_state_pack<
+    PRL_Tx_PHY_Layer_Reset_State,
+    PRL_Tx_Wait_for_Message_Request_State,
+    PRL_Tx_Layer_Reset_for_Transmit_State,
+    PRL_Tx_Construct_Message_State,
+    PRL_Tx_Wait_for_PHY_Response_State,
+    PRL_Tx_Match_MessageID_State,
+    PRL_Tx_Message_Sent_State,
+    PRL_Tx_Check_RetryCounter_State,
+    PRL_Tx_Transmission_Error_State,
+    PRL_Tx_Discard_Message_State,
+    PRL_Tx_Snk_Start_of_AMS_State,
+    PRL_Tx_Snk_Pending_State
+> prl_tx_state_list;
+
 PRL_Tx::PRL_Tx(PRL& prl) : etl::fsm(0), prl{prl} {
-    static etl::array<etl::ifsm_state*, PRL_Tx_STATE_COUNT> state_list = {
-        new PRL_Tx_PHY_Layer_Reset_State(),
-        new PRL_Tx_Wait_for_Message_Request_State(),
-        new PRL_Tx_Layer_Reset_for_Transmit_State(),
-        new PRL_Tx_Construct_Message_State(),
-        new PRL_Tx_Wait_for_PHY_Response_State(),
-        new PRL_Tx_Match_MessageID_State(),
-        new PRL_Tx_Message_Sent_State(),
-        new PRL_Tx_Check_RetryCounter_State(),
-        new PRL_Tx_Transmission_Error_State(),
-        new PRL_Tx_Discard_Message_State(),
-        new PRL_Tx_Snk_Start_of_AMS_State(),
-        new PRL_Tx_Snk_Pending_State()
-    };
-    set_states(state_list.data(), PRL_Tx_STATE_COUNT);
+    set_states(prl_tx_state_list.states, prl_tx_state_list.size);
 }
 
 void PRL_Tx::log_state() {
     PRL_LOG("PRL_Tx state => {}", prl_tx_state_to_desc(get_state_id()));
 }
 
+etl_ext::fsm_state_pack<
+    PRL_Rx_Wait_for_PHY_Message_State,
+    PRL_Rx_Layer_Reset_for_Receive_State,
+    PRL_Rx_Send_GoodCRC_State,
+    PRL_Rx_Check_MessageID_State,
+    PRL_Rx_Store_MessageID_State
+> prl_rx_state_list;
+
 PRL_Rx::PRL_Rx(PRL& prl) : etl::fsm(0), prl{prl} {
-    static etl::array<etl::ifsm_state*, PRL_Rx_STATE_COUNT> state_list = {
-        new PRL_Rx_Wait_for_PHY_Message_State(),
-        new PRL_Rx_Layer_Reset_for_Receive_State(),
-        new PRL_Rx_Send_GoodCRC_State(),
-        new PRL_Rx_Check_MessageID_State(),
-        new PRL_Rx_Store_MessageID_State()
-    };
-    set_states(state_list.data(), PRL_Rx_STATE_COUNT);
+    set_states(prl_rx_state_list.states, prl_rx_state_list.size);
 }
 
 void PRL_Rx::log_state() {
     PRL_LOG("PRL_Rx state => {}", prl_rx_state_to_desc(get_state_id()));
 }
 
+etl_ext::fsm_state_pack<
+    PRL_HR_IDLE_State,
+    PRL_HR_Reset_Layer_State,
+    PRL_HR_Indicate_Hard_Reset_State,
+    PRL_HR_Request_Hard_Reset_State,
+    PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State,
+    PRL_HR_PHY_Hard_Reset_Requested_State,
+    PRL_HR_Wait_for_PE_Hard_Reset_Complete_State,
+    PRL_HR_PE_Hard_Reset_Complete_State
+> prl_hr_state_list;
+
 PRL_HR::PRL_HR(PRL& prl) : etl::fsm(0), prl{prl} {
-    static etl::array<etl::ifsm_state*, PRL_HR_STATE_COUNT> state_list = {
-        new PRL_HR_IDLE_State(),
-        new PRL_HR_Reset_Layer_State(),
-        new PRL_HR_Indicate_Hard_Reset_State(),
-        new PRL_HR_Request_Hard_Reset_State(),
-        new PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State(),
-        new PRL_HR_PHY_Hard_Reset_Requested_State(),
-        new PRL_HR_Wait_for_PE_Hard_Reset_Complete_State(),
-        new PRL_HR_PE_Hard_Reset_Complete_State()
-    };
-    set_states(state_list.data(), PRL_HR_STATE_COUNT);
+    set_states(prl_hr_state_list.states, prl_hr_state_list.size);
 }
 
 void PRL_HR::log_state() {

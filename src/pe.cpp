@@ -8,6 +8,7 @@
 #include "pe.h"
 #include "port.h"
 #include "prl.h"
+#include "utils/etl_state_pack.h"
 
 namespace pd {
 
@@ -1313,38 +1314,37 @@ public:
     }
 };
 
+etl_ext::fsm_state_pack<
+    PE_SNK_Startup_State,
+    PE_SNK_Discovery_State,
+    PE_SNK_Wait_for_Capabilities_State,
+    PE_SNK_Evaluate_Capability_State,
+    PE_SNK_Select_Capability_State,
+    PE_SNK_Transition_Sink_State,
+    PE_SNK_Ready_State,
+    PE_SNK_Give_Sink_Cap_State,
+    PE_SNK_EPR_Keep_Alive_State,
+    PE_SNK_Hard_Reset_State,
+    PE_SNK_Transition_to_default_State,
+    PE_SNK_Soft_Reset_State,
+    PE_SNK_Send_Soft_Reset_State,
+    PE_SNK_Send_Not_Supported_State,
+    PE_SNK_Source_Alert_Received_State,
+    PE_SNK_Send_EPR_Mode_Entry_State,
+    PE_SNK_EPR_Mode_Entry_Wait_For_Response_State,
+    PE_SNK_EPR_Mode_Exit_Received_State,
+    PE_BIST_Carrier_Mode_State,
+    PE_Give_Revision_State,
+    PE_Src_Disabled_State,
+    PE_Dpm_Get_PPS_Status_State,
+    PE_Dpm_Get_Revision_State,
+    PE_Dpm_Get_Source_Info_State
+> pe_state_list;
 
 PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
     : etl::fsm(0), port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
-    static etl::array<etl::ifsm_state*, PE_State::PE_STATE_COUNT> pe_state_list = {{
-        new PE_SNK_Startup_State(),
-        new PE_SNK_Discovery_State(),
-        new PE_SNK_Wait_for_Capabilities_State(),
-        new PE_SNK_Evaluate_Capability_State(),
-        new PE_SNK_Select_Capability_State(),
-        new PE_SNK_Transition_Sink_State(),
-        new PE_SNK_Ready_State(),
-        new PE_SNK_Give_Sink_Cap_State(),
-        new PE_SNK_EPR_Keep_Alive_State(),
-        new PE_SNK_Hard_Reset_State(),
-        new PE_SNK_Transition_to_default_State(),
-        new PE_SNK_Soft_Reset_State(),
-        new PE_SNK_Send_Soft_Reset_State(),
-        new PE_SNK_Send_Not_Supported_State(),
-        new PE_SNK_Source_Alert_Received_State(),
-        new PE_SNK_Send_EPR_Mode_Entry_State(),
-        new PE_SNK_EPR_Mode_Entry_Wait_For_Response_State(),
-        new PE_SNK_EPR_Mode_Exit_Received_State(),
-        new PE_BIST_Carrier_Mode_State(),
-        new PE_Give_Revision_State(),
-        new PE_Src_Disabled_State(),
-        new PE_Dpm_Get_PPS_Status_State(),
-        new PE_Dpm_Get_Revision_State(),
-        new PE_Dpm_Get_Source_Info_State()
-    }};
-
-    set_states(pe_state_list.data(), PE_State::PE_STATE_COUNT);
+    set_states(pe_state_list.states, pe_state_list.size);
 };
 
 void PE::log_state() {

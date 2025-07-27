@@ -1,10 +1,11 @@
+#include <etl/array.h>
+
 #include "common_macros.h"
 #include "idriver.h"
 #include "pd_conf.h"
 #include "port.h"
 #include "tc.h"
-
-#include <etl/array.h>
+#include "utils/etl_state_pack.h"
 
 namespace pd {
 
@@ -162,16 +163,16 @@ public:
     }
 };
 
+etl_ext::fsm_state_pack<
+    TC_DETACHED_State,
+    TC_DETECTING_State,
+    TC_SINK_ATTACHED_State
+> tc_state_list;
+
 TC::TC(Port& port, ITCPC& tcpc)
     : etl::fsm(0), port{port}, tcpc{tcpc}, tc_event_listener{*this}
 {
-    static etl::array<etl::ifsm_state*, TC_State::TC_STATE_COUNT> tc_state_list = {{
-        new TC_DETACHED_State(),
-        new TC_DETECTING_State(),
-        new TC_SINK_ATTACHED_State()
-    }};
-
-    set_states(tc_state_list.data(), TC_State::TC_STATE_COUNT);
+    set_states(tc_state_list.states, tc_state_list.size);
 };
 
 void TC::log_state() {
