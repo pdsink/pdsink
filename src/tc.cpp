@@ -37,7 +37,7 @@ auto on_enter_state() -> etl::fsm_state_id_t override { \
 }
 
 #define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_state_id_t { \
+auto on_event_unknown(const etl::imessage&) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -57,7 +57,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         if (tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
@@ -101,7 +101,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         if (!tc.port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
@@ -150,7 +150,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
         // TODO: Actually, we should check Safe0v. Check, if we should be more

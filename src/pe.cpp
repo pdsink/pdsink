@@ -105,12 +105,12 @@ auto on_enter_state() -> etl::fsm_state_id_t override { \
 }
 
 #define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(__maybe_unused const etl::imessage& event) -> etl::fsm_state_id_t { \
+auto on_event_unknown(const etl::imessage&) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
 #define ON_EVENT_NOTHING \
-auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t { \
+auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t { \
     return No_State_Change; \
 }
 
@@ -132,7 +132,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.prl.is_running()) { return No_State_Change; }
@@ -165,7 +165,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -284,7 +284,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -393,7 +393,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -454,7 +454,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         bool sr_on_unsupported = pe.port.pe_flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
@@ -679,7 +679,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -714,7 +714,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -778,7 +778,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
@@ -807,7 +807,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
@@ -834,7 +834,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -878,7 +878,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         // Wait until PRL layer ready
@@ -937,7 +937,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -984,7 +984,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
@@ -1033,7 +1033,7 @@ class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl::fsm_state<PE, 
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -1066,7 +1066,7 @@ class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (!pe.is_in_spr_contract()) {
@@ -1106,7 +1106,7 @@ public:
         return PE_SNK_Ready;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
@@ -1145,7 +1145,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -1190,7 +1190,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1236,7 +1236,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
@@ -1282,7 +1282,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(__maybe_unused const MsgSysUpdate& event) -> etl::fsm_state_id_t {
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto send_status = pe.check_request_progress_run();
 
