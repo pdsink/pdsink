@@ -135,16 +135,22 @@ private:
     void kick_task(bool from_isr = false);
 
     bool fusb_setup();
-    bool fusb_set_polarity(TCPC_POLARITY::Type polarity);
-    bool fusb_set_rx_enable(bool enable);
+    bool fusb_set_rxtx_interrupts(bool enable);
+    bool fusb_set_auto_goodcrc(bool enable);
+    bool fusb_set_tx_auto_retries(uint8_t count);
     bool fusb_flush_rx_fifo();
     bool fusb_flush_tx_fifo();
+    bool fusb_pd_reset();
+    bool fusb_set_polarity(TCPC_POLARITY::Type polarity);
+    bool fusb_set_rx_enable(bool enable);
     bool fusb_tx_pkt_begin();
     void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status);
     bool fusb_rx_pkt();
     bool fusb_hr_send_begin();
     bool fusb_hr_send_end();
     bool fusb_bist(bool enable);
+    // Clear insternal states after hard reset received or been sent.
+    bool hr_cleanup();
 
     Port& port;
     IFusb302RtosHal& hal;
@@ -156,6 +162,7 @@ private:
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
+    bool rx_enabled{false};
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_goodcrc_send = true,

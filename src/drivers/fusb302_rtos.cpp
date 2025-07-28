@@ -76,39 +76,73 @@ bool Fusb302Rtos::fusb_setup() {
     pwr.PWR = 0xF;
     HAL_FAIL_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
 
-    // Setup interrupts
-
+    // By default disable all interrupts except VBUSOK.
     Mask1 mask{0xFF};
-    mask.M_COLLISION = 0;
     mask.M_VBUSOK = 0;
     HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
+    HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, 0xFF));
+    HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
 
-    Maska maska{0xFF};
-    maska.M_HARDRST = 0;
-    maska.M_TXSENT = 0;
-    maska.M_HARDSENT = 0;
-    maska.M_RETRYFAIL = 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
-
-    Maskb maskb{0xFF};
-    maskb.M_GCRCSENT = 0; // New RX packet (received + confirmed)
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
-
-    // Setup controls/switches. Rely on defaults, modify only the necessary bits.
-
-    Switches1 sw1;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
-    sw1.AUTO_CRC = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
-
-    DRV_FAIL_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
-
+    // Sync VBUSOK
+    vTaskDelay(pdMS_TO_TICKS(2) || 1); // instead of 250uS
     Status0 status0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
 
+    // TODO: Retries are in PRL now, consider use here.
+    DRV_FAIL_ON_ERROR(fusb_set_tx_auto_retries(0));
+
+    DRV_FAIL_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
+
+    // Note: we don't touch data/power role bits.
+    // - defaults are ok for sink/ufp
+    // - driver API has no appropriate methods.
+    return true;
+}
+
+bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
+    //
+    // Note: I_BC_LVL interrupts usage should be restricted, due lot of false
+    // positives on BMC exchange. Usually, in all scenarios better alternatives
+    // exist.
+    //
+    Mask1 mask;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Mask1::addr, mask.raw_value));
+    mask.M_COLLISION = enable ? 0 : 1;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
+
+    Maska maska;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Maska::addr, maska.raw_value));
+    maska.M_HARDRST = enable ? 0 : 1;
+    maska.M_TXSENT = enable ? 0 : 1;
+    maska.M_HARDSENT = enable ? 0 : 1;
+    maska.M_RETRYFAIL = enable ? 0 : 1;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
+
+    Maskb maskb;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Maskb::addr, maskb.raw_value));
+    maskb.M_GCRCSENT = enable ? 0 : 1;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
+
+    return true;
+}
+
+bool Fusb302Rtos::fusb_set_auto_goodcrc(bool enable) {
+    Switches1 sw1;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
+    sw1.AUTO_CRC = enable ? 1 : 0;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
+    return true;
+}
+
+bool Fusb302Rtos::fusb_set_tx_auto_retries(uint8_t count) {
+    Control3 ctl3;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctl3.raw_value));
+    ctl3.N_RETRIES = count & 3; // 0-3 retries
+    ctl3.AUTO_RETRY = count > 0 ? 1 : 0;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctl3.raw_value));
     return true;
 }
 
@@ -126,6 +160,13 @@ bool Fusb302Rtos::fusb_flush_tx_fifo() {
     ctrl0.TX_FLUSH = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
     return true;
+}
+
+bool Fusb302Rtos::fusb_pd_reset() {
+    Reset rst{0};
+    rst.PD_RESET = 1;
+    HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
+    return fusb_setup();
 }
 
 bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY::Type polarity) {
@@ -153,7 +194,11 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     DRV_FAIL_ON_ERROR(fusb_flush_rx_fifo());
     rx_queue.clear_from_producer();
     DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+    DRV_FAIL_ON_ERROR(fusb_set_auto_goodcrc(enable));
+    DRV_FAIL_ON_ERROR(fusb_set_rxtx_interrupts(enable));
 
+    // Probably, this can be moved to fusb_set_polarity in favor of using
+    // rx_enabled flag only (+ disabling auto goodcrc when off).
     Switches1 sw1;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.TXCC1 = 0;
@@ -170,9 +215,7 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
-    if (enable) { DRV_LOG("BMC attached, polarity selected"); }
-    else { DRV_LOG("BMC detached"); }
-
+    rx_enabled = enable;
     return true;
 }
 
@@ -186,7 +229,9 @@ bool Fusb302Rtos::fusb_tx_pkt_begin() {
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
-    // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4] = 39
+    // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4]
+    // = 39. One extra byte may be used if HAL API uses first byte as
+    // i2c address (but current API takes it as separate parameter)
     static_assert(decltype(fifo_buf)::MAX_SIZE >=
         4 + 1 + 2 + decltype(call_arg_transmit)::MAX_SIZE + 4,
         "TX buffer too small to fit all possible data");
@@ -238,8 +283,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
 
     if (status1.RX_EMPTY) {
-        DRV_ERR("Can't read from empty FIFO");
-        return false;
+        DRV_LOG("Can't read from empty FIFO");
+        return true;
     }
 
     // Pick all pending packets from RX FIFO.
@@ -265,10 +310,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
         HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, crc_junk, 4));
 
-        if (pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
-            DRV_LOG("GoodCRC received");
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
-        } else {
+        // Just silently ignore GoodCRC, coming after TX
+        if (!pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
             DRV_LOG("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());
             rx_queue.push(pkt);
@@ -283,21 +326,29 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 bool Fusb302Rtos::fusb_hr_send_begin() {
     sync_hr_send.mark_started();
 
+    // Cleanup before send
+    sync_transmit.reset();
+    rx_queue.clear_from_producer();
+
     Control3 ctrl3;
     HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
     HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
-    // Cleanup buffers for sure
-    rx_queue.clear_from_producer();
 
-    sync_transmit.reset();
     return true;
 }
 
 bool Fusb302Rtos::fusb_hr_send_end() {
-    // TODO: (?) add chip reset
     sync_hr_send.mark_finished();
     port.wakeup();
+    return true;
+}
+
+bool Fusb302Rtos::hr_cleanup() {
+    // Cleanup internal states after hard reset received or been sent.
+    DRV_FAIL_ON_ERROR(fusb_pd_reset());
+    rx_queue.clear_from_producer();
+    sync_transmit.reset();
     return true;
 }
 
@@ -314,14 +365,15 @@ bool Fusb302Rtos::handle_interrupt() {
         Interrupt interrupt;
         Interrupta interrupta;
         Interruptb interruptb;
-        Status0 status0;
 
+        // TODO: Consider 5-bytes block read (0x3E-0x42) with single call.
         HAL_FAIL_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
         HAL_FAIL_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
         HAL_FAIL_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
-        HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
 
         if (interrupt.I_VBUSOK) {
+            Status0 status0;
+            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
             DRV_LOG("IRQ: VBUS changed");
             port.wakeup();
@@ -329,17 +381,13 @@ bool Fusb302Rtos::handle_interrupt() {
 
         if (interrupta.I_HARDRST) {
             DRV_LOG("IRQ: hard reset received");
-            Reset rst{0};
-            rst.PD_RESET = 1;
-            HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
-            // Cleanup buffers for sure
-            rx_queue.clear_from_producer();
-            sync_transmit.reset();
+            DRV_FAIL_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
 
         if (interrupta.I_HARDSENT) {
             DRV_LOG("IRQ: hard reset sent");
+            DRV_FAIL_ON_ERROR(hr_cleanup());
             fusb_hr_send_end();
         }
 
@@ -353,15 +401,21 @@ bool Fusb302Rtos::handle_interrupt() {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_TXSENT) {
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
             DRV_LOG("IRQ: tx completed");
-            // We should peek GoodCRC from FIFO first.
+            // That's not necessary, but force GoodCRC peek to free FIFO faster.
             fusb_rx_pkt();
         }
         if (interruptb.I_GCRCSENT) {
-            DRV_LOG("IRQ: GoodCRC sent");
-            fusb_rx_pkt();
+            if (rx_enabled) {
+                DRV_LOG("IRQ: GoodCRC sent");
+                fusb_rx_pkt();
+            } else {
+                fusb_flush_rx_fifo();
+            }
         }
     }
+
     return true;
 }
 

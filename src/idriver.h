@@ -88,6 +88,9 @@ public:
     virtual bool is_rearm_supported() = 0;
 };
 
+// TODO: Seems all modern chips support auto-toggle.
+// Consider add it to api (with optional emulation) and remove manual method
+// from TC.
 class ITCPC {
 public:
     // Since TCPC hardware can be async (connected via i2c instead of direct
@@ -99,19 +102,13 @@ public:
     //
 
     // Request to fetch both CC1/CC2 lines levels. May be slow, because switches
-    // measurement block. Used for initial connection/polarity detection only.
+    // measurement block. Used for manual polarity detection only.
     virtual void req_scan_cc() = 0;
     virtual bool is_scan_cc_done() = 0;
 
-    // After polarity detected, measurement block is attached to active
-    // CC line instantly. Such requests are fast, because no
-    // measurement delay required. Active CC levels used for 2 cases:
-    //
-    // 1. When 3.0 Sink waits for AMS allowed (1.5A source to switch to 3.0A)
-    // 2. Monitor detach (active CC become zero)
-    //
-    // Note, detach is polled by TCPC internally. Direct call of this function
-    // required for 3.0+ Sink transfers only, to sync last value.
+    // Used only for SinkTxOK waiting in 3.0 protocol. Possible glitches,
+    // caused by BMC are not critical here. Debounced polling is ok, because
+    // transfer locks are very rare and short.
     virtual void req_active_cc() = 0;
     virtual bool is_active_cc_done() = 0;
 
