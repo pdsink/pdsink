@@ -40,4 +40,20 @@ void Port::wait_dpm_transit_to_default(bool enable) {
     }
 }
 
+bool Port::is_prl_running() {
+    // Note, those defaults will be returned if PRL instance not yet subscribed
+    // to the message bus. That's an acceptable behavior.
+    bool is_running = false, is_busy = false;
+
+    msgbus.receive(ROUTER_ID::PRL, MsgToPrl_GetPrlStatus{is_running, is_busy});
+    return is_running;
+}
+
+bool Port::is_prl_busy() {
+    bool is_running = false, is_busy = false;
+
+    msgbus.receive(ROUTER_ID::PRL, MsgToPrl_GetPrlStatus{is_running, is_busy});
+    return is_busy;
+}
+
 } // namespace pd

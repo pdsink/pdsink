@@ -77,11 +77,6 @@ public:
 
     enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
 
-    uint8_t hard_reset_counter{0};
-    // Used to track contract type (SPR/EPR)
-    uint32_t rdo_contracted{0};
-    uint32_t rdo_to_request{0};
-
     Port& port;
     IDPM& dpm;
     PRL& prl;

@@ -7,7 +7,6 @@
 #include "pd_conf.h"
 #include "pe.h"
 #include "port.h"
-#include "prl.h"
 #include "utils/etl_state_pack.h"
 
 namespace pd {
@@ -135,7 +134,7 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
 
-        if (!pe.prl.is_running()) { return No_State_Change; }
+        if (!pe.port.is_prl_running()) { return No_State_Change; }
         return PE_SNK_Discovery;
     }
 };
@@ -208,8 +207,8 @@ public:
 
         auto& msg = pe.port.rx_emsg;
 
-        pe.hard_reset_counter = 0;
-        pe.prl.revision = static_cast<PD_REVISION::Type>(
+        pe.port.hard_reset_counter = 0;
+        pe.port.revision = static_cast<PD_REVISION::Type>(
             etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
 
         pe.port.source_caps.clear();
@@ -265,7 +264,7 @@ public:
         msg.clear();
 
         // remember RDO, to store after success
-        pe.rdo_to_request = rdo.raw_value;
+        pe.port.rdo_to_request = rdo.raw_value;
 
         if (pe.is_in_epr_mode()) {
             msg.append32(rdo.raw_value);
@@ -313,7 +312,7 @@ public:
                 bool is_first_contract = !pe.port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
 
                 pe.port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
-                pe.rdo_contracted = pe.rdo_to_request;
+                pe.port.rdo_contracted = pe.port.rdo_to_request;
 
                 if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
                     // Report handshake complete, if first contract and should not try EPR
@@ -562,7 +561,7 @@ public:
             }
         }
 
-        if (pe.prl.is_busy()) { return No_State_Change; }
+        if (pe.port.is_prl_busy()) { return No_State_Change; }
 
         // Special case, process postponed src caps request. If pending - don't
         // try DPM requests queue.
@@ -766,14 +765,14 @@ public:
         pe.log_state();
 
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
-            pe.hard_reset_counter > 2 /* nHardResetCount */)
+            pe.port.hard_reset_counter > 2 /* nHardResetCount */)
         {
             return PE_Src_Disabled;
         }
 
         pe.port.pe_flags.set(PE_FLAG::PRL_HARD_RESET_PENDING);
         pe.port.notify_prl(MsgToPrl_HardResetFromPe{});
-        pe.hard_reset_counter++;
+        pe.port.hard_reset_counter++;
 
         return No_State_Change;
     }
@@ -882,7 +881,7 @@ public:
         auto& pe = get_fsm_context();
 
         // Wait until PRL layer ready
-        if (!pe.prl.is_running()) return No_State_Change;
+        if (!pe.port.is_prl_running()) return No_State_Change;
 
         // Send only once per state enter
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {
@@ -1368,24 +1367,24 @@ void PE::init() {
 //
 void PE::send_data_msg(PD_DATA_MSGT::Type msg) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    prl.send_data_msg(msg);
+    port.notify_prl(MsgToPrl_DataMsgFromPe{msg});
 }
 
 void PE::send_ext_msg(PD_EXT_MSGT::Type msg) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    prl.send_ext_msg(msg);
+    port.notify_prl(MsgToPrl_ExtMsgFromPe{msg});
 }
 
 void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msg) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    prl.send_ctrl_msg(msg);
+    port.notify_prl(MsgToPrl_CtlMsgFromPe{msg});
 }
 
 //
 // Utilities
 //
 auto PE::is_rev_2_0() const -> bool {
-    return prl.revision < PD_REVISION::REV30;
+    return port.revision < PD_REVISION::REV30;
 }
 
 auto PE::is_epr_mode_available() const -> bool {
@@ -1407,14 +1406,14 @@ bool PE::is_in_epr_mode() const {
 
 
 auto PE::is_in_spr_contract() const -> bool {
-    const RDO_ANY rdo{rdo_contracted};
+    const RDO_ANY rdo{port.rdo_contracted};
     return port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) && (rdo.obj_position < 8);
 }
 
 auto PE::is_in_pps_contract() const -> bool {
     if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
-    const RDO_ANY rdo{rdo_contracted};
+    const RDO_ANY rdo{port.rdo_contracted};
     const PDO_SPR_PPS pdo{port.source_caps[rdo.obj_position-1]};
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
