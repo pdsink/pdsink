@@ -2,6 +2,7 @@
 
 #include <etl/message.h>
 
+#include "data_objects.h"
 #include "idriver.h"
 #include "prl_defs.h"
 
@@ -113,7 +114,6 @@ enum msg_prl_id {
     MSG_TO_PRL__HARD_RESET_FROM_PE,
     MSG_TO_PRL__PE_HARD_RESET_DONE,
     MSG_TO_PRL__TCPC_HARD_RESET,
-    MSG_TO_PRL__TCPC_TRANSMIT_STATUS,
 
     MSG_TO_PRL__CTL_MSG_FROM_PE,
     MSG_TO_PRL__DATA_MSG_FROM_PE,
@@ -126,7 +126,7 @@ DEFINE_SIMPLE_MSG(MsgToPrl_SoftResetFromPe, MSG_TO_PRL__SOFT_RESET_FROM_PE);
 DEFINE_SIMPLE_MSG(MsgToPrl_HardResetFromPe, MSG_TO_PRL__HARD_RESET_FROM_PE);
 DEFINE_SIMPLE_MSG(MsgToPrl_PEHardResetDone, MSG_TO_PRL__PE_HARD_RESET_DONE);
 DEFINE_SIMPLE_MSG(MsgToPrl_TcpcHardReset, MSG_TO_PRL__TCPC_HARD_RESET);
-DEFINE_PARAM_MSG(MsgToPrl_TcpcTransmitStatus, MSG_TO_PRL__TCPC_TRANSMIT_STATUS, TCPC_TRANSMIT_STATUS::Type, status);
+
 DEFINE_PARAM_MSG(MsgToPrl_CtlMsgFromPe, MSG_TO_PRL__CTL_MSG_FROM_PE, PD_CTRL_MSGT::Type, type);
 DEFINE_PARAM_MSG(MsgToPrl_DataMsgFromPe, MSG_TO_PRL__DATA_MSG_FROM_PE, PD_DATA_MSGT::Type, type);
 DEFINE_PARAM_MSG(MsgToPrl_ExtMsgFromPe, MSG_TO_PRL__EXT_MSG_FROM_PE, PD_EXT_MSGT::Type, type);

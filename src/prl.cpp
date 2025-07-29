@@ -1082,7 +1082,7 @@ public:
             return No_State_Change;
         }
 
-        if (!prl.tcpc.fetch_rx_data(prl.port.rx_chunk)) { return No_State_Change; }
+        if (!prl.tcpc.fetch_rx_data()) { return No_State_Change; }
 
         if (prl.port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             return PRL_Rx_Layer_Reset_for_Receive;
@@ -1437,7 +1437,7 @@ void PRL::tcpc_enquire_msg() {
     // Rearm TCPC TX status.
     port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::WAITING;
 
-    tcpc.req_transmit(port.tx_chunk);
+    tcpc.req_transmit();
 }
 
 void PRL::tx_enquire_chunk() {
@@ -1631,11 +1631,6 @@ void PRL_EventListener::on_receive(const MsgToPrl_PEHardResetDone& msg) {
 
 void PRL_EventListener::on_receive(const MsgToPrl_TcpcHardReset& msg) {
     prl.port.prl_hr_flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER);
-    prl.port.wakeup();
-}
-
-void PRL_EventListener::on_receive(const MsgToPrl_TcpcTransmitStatus& msg) {
-    prl.port.tcpc_tx_status = msg.status;
     prl.port.wakeup();
 }
 

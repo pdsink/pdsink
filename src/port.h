@@ -3,6 +3,7 @@
 #include <etl/message_bus.h>
 #include <etl/cyclic_value.h>
 
+#include "data_objects.h"
 #include "pe_defs.h"
 #include "messages.h"
 #include "timers.h"
@@ -59,7 +60,7 @@ public:
     // shared with DRV
     PD_CHUNK rx_chunk{};
     PD_CHUNK tx_chunk{};
-    TCPC_TRANSMIT_STATUS::Type tcpc_tx_status{TCPC_TRANSMIT_STATUS::UNSET};
+    etl::atomic<TCPC_TRANSMIT_STATUS::Type> tcpc_tx_status{TCPC_TRANSMIT_STATUS::UNSET};
 
 
     // In full PD stack we should keep separate revision for all SOP*.

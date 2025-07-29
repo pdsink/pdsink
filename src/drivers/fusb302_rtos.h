@@ -5,6 +5,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "data_objects.h"
 #include "fusb302_regs.h"
 #include "idriver.h"
 #include "utils/atomic_bits.h"
@@ -92,10 +93,9 @@ public:
     };
     bool is_rx_enable_done() override { return sync_rx_enable.is_ready(); };
 
-    bool fetch_rx_data(PD_CHUNK& data) override;
+    bool fetch_rx_data() override;
 
-    void req_transmit(const PD_CHUNK& tx_info) override {
-        call_arg_transmit = tx_info;
+    void req_transmit() override {
         sync_transmit.enquire();
         kick_task();
     };
@@ -163,6 +163,8 @@ private:
     etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
     bool rx_enabled{false};
+    bool has_deferred_wakeup{false};
+
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_goodcrc_send = true,
@@ -180,9 +182,6 @@ private:
     LeapSync<> sync_transmit;
     LeapSync<bool> sync_bist_carrier_enable;
     LeapSync<> sync_hr_send;
-
-    // Not atomic, but fixed buffer size - ok for our needs.
-    PD_CHUNK call_arg_transmit{};
 
     enum class MeterState {
         IDLE,

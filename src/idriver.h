@@ -1,7 +1,5 @@
 #pragma once
 
-#include "data_objects.h"
-
 namespace pd {
 
 namespace TCPC_CC {
@@ -130,10 +128,10 @@ public:
     virtual bool is_rx_enable_done() = 0;
 
     // Fetch pending RX data.
-    virtual bool fetch_rx_data(PD_CHUNK& data) = 0;
+    virtual bool fetch_rx_data() = 0;
 
     // Transmit packet in tx_info
-    virtual void req_transmit(const PD_CHUNK& tx_info) = 0;
+    virtual void req_transmit() = 0;
     virtual bool is_transmit_done() = 0;
 
     // On/off BIST carrier

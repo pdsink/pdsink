@@ -221,7 +221,8 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
 void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status) {
     sync_transmit.mark_finished();
-    port.notify_prl(MsgToPrl_TcpcTransmitStatus{status});
+    port.tcpc_tx_status.store(status);
+    has_deferred_wakeup = true;
 }
 
 bool Fusb302Rtos::fusb_tx_pkt_begin() {
@@ -229,16 +230,20 @@ bool Fusb302Rtos::fusb_tx_pkt_begin() {
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
+    // TODO: ensure no races possible here.
+    // Create a local copy, to reduce theoretical races
+    auto chunk = port.tx_chunk;
+
     // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4]
     // = 39. One extra byte may be used if HAL API uses first byte as
     // i2c address (but current API takes it as separate parameter)
     static_assert(decltype(fifo_buf)::MAX_SIZE >=
-        4 + 1 + 2 + decltype(call_arg_transmit)::MAX_SIZE + 4,
+        4 + 1 + 2 + decltype(chunk)::MAX_SIZE + 4,
         "TX buffer too small to fit all possible data");
 
     // Ensure only "legacy" packets allowed. We do NOT support unchunked extended
     // packets and long vendor packets (that's really useless for sink mode).
-    static_assert(decltype(call_arg_transmit)::MAX_SIZE <= 28,
+    static_assert(decltype(chunk)::MAX_SIZE <= 28,
         "Packet size should not exceed 28 bytes in this implementation");
 
     // Hardcode Msg SOP, since library supports only sink mode
@@ -248,19 +253,21 @@ bool Fusb302Rtos::fusb_tx_pkt_begin() {
     fifo_buf.push_back(TX_TKN::SOP2);
 
     uint8_t pack_sym = TX_TKN::PACKSYM;
+
     // Add data size (+ 2 for header). No need to mask - value restricted by
     // static_assert above.
-    pack_sym |= (call_arg_transmit.data_size() + 2);
+
+    pack_sym |= (chunk.data_size() + 2);
     fifo_buf.push_back(pack_sym);
 
     // Msg header
-    fifo_buf.push_back(call_arg_transmit.header.raw_value & 0xFF);
-    fifo_buf.push_back((call_arg_transmit.header.raw_value >> 8) & 0xFF);
+    fifo_buf.push_back(chunk.header.raw_value & 0xFF);
+    fifo_buf.push_back((chunk.header.raw_value >> 8) & 0xFF);
 
     // Msg data
     fifo_buf.insert(fifo_buf.end(),
-        call_arg_transmit.get_data().begin(),
-        call_arg_transmit.get_data().end()
+        chunk.get_data().begin(),
+        chunk.get_data().end()
     );
 
     // Tail
@@ -315,7 +322,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
             DRV_LOG("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());
             rx_queue.push(pkt);
-            port.wakeup();
+            has_deferred_wakeup = true;
         }
 
         HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
@@ -340,7 +347,7 @@ bool Fusb302Rtos::fusb_hr_send_begin() {
 
 bool Fusb302Rtos::fusb_hr_send_end() {
     sync_hr_send.mark_finished();
-    port.wakeup();
+    has_deferred_wakeup = true;
     return true;
 }
 
@@ -376,7 +383,7 @@ bool Fusb302Rtos::handle_interrupt() {
             HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
             DRV_LOG("IRQ: VBUS changed");
-            port.wakeup();
+            has_deferred_wakeup = true;
         }
 
         if (interrupta.I_HARDRST) {
@@ -483,7 +490,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::CC_ACTIVE_END:
             sync_active_cc.mark_finished();
             meter_state = MeterState::IDLE;
-            port.wakeup();
+            has_deferred_wakeup = true;
             break;
 
         case MeterState::SCAN_CC_BEGIN:
@@ -535,7 +542,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             sync_scan_cc.mark_finished();
             meter_state = MeterState::IDLE;
-            port.wakeup();
+            has_deferred_wakeup = true;
 
             break;
     }
@@ -570,21 +577,21 @@ bool Fusb302Rtos::handle_tcpc_calls() {
         sync_set_polarity.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_polarity(sync_set_polarity.get_param()));
         sync_set_polarity.mark_finished();
-        port.wakeup();
+        has_deferred_wakeup = true;
     }
 
     if (sync_rx_enable.is_enquired()) {
         sync_rx_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
         sync_rx_enable.mark_finished();
-        port.wakeup();
+        has_deferred_wakeup = true;
     }
 
     if (sync_bist_carrier_enable.is_enquired()) {
         sync_bist_carrier_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_bist(sync_bist_carrier_enable.get_param()));
         sync_bist_carrier_enable.mark_finished();
-        port.wakeup();
+        has_deferred_wakeup = true;
     }
 
     if (sync_transmit.is_enquired()) {
@@ -605,6 +612,11 @@ void Fusb302Rtos::task() {
         handle_timer();
         handle_tcpc_calls();
         handle_meter();
+
+        if (has_deferred_wakeup) {
+            has_deferred_wakeup = false;
+            port.wakeup();
+        }
     }
 }
 
@@ -677,8 +689,8 @@ bool Fusb302Rtos::is_vbus_ok() {
     return vbus_ok.load();
 }
 
-bool Fusb302Rtos::fetch_rx_data(PD_CHUNK& data) {
-    return rx_queue.pop(data);
+bool Fusb302Rtos::fetch_rx_data() {
+    return rx_queue.pop(port.rx_chunk);
 }
 
 } // namespace fusb302
