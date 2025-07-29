@@ -1020,10 +1020,15 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        // Initiate CC reading. First call is required to ensure
-        // cache is in sync. Subsequent updates can be interrupt-based.
+        // Soft reset passed without delay
+        if (port.tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+            port.prl_tx_flags.clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
+            return PRL_Tx_Layer_Reset_for_Transmit;
+        }
+
         prl_tx.prl.tcpc.req_active_cc();
         return No_State_Change;
     }
@@ -1034,15 +1039,7 @@ public:
         auto& tcpc = prl.tcpc;
 
         // Wait until CC fetch completes
-        if (tcpc.is_active_cc_done()) {
-            return No_State_Change;
-        }
-
-        // Soft reset passed without delay
-        if (port.tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
-            port.prl_tx_flags.clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
-            return PRL_Tx_Layer_Reset_for_Transmit;
-        }
+        if (!tcpc.is_active_cc_done()) { return No_State_Change; }
 
         // Wait SinkTxOK before sending first AMS message
         if (tcpc.get_cc(TCPC_CC::ACTIVE) == TCPC_CC_LEVEL::SinkTxOK) {
@@ -1050,13 +1047,21 @@ public:
             return PRL_Tx_Construct_Message;
         }
 
-        // Note, all PD controllers support interrupts on CC level change.
-        // This manual request is left for sure, and not expected to be used.
-        // Note, manual polling can cause unexpected CPU / I2C load.
-        if (!tcpc.get_hw_features().cc_update_event) {
-            tcpc.req_active_cc();
+        if (port.timers.is_disabled(PD_TIMEOUT::tActiveCcPollingDebounce)) {
+            port.timers.start(PD_TIMEOUT::tActiveCcPollingDebounce);
         }
+
+        if (port.timers.is_expired(PD_TIMEOUT::tActiveCcPollingDebounce)) {
+            port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
+            prl.tcpc.req_active_cc();
+        }
+
         return No_State_Change;
+    }
+
+    void on_exit_state() override {
+        auto& prl = get_fsm_context().prl;
+        prl.port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
     }
 };
 

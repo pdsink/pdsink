@@ -170,7 +170,6 @@ private:
         .rx_goodcrc_send = true,
         .tx_goodcrc_receive = true,
         .tx_retransmit = false,
-        .cc_update_event = true,
         .unchunked_ext_msg = false
     };
 

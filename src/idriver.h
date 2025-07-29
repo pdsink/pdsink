@@ -37,7 +37,6 @@ struct TCPC_HW_FEATURES {
     bool rx_goodcrc_send;
     bool tx_goodcrc_receive;
     bool tx_retransmit;
-    bool cc_update_event;
     bool unchunked_ext_msg; // By default - not supported
 };
 

@@ -40,6 +40,7 @@ namespace PD_TIMER {
         PRL_ChunkSenderResponse,
         PRL_ChunkSenderRequest,
         PRL_CRCReceive,
+        PRL_ActiveCcPollingDebounce, // Custom, not PD spec
 
         PRL_TIMERS_RANGE_END,
 
@@ -90,6 +91,9 @@ struct PD_TIMEOUT {
     #else
         static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2 * ms_mult}; // 0.9-1.1 ms
     #endif
+
+    // CC polling timeout for waiting SnkTxOK level before AMS transfer.
+    static constexpr Type tActiveCcPollingDebounce {PD_TIMER::PRL_ActiveCcPollingDebounce, 20 * ms_mult}; // 20 ms
 };
 
 class Timers {
