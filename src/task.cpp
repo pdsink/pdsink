@@ -10,9 +10,9 @@ namespace pd {
 
 void Task::loop() {
     do {
-        if (loop_flags.test_and_set(IS_IN_LOOP_FL)) {
+        if (loop_flags.test_and_set(LOOP_FLAGS::IS_IN_LOOP)) {
             // If processing in progress - postpone call to avoid recursion.
-            loop_flags.set(HAS_DEFERRED_FL);
+            loop_flags.set(LOOP_FLAGS::HAS_DEFERRED);
             return;
         }
 
@@ -42,7 +42,7 @@ void Task::loop() {
                     if (next_exp == 0) {
                         // Rearm timer event and add deferred call
                         event_group.fetch_or(Task::EVENT_TIMER_MSK);
-                        loop_flags.set(HAS_DEFERRED_FL);
+                        loop_flags.set(LOOP_FLAGS::HAS_DEFERRED);
                     } else {
                         driver.rearm(next_exp);
                     }
@@ -50,12 +50,12 @@ void Task::loop() {
             }
         }
 
-        loop_flags.clear(IS_IN_LOOP_FL);
-    } while (loop_flags.test_and_clear(HAS_DEFERRED_FL));
+        loop_flags.clear(LOOP_FLAGS::IS_IN_LOOP);
+    } while (loop_flags.test_and_clear(LOOP_FLAGS::HAS_DEFERRED));
 }
 
 void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
-    loop_flags.set(IS_IN_LOOP_FL);
+    loop_flags.set(LOOP_FLAGS::IS_IN_LOOP);
 
     port.timers.set_time_provider(
         Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(driver)
@@ -69,7 +69,7 @@ void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
     dpm.setup();
     tc.setup();
 
-    loop_flags.clear(IS_IN_LOOP_FL);
+    loop_flags.clear(LOOP_FLAGS::IS_IN_LOOP);
 }
 
 void Task_EventListener::on_receive(const MsgTask_Wakeup&) {

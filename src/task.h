@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "messages.h"
-#include "utils/atomic_bits.h"
+#include "utils/atomic_enum_bits.h"
 
 namespace pd {
 
@@ -47,12 +47,12 @@ private:
     Port& port;
     IDriver& driver;
 
-    enum {
-        IS_IN_LOOP_FL,
-        HAS_DEFERRED_FL,
-        LOOP_FLAGS_COUNT
+    enum class LOOP_FLAGS {
+        IS_IN_LOOP,
+        HAS_DEFERRED,
+        _Count
     };
-    AtomicBits<LOOP_FLAGS_COUNT> loop_flags;
+    AtomicEnumBits<LOOP_FLAGS> loop_flags{};
 
     Task_EventListener task_event_listener;
 };

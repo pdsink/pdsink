@@ -7,7 +7,7 @@
 #include "pe_defs.h"
 #include "messages.h"
 #include "timers.h"
-#include "utils/atomic_bits.h"
+#include "utils/atomic_enum_bits.h"
 
 namespace pd {
 
@@ -25,9 +25,9 @@ public:
     // PE data /helpers
     //
 
-    AtomicBits<PE_FLAG::FLAGS_COUNT> pe_flags{};
+    AtomicEnumBits<PE_FLAG> pe_flags{};
     // Micro-queue for DPM requests (set of flags)
-    AtomicBits<DPM_REQUEST_FLAG::REQUEST_COUNT> dpm_requests{};
+    AtomicEnumBits<DPM_REQUEST_FLAG> dpm_requests{};
 
     PD_MSG rx_emsg{};
     PD_MSG tx_emsg{};
@@ -42,11 +42,11 @@ public:
     // PRL/Driver data
     //
 
-    AtomicBits<PRL_FLAG::FLAGS_COUNT> prl_flags{};
-    AtomicBits<PRL_HR_FLAG::FLAGS_COUNT> prl_hr_flags{};
-    AtomicBits<PRL_TX_FLAG::FLAGS_COUNT> prl_tx_flags{};
-    AtomicBits<RCH_FLAG::FLAGS_COUNT> prl_rch_flags{};
-    AtomicBits<TCH_FLAG::FLAGS_COUNT> prl_tch_flags{};
+    AtomicEnumBits<PRL_FLAG> prl_flags{};
+    AtomicEnumBits<PRL_HR_FLAG> prl_hr_flags{};
+    AtomicEnumBits<PRL_TX_FLAG> prl_tx_flags{};
+    AtomicEnumBits<RCH_FLAG> prl_rch_flags{};
+    AtomicEnumBits<TCH_FLAG> prl_tch_flags{};
 
     etl::cyclic_value<int8_t, 0, 7> tx_msg_id_counter{0};
     int8_t tx_retry_counter{0};

@@ -8,7 +8,7 @@
 #include "data_objects.h"
 #include "fusb302_regs.h"
 #include "idriver.h"
-#include "utils/atomic_bits.h"
+#include "utils/atomic_enum_bits.h"
 #include "utils/leapsync.h"
 #include "utils/spsc_overwrite_queue.h"
 
@@ -39,13 +39,11 @@ public:
     virtual bool is_interrupt_active() = 0;
 };
 
-namespace DRV_FLAG {
-    enum Type {
-        FUSB_SETUP_DONE,
-        FUSB_SETUP_FAILED,
-        TIMER_EVENT,
-        FLAGS_COUNT
-    };
+enum class DRV_FLAG {
+    FUSB_SETUP_DONE,
+    FUSB_SETUP_FAILED,
+    TIMER_EVENT,
+    _Count
 };
 
 // This class implements generic FUSB302B logic, and relies on FreeRTOS
@@ -122,7 +120,7 @@ public:
     void rearm(uint32_t interval) override {};
     bool is_rearm_supported() override { return false; };
 
-    AtomicBits<DRV_FLAG::FLAGS_COUNT> flags{};
+    AtomicEnumBits<DRV_FLAG> flags{};
 private:
     void task();
     bool handle_interrupt();

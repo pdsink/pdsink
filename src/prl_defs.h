@@ -16,48 +16,38 @@ enum class PRL_ERROR {
     TCH_SEQUENCE_TIMEOUT,
 };
 
-namespace PRL_FLAG {
-    enum Type {
-        // This is implemented according to spec for consistency, but not
-        // actually used in public API
-        ABORT,
-        FLAGS_COUNT
-    };
-}; // namespace PRL_FLAG
+enum class PRL_FLAG {
+    // This is implemented according to spec for consistency, but not
+    // actually used in public API
+    ABORT,
+    _Count
+};
 
-namespace RCH_FLAG {
-    enum Type {
-        RX_ENQUEUED, // From RX
-        RCH_ERROR_PENDING,
-        FLAGS_COUNT
-    };
-}; // namespace RCH_FLAG
+enum class RCH_FLAG {
+    RX_ENQUEUED, // From RX
+    RCH_ERROR_PENDING,
+    _Count
+};
 
-namespace TCH_FLAG {
-    enum Type {
-        MSG_ENQUEUED, // From PE
-        NEXT_CHUNK_REQUEST,
-        TCH_ERROR_PENDING,
-        FLAGS_COUNT
-    };
-}; // namespace TCH_FLAG
+enum class TCH_FLAG {
+    MSG_ENQUEUED, // From PE
+    NEXT_CHUNK_REQUEST,
+    TCH_ERROR_PENDING,
+    _Count
+};
 
-namespace PRL_TX_FLAG {
-    enum Type {
-        TX_CHUNK_ENQUEUED, // From TCH/RCH
-        TX_COMPLETED,
-        TX_DISCARDED,
-        TX_ERROR,
-        START_OF_AMS_DETECTED,
-        FLAGS_COUNT
-    };
-}; // namespace PRL_TX_FLAG
+enum class PRL_TX_FLAG {
+    TX_CHUNK_ENQUEUED, // From TCH/RCH
+    TX_COMPLETED,
+    TX_DISCARDED,
+    TX_ERROR,
+    START_OF_AMS_DETECTED,
+    _Count
+};
 
-namespace PRL_HR_FLAG {
-    enum Type {
-        HARD_RESET_FROM_PARTNER,
-        HARD_RESET_FROM_PE,
-        PE_HARD_RESET_COMPLETE,
-        FLAGS_COUNT
-    };
-}; // namespace PRL_HR_FLAG
+enum class PRL_HR_FLAG {
+    HARD_RESET_FROM_PARTNER,
+    HARD_RESET_FROM_PE,
+    PE_HARD_RESET_COMPLETE,
+    _Count
+};
