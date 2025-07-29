@@ -1,12 +1,6 @@
 #pragma once
 
 //
-// Load user config first.
-//
-
-#include "../src/pd_conf.h"
-
-//
 // Generic headers.
 //
 

@@ -188,7 +188,7 @@ void TC_EventListener::on_receive(const MsgSysUpdate& msg) {
     tc.receive(msg);
 }
 
-void TC_EventListener::on_receive_unknown(const etl::imessage& msg) {
+void TC_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
     TC_LOG("TC unknown message, id: {}", msg.get_message_id());
 }
 

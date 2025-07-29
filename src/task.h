@@ -20,7 +20,7 @@ public:
     Task_EventListener(Task& task) : Task_EventListener_Base(ROUTER_ID::TASK), task(task) {}
     void on_receive(const MsgTask_Wakeup& msg);
     void on_receive(const MsgTask_Timer& msg);
-    void on_receive_unknown(const etl::imessage& msg) {};
+    void on_receive_unknown(const etl::imessage&) {};
 private:
     Task& task;
 };

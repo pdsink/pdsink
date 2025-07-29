@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pd_conf.h"
+
 namespace pd {
 
 namespace TCPC_CC {
@@ -77,7 +79,7 @@ class ITimer {
 public:
     // You can actually return 32-bit value, if overflow after 49.7 days is
     // acceptable.
-    virtual uint64_t get_timestamp() = 0;
+    virtual PD_TIME_T get_timestamp() = 0;
     // Set interval (from "now") of next timer tick. For simple implementation
     // make this dummy and tick every 1 ms.
     virtual void rearm(uint32_t interval) = 0;

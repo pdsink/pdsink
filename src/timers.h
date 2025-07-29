@@ -21,9 +21,7 @@ namespace PD_TIMER {
     enum Type {
         TC_DEBOUNCE,
 
-        // This is not a real timer, but range marker
-        PE_TIMERS_RANGE_START,
-
+        // (!) Check PD_TIMERS_RANGE after update
         PE_SinkWaitCapTimer,
         PE_SenderResponseTimer,
         PE_SinkRequestTimer,
@@ -33,16 +31,12 @@ namespace PD_TIMER {
         PE_SinkEPREnterTimer,
         PE_BISTContModeTimer,
 
-        PE_TIMERS_RANGE_END,
-        PRL_TIMERS_RANGE_START,
-
+        // (!) Check PD_TIMERS_RANGE after update
         PRL_HardResetCompleteTimer,
+        PRL_ActiveCcPollingDebounce, // Custom, not PD spec
+        // PRL_CRCReceive, // All hardware now supports auto GoodCRC
         PRL_ChunkSenderResponse,
         PRL_ChunkSenderRequest,
-        PRL_CRCReceive,
-        PRL_ActiveCcPollingDebounce, // Custom, not PD spec
-
-        PRL_TIMERS_RANGE_END,
 
         PD_TIMER_COUNT
     };
@@ -52,8 +46,8 @@ namespace PD_TIMER {
 struct PD_TIMERS_RANGE {
     using Type = etl::pair<PD_TIMER::Type, PD_TIMER::Type>;
 
-    static constexpr Type PE{PD_TIMER::PE_TIMERS_RANGE_START, PD_TIMER::PE_TIMERS_RANGE_END};
-    static constexpr Type PRL{PD_TIMER::PRL_TIMERS_RANGE_START, PD_TIMER::PRL_TIMERS_RANGE_END};
+    static constexpr Type PE{PD_TIMER::PE_SinkWaitCapTimer, PD_TIMER::PE_BISTContModeTimer};
+    static constexpr Type PRL{PD_TIMER::PRL_HardResetCompleteTimer, PD_TIMER::PRL_ChunkSenderRequest};
 };
 
 // 6.6.22 Time Values and Timers
@@ -86,11 +80,11 @@ struct PD_TIMEOUT {
     // we use 2ms to be sure AT LEAST 1ms passed. Anyway, that's not critical,
     // because all modern TCPC process GoodCRC in hardware. Probably we should
     // remove that logic at all, when drivers architecture become more clear.
-    #if PD_TIMER_RESOLUTION_US != 0
-        static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms_mult}; // 0.9-1.1 ms
-    #else
-        static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2 * ms_mult}; // 0.9-1.1 ms
-    #endif
+    // #if PD_TIMER_RESOLUTION_US != 0
+    //     static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms_mult}; // 0.9-1.1 ms
+    // #else
+    //     static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2 * ms_mult}; // 0.9-1.1 ms
+    // #endif
 
     // CC polling timeout for waiting SnkTxOK level before AMS transfer.
     static constexpr Type tActiveCcPollingDebounce {PD_TIMER::PRL_ActiveCcPollingDebounce, 20 * ms_mult}; // 20 ms
@@ -98,7 +92,7 @@ struct PD_TIMEOUT {
 
 class Timers {
 public:
-    using GetTimeFunc = etl::delegate<uint64_t()>;
+    using GetTimeFunc = etl::delegate<PD_TIME_T()>;
 
     explicit Timers() {
         active.clear_all();
@@ -110,7 +104,7 @@ public:
         get_time_func = func;
     }
 
-    void start(int timer_id, uint32_t us_time);
+    void start(int timer_id, uint32_t time);
     void stop(int timer_id);
     void stop_range(const PD_TIMEOUT::Type& range);
     inline bool is_disabled(int timer_id) { return disabled.test(int(timer_id)); }
@@ -143,7 +137,7 @@ public:
 private:
     GetTimeFunc get_time_func;
 
-    uint64_t get_time() {
+    PD_TIME_T get_time() {
         return get_time_func ? get_time_func() : 0;
     }
 
@@ -157,7 +151,12 @@ private:
         disabled.clear(timer_id);
     }
 
-    etl::array<uint64_t, PD_TIMER::PD_TIMER_COUNT> expire_at{};
+    // Timestamps compare with care about overflow
+    int32_t time_diff(PD_TIME_T expiration, PD_TIME_T now) {
+        return static_cast<int32_t>(expiration - now);
+    }
+
+    etl::array<PD_TIME_T, PD_TIMER::PD_TIMER_COUNT> expire_at{};
 
     AtomicBits<PD_TIMER::PD_TIMER_COUNT> active;
     AtomicBits<PD_TIMER::PD_TIMER_COUNT> disabled;

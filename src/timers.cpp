@@ -1,11 +1,17 @@
+#include <etl/limits.h>
+
 #include "timers.h"
 
 namespace pd {
 
-void Timers::start(int timer_id, uint32_t us_time) {
+static_assert(etl::is_same<PD_TIME_T, uint32_t>::value ||
+              etl::is_same<PD_TIME_T, uint64_t>::value,
+              "PD_TIME_T must be uint32_t or uint64_t");
+
+void Timers::start(int timer_id, uint32_t time) {
     active.set(timer_id);
     disabled.clear(timer_id);
-    expire_at[timer_id] = get_time() + us_time;
+    expire_at[timer_id] = get_time() + time;
     timers_changed.store(true);
 }
 
@@ -16,7 +22,7 @@ void Timers::stop(int timer_id) {
 }
 
 void Timers::stop_range(const PD_TIMEOUT::Type& range) {
-    for (int i = range.first; i <= range.second; i++) {
+    for (uint32_t i = range.first; i <= range.second; i++) {
         stop(i);
     }
     timers_changed.store(true);
@@ -24,7 +30,7 @@ void Timers::stop_range(const PD_TIMEOUT::Type& range) {
 
 auto Timers::is_expired(int timer_id) -> bool {
     if (active.test(timer_id)) {
-        if (get_time() >= expire_at[timer_id]) {
+        if (time_diff(expire_at[timer_id], get_time()) <= 0) {
             deactivate(timer_id);
             return true;
         }
@@ -43,18 +49,16 @@ void Timers::cleanup() {
 }
 
 auto Timers::get_next_expiration() -> int32_t {
-    constexpr int32_t MAX_EXPIRE = 0x7FFFFFFF;
+    constexpr int32_t MAX_EXPIRE = etl::numeric_limits<int32_t>::max();
 
     auto now = get_time();
     int32_t min = MAX_EXPIRE;
 
     for (auto i = 0; i < PD_TIMER::PD_TIMER_COUNT; i++) {
         if (active.test(i)) {
-            const uint64_t exp = expire_at[i];
-            if (exp <= now) { return 0; }
-
-            const auto diff = static_cast<int32_t>(exp - now);
-            if (diff < min) { min = diff; }
+            auto exp_diff = time_diff(expire_at[i], now);
+            if (exp_diff <= 0) { return 0; }
+            if (exp_diff < min) { min = exp_diff; }
         }
     }
 

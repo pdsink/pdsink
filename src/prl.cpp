@@ -604,7 +604,7 @@ public:
         }
 
         // Calculate max possible bytes been sent, if all chunks are of max size
-        int max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
+        uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
 
         // Reached msg size => last chunk sent
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
@@ -842,9 +842,9 @@ public:
         prl_tx.log_state();
 
         // Timer should be used ONLY when hardware confirmation not supported
-        if (!prl_tx.prl.tcpc.get_hw_features().tx_goodcrc_receive) {
-            prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
-        }
+        // if (!prl_tx.prl.tcpc.get_hw_features().tx_goodcrc_receive) {
+        //    prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
+        // }
         return No_State_Change;
     }
 
@@ -866,17 +866,17 @@ public:
         }
 
         // Actual only for software CRC processing
-        if (port.timers.is_expired(PD_TIMEOUT::tReceive)) {
-            return PRL_Tx_Check_RetryCounter;
-        }
+        // if (port.timers.is_expired(PD_TIMEOUT::tReceive)) {
+        //    return PRL_Tx_Check_RetryCounter;
+        // }
 
         return No_State_Change;
     }
 
-    auto on_exit_state() -> void {
-        auto& prl_tx = get_fsm_context();
-        prl_tx.prl.port.timers.stop(PD_TIMEOUT::tReceive);
-    }
+    // auto on_exit_state() -> void {
+    //    auto& prl_tx = get_fsm_context();
+    //    prl_tx.prl.port.timers.stop(PD_TIMEOUT::tReceive);
+    // }
 };
 
 class PRL_Tx_Match_MessageID_State : public etl::fsm_state<PRL_Tx, PRL_Tx_Match_MessageID_State, PRL_Tx_Match_MessageID, MsgSysUpdate, MsgTransitTo> {
@@ -1622,19 +1622,19 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
     }
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_SoftResetFromPe& msg) {
+void PRL_EventListener::on_receive(const MsgToPrl_SoftResetFromPe&) {
     prl.local_state = PRL::LS_INIT;
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_HardResetFromPe& msg) {
+void PRL_EventListener::on_receive(const MsgToPrl_HardResetFromPe&) {
     prl.port.prl_hr_flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PE);
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_PEHardResetDone& msg) {
+void PRL_EventListener::on_receive(const MsgToPrl_PEHardResetDone&) {
     prl.port.prl_hr_flags.set(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE);
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_TcpcHardReset& msg) {
+void PRL_EventListener::on_receive(const MsgToPrl_TcpcHardReset&) {
     prl.port.prl_hr_flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER);
     prl.port.wakeup();
 }
@@ -1675,7 +1675,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {
         (prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine);
 }
 
-void PRL_EventListener::on_receive_unknown(const etl::imessage& msg) {
+void PRL_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
     PRL_LOG("PRL unknown message, id: {}", msg.get_message_id());
 }
 

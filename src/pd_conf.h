@@ -31,3 +31,7 @@
 #if !defined(PD_TIMER_RESOLUTION_US)
 #define PD_TIMER_RESOLUTION_US 0
 #endif
+
+#if !defined(PD_TIME_T)
+#define PD_TIME_T uint32_t
+#endif

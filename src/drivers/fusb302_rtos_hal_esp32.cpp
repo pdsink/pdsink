@@ -87,8 +87,17 @@ Fusb302RtosHalEsp32::~Fusb302RtosHalEsp32() {
     }
 }
 
-uint64_t Fusb302RtosHalEsp32::get_timestamp() {
-    return esp_timer_get_time() / 1000;
+PD_TIME_T Fusb302RtosHalEsp32::get_timestamp() {
+    // Alternate implementation:
+    // - `esp_timer_get_time() / 1000` (64 bits)
+    // - `esp_log_timestamp()`
+    // - `millis()` (arduino)
+
+    // FreeRTOS usage is more portable, fast and sleep-friendly.
+    // 1ms tick or faster is recommended for correct operation.
+    TickType_t t = xPortInIsrContext() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+
+    return pdTICKS_TO_MS(t); // (uint32_t)((uint64_t)t * 1000ULL / configTICK_RATE_HZ)
 }
 
 bool Fusb302RtosHalEsp32::is_interrupt_active() {

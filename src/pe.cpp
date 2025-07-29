@@ -1480,12 +1480,12 @@ void PE_EventListener::on_receive(const MsgSysUpdate& msg) {
     }
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived&) {
     pe.port.pe_flags.set(PE_FLAG::MSG_RECEIVED);
     pe.port.wakeup();
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
     // Any successful sent inside AMS means first message was sent
     if (pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
         pe.port.pe_flags.set(PE_FLAG::AMS_FIRST_MSG_SENT);
@@ -1535,31 +1535,31 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     port.wakeup();
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
     pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
     pe.port.wakeup();
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
     if (!pe.is_started()) { return; }
     pe.receive(MsgTransitTo(PE_SNK_Soft_Reset));
     pe.port.wakeup();
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
     if (!pe.is_started()) { return; }
     pe.tcpc.req_bist_carrier_enable(false);
     pe.receive(MsgTransitTo(PE_SNK_Transition_to_default));
     pe.port.wakeup();
 }
 
-void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent& msg) {
+void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
     if (!pe.is_started()) { return; }
     pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
     pe.port.wakeup();
 }
 
-void PE_EventListener::on_receive_unknown(const etl::imessage& msg) {
+void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
     PE_LOG("PE unknown message, id: {}", msg.get_message_id());
 }
 
