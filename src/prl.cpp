@@ -1563,19 +1563,19 @@ void PRL_HR::log_state() {
 
 void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
     switch (prl.local_state) {
-        case PRL::LS_DISABLED:
+        case PRL::LOCAL_STATE::DISABLED:
             if (!prl.port.is_attached) { break; }
 
             __fallthrough;
-        case PRL::LS_INIT:
+        case PRL::LOCAL_STATE::INIT:
             prl.init();
-            prl.local_state = PRL::LS_WORKING;
+            prl.local_state = PRL::LOCAL_STATE::WORKING;
 
             __fallthrough;
-        case PRL::LS_WORKING:
+        case PRL::LOCAL_STATE::WORKING:
             if (!prl.port.is_attached) {
                 prl.tcpc.req_rx_enable(false);
-                prl.local_state = PRL::LS_DISABLED;
+                prl.local_state = PRL::LOCAL_STATE::DISABLED;
                 break;
             }
 
@@ -1623,7 +1623,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_SoftResetFromPe&) {
-    prl.local_state = PRL::LS_INIT;
+    prl.local_state = PRL::LOCAL_STATE::INIT;
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_HardResetFromPe&) {
@@ -1669,7 +1669,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_ExtMsgFromPe& msg) {
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {
-    msg.is_running_ref = (prl.local_state == PRL::LS_WORKING);
+    msg.is_running_ref = (prl.local_state == PRL::LOCAL_STATE::WORKING);
     msg.is_busy_ref =
         (prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) ||
         (prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine);

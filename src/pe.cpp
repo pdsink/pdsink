@@ -1092,7 +1092,7 @@ public:
         BISTDO bdo{pe.port.rx_emsg.read32(0)};
 
         if (bdo.mode == BIST_MODE::Carrier) {
-            pe.tcpc.req_bist_carrier_enable(true);
+            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
             pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
             return No_State_Change;
         }
@@ -1109,7 +1109,7 @@ public:
         auto& pe = get_fsm_context();
 
         if (pe.port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
-            pe.tcpc.req_bist_carrier_enable(false);
+            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
             return PE_SNK_Ready;
         }
 
@@ -1435,7 +1435,7 @@ void PE::check_request_progress_exit() {
     port.timers.stop(PD_TIMEOUT::tSenderResponse);
 }
 
-auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
+auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS {
     if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
         // This branch used ONLY when custom error processing selected.
         // For standard cases processing happens in error handler.
@@ -1460,18 +1460,18 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS::Type {
 
 void PE_EventListener::on_receive(const MsgSysUpdate& msg) {
     switch (pe.local_state) {
-        case PE::LS_DISABLED:
+        case PE::LOCAL_STATE::DISABLED:
             if (!pe.port.is_attached) { break; }
 
             __fallthrough;
-        case PE::LS_INIT:
+        case PE::LOCAL_STATE::INIT:
             pe.init();
-            pe.local_state = PE::LS_WORKING;
+            pe.local_state = PE::LOCAL_STATE::WORKING;
 
             __fallthrough;
-        case PE::LS_WORKING:
+        case PE::LOCAL_STATE::WORKING:
             if (!pe.port.is_attached) {
-                pe.local_state = PE::LS_DISABLED;
+                pe.local_state = PE::LOCAL_STATE::DISABLED;
                 pe.reset();
                 break;
             }
@@ -1548,7 +1548,6 @@ void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
     if (!pe.is_started()) { return; }
-    pe.tcpc.req_bist_carrier_enable(false);
     pe.receive(MsgTransitTo(PE_SNK_Transition_to_default));
     pe.port.wakeup();
 }

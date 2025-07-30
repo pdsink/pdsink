@@ -4,23 +4,19 @@
 
 namespace pd {
 
-namespace TCPC_CC {
-    enum Type {
-        CC1 = 0,
-        CC2 = 1,
-        ACTIVE // For selected polarity
-    };
+enum class TCPC_CC {
+    CC1 = 0,
+    CC2 = 1,
+    ACTIVE = 2 // For selected polarity
 };
 
-namespace TCPC_POLARITY {
-    enum Type {
-        CC1 = 0, // CC1 is active
-        CC2 = 1, // CC2 is active
-        NONE = 2 // Not selected yet
-    };
+enum class TCPC_POLARITY {
+    CC1 = 0, // CC1 is active
+    CC2 = 1, // CC2 is active
+    NONE = 2 // Not selected yet
 };
 
-// Voltage ranges from comparator, correcpoinding to Rp values
+// Voltage ranges from comparator, corresponding to Rp values
 namespace TCPC_CC_LEVEL {
     enum Type {
         NONE = 0,
@@ -31,6 +27,12 @@ namespace TCPC_CC_LEVEL {
 
     constexpr uint8_t SinkTxNG = RP_1_5;
     constexpr uint8_t SinkTxOK = RP_3_0;
+};
+
+enum class TCPC_BIST_MODE {
+    Off = 0,
+    Carrier = 1,
+    TestData = 2
 };
 
 // Hardware features description, to clarify Rx/Tx logic in PRL.
@@ -59,17 +61,6 @@ namespace TCPC_TRANSMIT_STATUS {
         DISCARDED = 3,
     };
 };
-
-namespace SOP_TYPE {
-    enum Type {
-        SOP = 0,
-        SOP_PRIME = 1,
-        SOP_PRIME_PRIME = 2,
-        SOP_DEBUG_PRIME = 3,
-        SOP_DEBUG_PRIME_PRIME = 4,
-        INVALID = 0xF
-    };
-}
 
 //
 // Interfaces
@@ -110,9 +101,8 @@ public:
     // transfer locks are very rare and short.
     virtual void req_active_cc() = 0;
     virtual bool is_active_cc_done() = 0;
-
     // Get fetched data after req_scan_cc/req_active_cc completed.
-    virtual TCPC_CC_LEVEL::Type get_cc(TCPC_CC::Type cc) = 0;
+    virtual TCPC_CC_LEVEL::Type get_cc(TCPC_CC cc) = 0;
 
     // Spec requires VBUS detection. While we can use CC1/CC2 instead,
     // keep this method for compatibility.
@@ -120,7 +110,7 @@ public:
 
     // Note, any other actions should NOT reset selected polarity. It's updated
     // only by this call, when new cable connect detected.
-    virtual void req_set_polarity(TCPC_POLARITY::Type active_cc) = 0;
+    virtual void req_set_polarity(TCPC_POLARITY active_cc) = 0;
     virtual bool is_set_polarity_done() = 0;
 
     // Note, this should flush RX/TX FIFO on disable,
@@ -135,9 +125,9 @@ public:
     virtual void req_transmit() = 0;
     virtual bool is_transmit_done() = 0;
 
-    // On/off BIST carrier
-    virtual void req_bist_carrier_enable(bool enable) = 0;
-    virtual bool is_bist_carrier_enable_done() = 0;
+    // BIST mode set
+    virtual void req_set_bist(TCPC_BIST_MODE mode) = 0;
+    virtual bool is_set_bist_done() = 0;
 
     virtual void req_hr_send() = 0;
     virtual bool is_hr_send_done() = 0;

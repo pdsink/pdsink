@@ -75,11 +75,11 @@ public:
         kick_task();
     };
     bool is_active_cc_done() override { return sync_active_cc.is_ready(); };
-    auto get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type override;
+    auto get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type override;
 
     bool is_vbus_ok() override;
 
-    void req_set_polarity(TCPC_POLARITY::Type active_cc) override {
+    void req_set_polarity(TCPC_POLARITY active_cc) override {
         sync_set_polarity.enquire(active_cc);
         kick_task();
     };
@@ -99,11 +99,11 @@ public:
     };
     bool is_transmit_done() override { return sync_transmit.is_ready(); };
 
-    void req_bist_carrier_enable(bool enable) override {
-        sync_bist_carrier_enable.enquire(enable);
+    void req_set_bist(TCPC_BIST_MODE mode) override {
+        sync_set_bist.enquire(mode);
         kick_task();
     };
-    bool is_bist_carrier_enable_done() override { return sync_bist_carrier_enable.is_ready(); };
+    bool is_set_bist_done() override { return sync_set_bist.is_ready(); };
 
     void req_hr_send() override {
         sync_hr_send.enquire();
@@ -139,14 +139,14 @@ private:
     bool fusb_flush_rx_fifo();
     bool fusb_flush_tx_fifo();
     bool fusb_pd_reset();
-    bool fusb_set_polarity(TCPC_POLARITY::Type polarity);
+    bool fusb_set_polarity(TCPC_POLARITY polarity);
     bool fusb_set_rx_enable(bool enable);
     bool fusb_tx_pkt_begin();
     void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status);
     bool fusb_rx_pkt();
     bool fusb_hr_send_begin();
     bool fusb_hr_send_end();
-    bool fusb_bist(bool enable);
+    bool fusb_set_bist(TCPC_BIST_MODE mode);
     // Clear insternal states after hard reset received or been sent.
     bool hr_cleanup();
 
@@ -158,7 +158,7 @@ private:
     spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
-    etl::atomic<TCPC_POLARITY::Type> polarity{TCPC_POLARITY::NONE};
+    etl::atomic<TCPC_POLARITY> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
     bool rx_enabled{false};
     bool has_deferred_wakeup{false};
@@ -174,10 +174,10 @@ private:
     // Call sync  + param store primitives
     LeapSync<> sync_scan_cc;
     LeapSync<> sync_active_cc;
-    LeapSync<TCPC_POLARITY::Type> sync_set_polarity;
+    LeapSync<TCPC_POLARITY> sync_set_polarity;
     LeapSync<bool> sync_rx_enable;
     LeapSync<> sync_transmit;
-    LeapSync<bool> sync_bist_carrier_enable;
+    LeapSync<TCPC_BIST_MODE> sync_set_bist;
     LeapSync<> sync_hr_send;
 
     enum class MeterState {

@@ -9,14 +9,12 @@
 
 namespace pd {
 
-namespace PE_REQUEST_PROGRESS {
-    enum Type {
-        PENDING,
-        FINISHED,
-        DISCARDED,
-        FAILED
-    };
-}; // namespace PE_REQUEST_PROGRESS
+enum class PE_REQUEST_PROGRESS {
+    PENDING,
+    FINISHED,
+    DISCARDED,
+    FAILED
+};
 
 class Port; class IDPM; class ITCPC; class PE; class PRL;
 
@@ -72,10 +70,12 @@ public:
     bool is_rev_2_0() const;
 
     void check_request_progress_enter();
-    auto check_request_progress_run() -> PE_REQUEST_PROGRESS::Type;
+    auto check_request_progress_run() -> PE_REQUEST_PROGRESS;
     void check_request_progress_exit();
 
-    enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
+    enum class LOCAL_STATE {
+        DISABLED, INIT, WORKING
+    } local_state{LOCAL_STATE::DISABLED};
 
     Port& port;
     IDPM& dpm;

@@ -108,7 +108,9 @@ public:
     // Helper to report PE errors outside of FSM.
     void report_pending_error();
 
-    enum { LS_DISABLED, LS_INIT, LS_WORKING } local_state = LS_DISABLED;
+    enum class LOCAL_STATE {
+        DISABLED, INIT, WORKING
+    } local_state{LOCAL_STATE::DISABLED};
 
     Port& port;
     IDriver& tcpc;

@@ -169,7 +169,7 @@ bool Fusb302Rtos::fusb_pd_reset() {
     return fusb_setup();
 }
 
-bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY::Type polarity) {
+bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     Switches0 sw0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
     sw0.MEAS_CC1 = 0;
@@ -359,11 +359,28 @@ bool Fusb302Rtos::hr_cleanup() {
     return true;
 }
 
-bool Fusb302Rtos::fusb_bist(bool enable) {
+bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
     Control1 ctrl1;
+    Control3 ctrl3;
+
     HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
-    ctrl1.BIST_MODE2 = enable ? 1 : 0;
+    HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
+    ctrl1.BIST_MODE2 = 0;
+    ctrl3.BIST_TMODE = 0;
+
+    switch (mode) {
+        case TCPC_BIST_MODE::Carrier:
+            ctrl1.BIST_MODE2 = 1;
+            break;
+        case TCPC_BIST_MODE::TestData:
+            ctrl3.BIST_TMODE = 1;
+            break;
+        default:
+            break;
+    }
+
     HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
+    HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
     return true;
 }
 
@@ -388,6 +405,7 @@ bool Fusb302Rtos::handle_interrupt() {
 
         if (interrupta.I_HARDRST) {
             DRV_LOG("IRQ: hard reset received");
+            DRV_FAIL_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
             DRV_FAIL_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
@@ -587,10 +605,10 @@ bool Fusb302Rtos::handle_tcpc_calls() {
         has_deferred_wakeup = true;
     }
 
-    if (sync_bist_carrier_enable.is_enquired()) {
-        sync_bist_carrier_enable.mark_started();
-        DRV_LOG_ON_ERROR(fusb_bist(sync_bist_carrier_enable.get_param()));
-        sync_bist_carrier_enable.mark_finished();
+    if (sync_set_bist.is_enquired()) {
+        sync_set_bist.mark_started();
+        DRV_LOG_ON_ERROR(fusb_set_bist(sync_set_bist.get_param()));
+        sync_set_bist.mark_finished();
         has_deferred_wakeup = true;
     }
 
@@ -666,7 +684,7 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 // TCPC API methods.
 //
 
-auto Fusb302Rtos::get_cc(TCPC_CC::Type cc) -> TCPC_CC_LEVEL::Type {
+auto Fusb302Rtos::get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type {
     switch (cc) {
         case TCPC_CC::CC1:
             return cc1_cache;
