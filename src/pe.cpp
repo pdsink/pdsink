@@ -44,8 +44,10 @@ enum PE_State {
     // PE_SNK_Send_EPR_Mode_Exit,
     PE_SNK_EPR_Mode_Exit_Received, // Manual exit not needed, only SRC-forced
 
-    // [rev3.2] 8.3.3.27.1 BIST Carrier Mode State Diagram
+    // [rev3.2] 8.3.3.27 BIST State Diagrams
+    PE_BIST_Activate, // Not in spec, common entry point
     PE_BIST_Carrier_Mode,
+    PE_BIST_Test_Mode,
 
     // [rev3.2] 8.3.3.15.2 Give Revision State Diagram
     PE_Give_Revision,
@@ -82,7 +84,9 @@ namespace {
             case PE_SNK_Send_EPR_Mode_Entry: return "PE_SNK_Send_EPR_Mode_Entry";
             case PE_SNK_EPR_Mode_Entry_Wait_For_Response: return "PE_SNK_EPR_Mode_Entry_Wait_For_Response";
             case PE_SNK_EPR_Mode_Exit_Received: return "PE_SNK_EPR_Mode_Exit_Received";
+            case PE_BIST_Activate: return "PE_BIST_Activate";
             case PE_BIST_Carrier_Mode: return "PE_BIST_Carrier_Mode";
+            case PE_BIST_Test_Mode: return "PE_BIST_Test_Mode";
             case PE_Give_Revision: return "PE_Give_Revision";
             case PE_Src_Disabled: return "PE_Src_Disabled";
             case PE_Dpm_Get_PPS_Status: return "PE_Dpm_Get_PPS_Status";
@@ -499,7 +503,7 @@ public:
                     break;
 
                 case PD_DATA_MSGT::BIST:
-                    return PE_BIST_Carrier_Mode;
+                    return PE_BIST_Activate;
 
                 case PD_DATA_MSGT::Alert:
                     return PE_SNK_Source_Alert_Received;
@@ -1081,6 +1085,52 @@ public:
 };
 
 
+class PE_BIST_Activate_State : public etl::fsm_state<PE, PE_BIST_Activate_State, PE_BIST_Activate, MsgSysUpdate, MsgTransitTo> {
+public:
+    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
+
+    auto on_enter_state() -> etl::fsm_state_id_t override {
+        auto& pe = get_fsm_context();
+        auto& port = pe.port;
+        pe.log_state();
+
+        // Can enter only in connected mode with vSafe5v
+        if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return PE_SNK_Ready; }
+
+        // Simplified check - verify PDO index instead of voltage
+        RDO_ANY rdo{port.rdo_contracted};
+        if (rdo.obj_position != 1) { return PE_SNK_Ready; }
+
+        // Setup supported modes
+        BISTDO bdo{pe.port.rx_emsg.read32(0)};
+        if (bdo.mode == BIST_MODE::Carrier) {
+            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
+            return No_State_Change;
+        }
+        if (bdo.mode == BIST_MODE::TestData) {
+            pe.tcpc.req_set_bist(TCPC_BIST_MODE::TestData);
+            return No_State_Change;
+        }
+
+        // Ignore the rest
+        return PE_SNK_Ready;
+    }
+
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
+        auto& pe = get_fsm_context();
+        auto& port = pe.port;
+
+        // Wait TCPC call to complete
+        if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
+
+        // Small cheat to avoid state store. Parse BISTDO again, it should
+        // not be broken for such small time.
+        BISTDO bdo{port.rx_emsg.read32(0)};
+        if (bdo.mode == BIST_MODE::Carrier) { return PE_BIST_Carrier_Mode; }
+        return PE_BIST_Test_Mode;
+    }
+};
+
 class PE_BIST_Carrier_Mode_State : public etl::fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
@@ -1089,34 +1139,44 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        BISTDO bdo{pe.port.rx_emsg.read32(0)};
-
-        if (bdo.mode == BIST_MODE::Carrier) {
-            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
-            pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
-            return No_State_Change;
-        }
-
-        if (bdo.mode == BIST_MODE::TestData) {
-            return No_State_Change;
-        }
-
-        // Ignore everything else
-        return PE_SNK_Ready;
+        pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
+        return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
-            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
+        if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
+
+        if (port.timers.is_disabled(PD_TIMEOUT::tBISTCarrierMode)) {
             return PE_SNK_Ready;
         }
 
-        // Ignore everything.
-        // For test data mode exit possible only via hard reset.
-        pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+        if (port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
+            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
+            port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+        }
 
+        return No_State_Change;
+    }
+
+    void on_exit_state() override {
+        auto& pe = get_fsm_context();
+        pe.port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+    }
+};
+
+
+class PE_BIST_Test_Mode_State : public etl::fsm_state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode, MsgSysUpdate, MsgTransitTo> {
+public:
+    ON_ENTER_STATE_DEFAULT; ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
+
+    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
+        auto& port = get_fsm_context().port;
+        // Ignore everything.
+        // Exit from  test data mode is possible only via hard reset.
+        port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
         return No_State_Change;
     }
 };
@@ -1332,7 +1392,9 @@ etl_ext::fsm_state_pack<
     PE_SNK_Send_EPR_Mode_Entry_State,
     PE_SNK_EPR_Mode_Entry_Wait_For_Response_State,
     PE_SNK_EPR_Mode_Exit_Received_State,
+    PE_BIST_Activate_State,
     PE_BIST_Carrier_Mode_State,
+    PE_BIST_Test_Mode_State,
     PE_Give_Revision_State,
     PE_Src_Disabled_State,
     PE_Dpm_Get_PPS_Status_State,
