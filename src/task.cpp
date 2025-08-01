@@ -72,13 +72,18 @@ void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
     loop_flags.clear(LOOP_FLAGS::IS_IN_LOOP);
 }
 
+void Task::set_event(uint32_t event_mask) {
+    event_group.fetch_or(event_mask);
+    loop();
+}
+
 void Task_EventListener::on_receive(const MsgTask_Wakeup&) {
-    task.event_group.fetch_or(Task::EVENT_WAKEUP_MSK);
+    task.set_event(Task::EVENT_WAKEUP_MSK);
     task.loop();
 }
 
 void Task_EventListener::on_receive(const MsgTask_Timer&) {
-    task.event_group.fetch_or(Task::EVENT_TIMER_MSK);
+    task.set_event(Task::EVENT_TIMER_MSK);
     task.loop();
 }
 
