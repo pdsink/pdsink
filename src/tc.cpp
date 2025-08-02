@@ -2,7 +2,7 @@
 
 #include "common_macros.h"
 #include "idriver.h"
-#include "pd_conf.h"
+#include "pd_log.h"
 #include "port.h"
 #include "tc.h"
 #include "utils/etl_state_pack.h"
@@ -176,7 +176,7 @@ TC::TC(Port& port, ITCPC& tcpc)
 };
 
 void TC::log_state() {
-    TC_LOG("TC state => {}", tc_state_to_desc(get_state_id()));
+    TC_LOGI("TC state => {}", tc_state_to_desc(get_state_id()));
 }
 
 void TC::setup() {
@@ -189,7 +189,7 @@ void TC_EventListener::on_receive(const MsgSysUpdate& msg) {
 }
 
 void TC_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    TC_LOG("TC unknown message, id: {}", msg.get_message_id());
+    TC_LOGE("TC unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd

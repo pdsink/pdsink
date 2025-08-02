@@ -2,7 +2,7 @@
 
 #include "common_macros.h"
 #include "idriver.h"
-#include "pd_conf.h"
+#include "pd_log.h"
 #include "port.h"
 #include "prl.h"
 #include "utils/etl_state_pack.h"
@@ -335,7 +335,7 @@ public:
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
             // Discarded chunk request in chunked RX is abnormal fuckup.
             // Report it via log only, not via discard.
-            PRL_LOG("RCH: Chunk request discarded");
+            PRL_LOGI("RCH: Chunk request discarded");
             // Instead of error reporting here, go to next state to
             // handle new message properly.
             return RCH_Waiting_Chunk;
@@ -1372,7 +1372,7 @@ void PRL::setup() {
 }
 
 void PRL::init(bool from_hr_fsm) {
-    PE_LOG("PRL init");
+    PRL_LOGI("PRL init");
 
     // If init called from PRL_HR, don't intrude HR fsm
     if (!from_hr_fsm) {
@@ -1464,7 +1464,7 @@ PRL_RCH::PRL_RCH(PRL& prl) : etl::fsm(0), prl{prl} {
 };
 
 void PRL_RCH::log_state() {
-    PRL_LOG("PRL_RCH state => {}", prl_rch_state_to_desc(get_state_id()));
+    PRL_LOGI("PRL_RCH state => {}", prl_rch_state_to_desc(get_state_id()));
 }
 
 etl_ext::fsm_state_pack<
@@ -1485,7 +1485,7 @@ PRL_TCH::PRL_TCH(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_TCH::log_state() {
-    PRL_LOG("PRL_TCH state => {}", prl_tch_state_to_desc(get_state_id()));
+    PRL_LOGI("PRL_TCH state => {}", prl_tch_state_to_desc(get_state_id()));
 }
 
 etl_ext::fsm_state_pack<
@@ -1508,7 +1508,7 @@ PRL_Tx::PRL_Tx(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_Tx::log_state() {
-    PRL_LOG("PRL_Tx state => {}", prl_tx_state_to_desc(get_state_id()));
+    PRL_LOGI("PRL_Tx state => {}", prl_tx_state_to_desc(get_state_id()));
 }
 
 etl_ext::fsm_state_pack<
@@ -1524,7 +1524,7 @@ PRL_Rx::PRL_Rx(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_Rx::log_state() {
-    PRL_LOG("PRL_Rx state => {}", prl_rx_state_to_desc(get_state_id()));
+    PRL_LOGI("PRL_Rx state => {}", prl_rx_state_to_desc(get_state_id()));
 }
 
 etl_ext::fsm_state_pack<
@@ -1543,7 +1543,7 @@ PRL_HR::PRL_HR(PRL& prl) : etl::fsm(0), prl{prl} {
 }
 
 void PRL_HR::log_state() {
-    PRL_LOG("PRL_HR state => {}", prl_hr_state_to_desc(get_state_id()));
+    PRL_LOGI("PRL_HR state => {}", prl_hr_state_to_desc(get_state_id()));
 }
 
 
@@ -1662,7 +1662,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {
 }
 
 void PRL_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PRL_LOG("PRL unknown message, id: {}", msg.get_message_id());
+    PRL_LOGE("PRL unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd

@@ -5,6 +5,7 @@
 #include <etl/vector.h>
 #include "fusb302_rtos.h"
 #include "messages.h"
+#include "pd_log.h"
 #include "port.h"
 
 namespace pd {
@@ -14,14 +15,14 @@ namespace fusb302 {
 #define HAL_LOG_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_ERR("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            DRV_LOGE("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
         } \
     } while (0)
 
 #define HAL_FAIL_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_ERR("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            DRV_LOGE("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
             return false; \
         } \
     } while (0)
@@ -29,14 +30,14 @@ namespace fusb302 {
 #define DRV_LOG_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_ERR("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
         } \
     } while (0)
 
 #define DRV_FAIL_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_ERR("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
             return false; \
         } \
     } while (0)
@@ -68,7 +69,7 @@ bool Fusb302Rtos::fusb_setup() {
     // Read ID to check connection
     DeviceID id;
     HAL_FAIL_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
-    DRV_LOG("FUSB302 ID: VER={}, PROD={}, REV={}",
+    DRV_LOGI("FUSB302 ID: VER={}, PROD={}, REV={}",
         id.VERSION_ID, id.PRODUCT_ID, id.REVISION_ID);
 
     // Power up all blocks
@@ -177,12 +178,12 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
 
     if (polarity == TCPC_POLARITY::CC1) {
         sw0.MEAS_CC1 = 1;
-        DRV_LOG("Selected polarity: CC1");
+        DRV_LOGI("Selected polarity: CC1");
     } else if (polarity == TCPC_POLARITY::CC2) {
         sw0.MEAS_CC2 = 1;
-        DRV_LOG("Selected polarity: CC2");
+        DRV_LOGI("Selected polarity: CC2");
     } else {
-        DRV_LOG("Selected polarity: NONE");
+        DRV_LOGI("Selected polarity: NONE");
     }
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
@@ -208,7 +209,7 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
         if (polarity == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
         else if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
         else {
-            DRV_ERR("Can't route BMC without polarity set");
+            DRV_LOGE("Can't route BMC without polarity set");
             return false;
         }
     }
@@ -290,7 +291,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
 
     if (status1.RX_EMPTY) {
-        DRV_LOG("Can't read from empty FIFO");
+        DRV_LOGI("Can't read from empty FIFO");
         return true;
     }
 
@@ -305,7 +306,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
         if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
             // Unchunked extended packets are not supported.
-            DRV_ERR("Unchunked extended packet received, ignoring");
+            DRV_LOGE("Unchunked extended packet received, ignoring");
             fusb_flush_rx_fifo();
             return false;
         }
@@ -319,7 +320,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
         // Just silently ignore GoodCRC, coming after TX
         if (!pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
-            DRV_LOG("Message received: type = {}, extended = {}, data size = {}",
+            DRV_LOGI("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());
             rx_queue.push(pkt);
             has_deferred_wakeup = true;
@@ -399,41 +400,41 @@ bool Fusb302Rtos::handle_interrupt() {
             Status0 status0;
             HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
-            DRV_LOG("IRQ: VBUS changed");
+            DRV_LOGI("IRQ: VBUS changed");
             has_deferred_wakeup = true;
         }
 
         if (interrupta.I_HARDRST) {
-            DRV_LOG("IRQ: hard reset received");
+            DRV_LOGI("IRQ: hard reset received");
             DRV_FAIL_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
             DRV_FAIL_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
 
         if (interrupta.I_HARDSENT) {
-            DRV_LOG("IRQ: hard reset sent");
+            DRV_LOGI("IRQ: hard reset sent");
             DRV_FAIL_ON_ERROR(hr_cleanup());
             fusb_hr_send_end();
         }
 
         if (interrupt.I_COLLISION) {
-            DRV_LOG("IRQ: tx collision");
+            DRV_LOGI("IRQ: tx collision");
             // Discarding logic is part of PRL, here we just report tx failure
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_RETRYFAIL) {
-            DRV_LOG("IRQ: tx retry failed");
+            DRV_LOGI("IRQ: tx retry failed");
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_TXSENT) {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
-            DRV_LOG("IRQ: tx completed");
+            DRV_LOGI("IRQ: tx completed");
             // That's not necessary, but force GoodCRC peek to free FIFO faster.
             fusb_rx_pkt();
         }
         if (interruptb.I_GCRCSENT) {
             if (rx_enabled) {
-                DRV_LOG("IRQ: GoodCRC sent");
+                DRV_LOGI("IRQ: GoodCRC sent");
                 fusb_rx_pkt();
             } else {
                 fusb_flush_rx_fifo();
@@ -474,7 +475,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
         case MeterState::CC_ACTIVE_BEGIN:
             if (polarity == TCPC_POLARITY::NONE) {
-                DRV_ERR("Can't measure active CC without polarity set");
+                DRV_LOGE("Can't measure active CC without polarity set");
                 meter_state = MeterState::CC_ACTIVE_END;
                 repeat = true;
             }
@@ -648,7 +649,7 @@ void Fusb302Rtos::setup() {
     );
 
     if (result != pdPASS) {
-        DRV_ERR("Failed to create Fusb302Rtos task");
+        DRV_LOGE("Failed to create Fusb302Rtos task");
         return;
     }
 
@@ -694,7 +695,7 @@ auto Fusb302Rtos::get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type {
             if (polarity == TCPC_POLARITY::CC1) { return cc1_cache; }
             if (polarity == TCPC_POLARITY::CC2) { return cc2_cache; }
             // fallthrough to NONE if polarity not selected
-            DRV_ERR("get_cc: Polarity not selected, returning NONE");
+            DRV_LOGE("get_cc: Polarity not selected, returning NONE");
             break;
         default:
             // Invalid CC type, return NONE (should not happen)

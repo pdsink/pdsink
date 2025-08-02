@@ -4,7 +4,7 @@
 #include "common_macros.h"
 #include "dpm.h"
 #include "idriver.h"
-#include "pd_conf.h"
+#include "pd_log.h"
 #include "pe.h"
 #include "port.h"
 #include "utils/etl_state_pack.h"
@@ -257,7 +257,7 @@ public:
         // Minimal check for RDO validity.
         // DPM implementation MUST NOT return invalid data.
         if (rdo.obj_position < 1 || rdo.obj_position > pe.port.source_caps.size()) {
-            PE_LOG("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
+            PE_LOGE("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
             return PE_SNK_Hard_Reset;
         }
 
@@ -588,10 +588,10 @@ public:
 
             if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::EPR_MODE_ENTRY)) {
                 if (pe.is_in_epr_mode()) {
-                    PE_LOG("EPR mode entry requested, but already in EPR mode");
+                    PE_LOGI("EPR mode entry requested, but already in EPR mode");
                     pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else if (!pe.is_epr_mode_available()) {
-                    PE_LOG("EPR mode entry requested, but not allowed");
+                    PE_LOGI("EPR mode entry requested, but not allowed");
                     pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else {
                     return PE_SNK_Send_EPR_Mode_Entry;
@@ -739,7 +739,7 @@ public:
                 return PE_SNK_Ready;
             }
 
-            PE_LOG("Protocol error: unexpected message received [0x{:04x}]", msg.header.raw_value);
+            PE_LOGE("Protocol error: unexpected message received [0x{:04x}]", msg.header.raw_value);
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1004,7 +1004,7 @@ public:
                 pe.port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
                 pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
-                PE_LOG("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
 
                 pe.port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
                 pe.port.notify_dpm(MsgToDpm_HandshakeDone());
@@ -1049,7 +1049,7 @@ public:
                     return PE_SNK_Wait_for_Capabilities;
                 }
 
-                PE_LOG("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
             }
 
             return PE_SNK_Send_Soft_Reset;
@@ -1071,7 +1071,7 @@ public:
         auto& pe = get_fsm_context();
 
         if (!pe.is_in_spr_contract()) {
-            PE_LOG("Not in SPR contract before EPR mode exit => Hard Reset");
+            PE_LOGE("Not in SPR contract before EPR mode exit => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
@@ -1407,7 +1407,7 @@ PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
 };
 
 void PE::log_state() {
-    PE_LOG("PE state => {}", pe_state_to_desc(get_state_id()));
+    PE_LOGI("PE state => {}", pe_state_to_desc(get_state_id()));
 }
 
 void PE::setup() {
@@ -1619,7 +1619,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
 }
 
 void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PE_LOG("PE unknown message, id: {}", msg.get_message_id());
+    PE_LOGE("PE unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd
