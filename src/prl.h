@@ -87,16 +87,6 @@ public:
     void setup();
     void init(bool from_hr_fsm = false);
 
-    // False if unchunked ext messages supported by both partners. In our case
-    // always True.
-    //
-    // - Not critical to support both, and chunking is more compatible.
-    // - I theory, unchunked ext are more simple, without TCH/RCH, BUT (!) FUSB302
-    //   has limited fifo capacity, and will need more complicated driver logic
-    //
-    // This decision can be revisited later, if time allows.
-    bool chunking() { return true; };
-
     void reset_msg_counters();
     void reset_revision();
 

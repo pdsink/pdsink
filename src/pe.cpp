@@ -59,8 +59,6 @@ enum PE_State {
     PE_Dpm_Get_PPS_Status,
     PE_Dpm_Get_Revision,
     PE_Dpm_Get_Source_Info,
-
-    PE_STATE_COUNT
 };
 
 namespace {

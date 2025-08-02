@@ -20,7 +20,6 @@ enum PRL_RCH_State {
     RCH_Requesting_Chunk,
     RCH_Waiting_Chunk,
     RCH_Report_Error,
-    PRL_RCH_STATE_COUNT
 };
 
 namespace {
@@ -49,7 +48,6 @@ enum PRL_TCH_State {
     TCH_Wait_Chunk_Request,
     TCH_Message_Received,
     TCH_Report_Error,
-    PRL_TCH_STATE_COUNT
 };
 
 namespace {
@@ -84,7 +82,6 @@ enum PRL_Tx_State {
     PRL_Tx_Discard_Message,
     PRL_Tx_Snk_Start_of_AMS,
     PRL_Tx_Snk_Pending,
-    PRL_Tx_STATE_COUNT
 };
 
 namespace {
@@ -114,7 +111,6 @@ enum PRL_Rx_State {
     PRL_Rx_Send_GoodCRC,
     PRL_Rx_Check_MessageID,
     PRL_Rx_Store_MessageID,
-    PRL_Rx_STATE_COUNT
 };
 
 namespace {
@@ -140,7 +136,6 @@ enum PRL_HR_State {
     PRL_HR_PHY_Hard_Reset_Requested,
     PRL_HR_Wait_for_PE_Hard_Reset_Complete,
     PRL_HR_PE_Hard_Reset_Complete,
-    PRL_HR_STATE_COUNT
 };
 
 namespace {
@@ -217,25 +212,16 @@ public:
             if (chunk.header.extended) {
                 PD_EXT_HEADER ehdr{chunk.read16(0)};
 
-                if (ehdr.chunked && rch.prl.chunking()) {
+                if (ehdr.chunked) {
                     // Spec says clear vars below in RCH_Processing_Extended_Message
                     // on first chunk, but this place looks more obvious
                     port.rch_chunk_number_expected = 0;
-
                     port.rx_emsg.clear();
-                    // Save header (with message type) in both tx and rx structs.
-                    // Tx may be used in chunk requests.
                     port.rx_emsg.header = chunk.header;
-                    port.tx_emsg.header = chunk.header;
                     return RCH_Processing_Extended_Message;
                 }
 
-                if (!ehdr.chunked && !rch.prl.chunking()) {
-                    // Unchunked ext messages are not supported now
-                    port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
-                    return RCH_Report_Error;
-                }
-
+                // Unchunked ext messages are not supported
                 port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
                 return RCH_Report_Error;
             }
@@ -464,7 +450,7 @@ public:
                 return TCH_Report_Error;
             }
 
-            if (port.tx_emsg.header.extended && tch.prl.chunking()) {
+            if (port.tx_emsg.header.extended) {
                 return TCH_Prepare_To_Send_Chunked_Message;
             }
             return TCH_Pass_Down_Message;
