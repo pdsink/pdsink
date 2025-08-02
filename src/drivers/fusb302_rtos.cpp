@@ -382,6 +382,14 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
 
     HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
     HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
+
+    if (mode == TCPC_BIST_MODE::Carrier) {
+        Control0 ctrl0;
+        HAL_FAIL_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
+        ctrl0.TX_START = 1;
+        HAL_FAIL_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
+    }
+
     return true;
 }
 
