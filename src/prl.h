@@ -91,12 +91,9 @@ public:
     void reset_revision();
 
     // Mark TX chunk for sending (+ cleanup status flags from prev operations)
-    void tx_enquire_chunk();
+    void prl_tx_enquire_chunk();
     // Fill revision / message id fields and send packet to TCPC driver
     void tcpc_enquire_msg();
-
-    // Helper to report PE errors outside of FSM.
-    void report_pending_error();
 
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING

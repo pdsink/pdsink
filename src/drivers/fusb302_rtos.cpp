@@ -222,8 +222,14 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
 void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status) {
     sync_transmit.mark_finished();
-    port.tcpc_tx_status.store(status);
-    has_deferred_wakeup = true;
+
+    // Safety check. If TX was repeated without waiting previous one =>
+    // status is outdated, don't update. Probably, this should not happen
+    // because of FIFO flush before transmit.
+    if (!sync_transmit.is_enquired()) {
+        port.tcpc_tx_status.store(status);
+        has_deferred_wakeup = true;
+    }
 }
 
 bool Fusb302Rtos::fusb_tx_pkt_begin() {
@@ -596,10 +602,6 @@ bool Fusb302Rtos::handle_timer() {
 }
 
 bool Fusb302Rtos::handle_tcpc_calls() {
-    if (sync_hr_send.is_enquired()) {
-        DRV_LOG_ON_ERROR(fusb_hr_send_begin());
-    }
-
     if (sync_set_polarity.is_enquired()) {
         sync_set_polarity.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_polarity(sync_set_polarity.get_param()));
@@ -608,10 +610,17 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     }
 
     if (sync_rx_enable.is_enquired()) {
+        // TODO: ensure discard pending TX and in-progress operations.
+        if (sync_transmit.is_enquired()) { sync_transmit.reset(); }
+
         sync_rx_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
         sync_rx_enable.mark_finished();
         has_deferred_wakeup = true;
+    }
+
+    if (sync_hr_send.is_enquired()) {
+        DRV_LOG_ON_ERROR(fusb_hr_send_begin());
     }
 
     if (sync_set_bist.is_enquired()) {
@@ -622,6 +631,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     }
 
     if (sync_transmit.is_enquired()) {
+        sync_transmit.mark_started();
         DRV_LOG_ON_ERROR(fusb_tx_pkt_begin());
     }
 

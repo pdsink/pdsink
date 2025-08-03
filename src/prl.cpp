@@ -193,7 +193,8 @@ public:
 
         rch.prl.port.prl_flags.clear(PRL_FLAG::ABORT);
 
-        // Don't reset `rx_emsg` here until new chunk come, it is shared with PE
+        // Spec requires to clear extended message buffer (rx_emsg), but we
+        // do that on first chunk instead. Because buffer is shared with PE.
 
         return No_State_Change;
     }
@@ -264,10 +265,12 @@ public:
             return RCH_Wait_For_Message_From_Protocol_Layer;
         }
 
-        // Minimal data integrity check
+        // Data integrity check
         if ((ehdr.chunk_number != port.rch_chunk_number_expected) ||
             (ehdr.chunk_number >= MaxChunksPerMsg) ||
-            (ehdr.data_size > MaxExtendedMsgLen))
+            (ehdr.data_size > MaxExtendedMsgLen) ||
+            (ehdr.request_chunk != 0) ||
+            (ehdr.chunked != 1))
         {
             port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
             return RCH_Report_Error;
@@ -315,7 +318,7 @@ public:
         chunk.append16(0); // Placeholder, align to 32 bit (data object size)
 
         // Mark chunk for send
-        rch.prl.tx_enquire_chunk();
+        rch.prl.prl_tx_enquire_chunk();
         return No_State_Change;
     }
 
@@ -332,12 +335,10 @@ public:
             return RCH_Report_Error;
         }
 
-        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
-            // Discarded chunk request in chunked RX is abnormal fuckup.
-            // Report it via log only, not via discard.
-            PRL_LOGI("RCH: Chunk request discarded");
-            // Instead of error reporting here, go to next state to
-            // handle new message properly.
+        // Catch simultaneous RX/TX + discard. Suppose tx was successful,
+        // and decide what really happened at next states.
+        // Here we can have new message from PRL_RX before PRL_TX called
+        if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
             return RCH_Waiting_Chunk;
         }
 
@@ -377,6 +378,8 @@ public:
                 return RCH_Report_Error;
             }
 
+            // Now disable message forward in error reporter, and continue
+            // checks in next state
             port.prl_rch_flags.clear(RCH_FLAG::RX_ENQUEUED);
             return RCH_Processing_Extended_Message;
         }
@@ -409,13 +412,7 @@ public:
             port.notify_pe(MsgToPe_PrlMessageReceived{});
         }
 
-        // Error report can cause sending data (soft reset, for example)
-        // It's important to finish with initial state without pending chunks.
-        // Otherwise, TCH will reject request.
-
-        // Rise flag instead of direct call, to avoid possible recursion
-        port.prl_rch_flags.set(RCH_FLAG::RCH_ERROR_PENDING);
-
+        port.notify_pe(MsgToPe_PrlReportError{port.rch_error});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 };
@@ -468,13 +465,11 @@ public:
         auto& prl = tch.prl;
         tch.log_state();
 
-        // NOTE: add unchunked ext msg data copy
-
         // Copy data to chunk & fill data object count
         prl.port.tx_chunk = prl.port.tx_emsg;
         prl.port.tx_chunk.header.data_obj_count = (prl.port.tx_emsg.data_size() + 3) >> 2;
 
-        prl.port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
+        prl.prl_tx_enquire_chunk();
         return TCH_Wait_For_Transmision_Complete;
     }
 };
@@ -496,10 +491,21 @@ public:
             return TCH_Report_Error;
         }
 
-        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            port.tch_error = PRL_ERROR::TCH_DISCARDED;
-            return TCH_Report_Error;
+        // Catch message discard (indirectly). This happens when new message
+        // routed to TCH.
+        //
+        // Ignore case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
+        // That means driver did transfer, but PRL_TX not been called yet.
+        // This is possible, because TX and RX events can arrive in the same
+        // time.
+        if (port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
+            port.wakeup(); // Probably not needed, but just in case.
+            return No_State_Change;
+        }
+
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+            // At this point, discard already reported by PRL_TX
+            return TCH_Message_Received;
         }
 
         return No_State_Change;
@@ -562,11 +568,11 @@ public:
         port.tx_chunk.header.data_obj_count = (port.tx_chunk.data_size() + 3) >> 2;
 
         if (port.prl_flags.test_and_clear(PRL_FLAG::ABORT)) {
-            return TCH_Wait_For_Transmision_Complete;
+            return TCH_Wait_For_Message_Request_From_Policy_Engine;
         }
 
-        port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
-        return No_State_Change;
+        tch.prl.prl_tx_enquire_chunk();
+        return TCH_Sending_Chunked_Message;
     }
 };
 
@@ -578,12 +584,6 @@ public:
         auto& tch = get_fsm_context();
         auto& port = tch.prl.port;
 
-        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_DISCARDED)) {
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            port.tch_error = PRL_ERROR::TCH_DISCARDED;
-            return TCH_Report_Error;
-        }
-
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_ERROR)) {
             port.tch_error = PRL_ERROR::TCH_SEND_FAIL;
             return TCH_Report_Error;
@@ -592,17 +592,22 @@ public:
         // Calculate max possible bytes been sent, if all chunks are of max size
         uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
 
-        // Reached msg size => last chunk sent
-        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
-            if (max_bytes >= port.tx_emsg.data_size()) {
-                return TCH_Message_Sent;
-            }
+        // Reached msg size => last chunk sent, land it without error
+        if ((max_bytes >= port.tx_emsg.data_size()) &&
+            port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED))
+        {
+            return TCH_Message_Sent;
+        }
 
-            if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
-                // If tx/rx events received at once, kick loop to ensure
-                // next state is executed.
-                port.wakeup();
-            }
+        // Handle discard (RX not in TCH_Wait_Chunk_Request)
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+            return TCH_Message_Received;
+        }
+
+        // Succeeded but, not last chunk
+        if ((max_bytes < port.tx_emsg.data_size()) &&
+            port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED))
+        {
             return TCH_Wait_Chunk_Request;
         }
 
@@ -674,11 +679,10 @@ public:
         tch.log_state();
 
         // Forward msg to RCH
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
-            port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
-            port.wakeup();
-        }
+        port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
+        port.wakeup();
 
+        // Drop incoming TCH request from PE if any
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
             port.notify_pe(MsgToPe_PrlReportDiscard{});
         }
@@ -696,8 +700,7 @@ public:
         auto& port = tch.prl.port;
         tch.log_state();
 
-        // Rise flag instead of direct call, to avoid possible recursion
-        port.prl_tch_flags.set(TCH_FLAG::TCH_ERROR_PENDING);
+        port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
 
         if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
             return TCH_Message_Received;
@@ -718,25 +721,15 @@ public:
 
 class PRL_Tx_PHY_Layer_Reset_State : public etl::fsm_state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
-    ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
+    ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& prl_tx = get_fsm_context();
         prl_tx.log_state();
 
-        prl_tx.prl.tcpc.req_rx_enable(true);
-        return No_State_Change;
-    }
-
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& prl = get_fsm_context().prl;
-
-        if (prl.tcpc.is_rx_enable_done()) {
-            return No_State_Change;
-        }
-
-        // Kick to guarantee next state run
-        prl.port.wakeup();
+        // Technically, we should call set_rx_enable(true). But since call is
+        // async - postpone it for next state, to have vars init coordinated.
+        prl_tx.prl.port.prl_tx_flags.set(PRL_TX_FLAG::IS_FROM_LAYER_RESET);
         return PRL_Tx_Wait_for_Message_Request;
     }
 };
@@ -753,11 +746,18 @@ public:
         port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::UNSET;
         port.tx_retry_counter = 0;
 
+        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::IS_FROM_LAYER_RESET)) {
+            prl_tx.prl.tcpc.req_rx_enable(true);
+        }
+
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().prl.port;
+        auto& prl = get_fsm_context().prl;
+        auto& port = prl.port;
+
+        if (prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
         // For first AMS message need to wait SinkTxOK CC level
         if (!port.is_ams_active()) {
@@ -771,9 +771,7 @@ public:
 
         // For non-AMS messages, or after first AMS message
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED)) {
-            auto& tx_chunk = port.tx_chunk;
-
-            if (tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+            if (port.tx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
                 return PRL_Tx_Layer_Reset_for_Transmit;
             }
             return PRL_Tx_Construct_Message;
@@ -963,12 +961,10 @@ public:
         // - passed to driver, and sending in progress
         // - if driver signaled discard
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
-            port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::WAITING ||
-            port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::DISCARDED)
+            port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::WAITING)
         {
             port.tx_msg_id_counter++;
-            //prl_tx.prl.port.notify_pe(MsgToPe_PrlReportDiscard{});
-            port.prl_tx_flags.set(PRL_TX_FLAG::TX_DISCARDED);
+            port.notify_pe(MsgToPe_PrlReportDiscard{});
         }
         return PRL_Tx_PHY_Layer_Reset;
     }
@@ -1089,10 +1085,9 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_rx = get_fsm_context();
-        prl_rx.log_state();
-
         auto& prl = prl_rx.prl;
         auto& port = prl.port;
+        prl_rx.log_state();
 
         // Similar to init, but skip RX and (?) revision clear.
         port.prl_flags.clear_all();
@@ -1162,7 +1157,22 @@ public:
         // (it should not discard, affect chunking and so on).
         if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Ping)) { return PRL_Rx_Wait_for_PHY_Message; }
 
-        prl.prl_tx.receive(MsgTransitTo(PRL_Tx_Discard_Message));
+        // Discard TX if:
+        //
+        // - new data enquired (but not sent yet)
+        // - sending in progress
+        // - failed/discarded
+        //
+        // Don't discard if sending succeeded. Let it finish as usual, because
+        // this status can arrive together with new incoming message.
+        //
+        auto status = port.tcpc_tx_status.load();
+        if ((status != TCPC_TRANSMIT_STATUS::UNSET &&
+            status != TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
+            port.prl_tx_flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED))
+        {
+            prl.prl_tx.receive(MsgTransitTo(PRL_Tx_Discard_Message));
+        }
 
         // [rev3.2] 6.12.2.1.4 Chunked Message Router State Diagram
         //
@@ -1376,8 +1386,8 @@ void PRL::init(bool from_hr_fsm) {
 
     // If init called from PRL_HR, don't intrude HR fsm
     if (!from_hr_fsm) {
-        prl_hr.reset();
         port.prl_hr_flags.clear_all();
+        prl_hr.reset();
         prl_hr.start();
     }
 
@@ -1386,6 +1396,7 @@ void PRL::init(bool from_hr_fsm) {
     port.prl_tx_flags.clear_all();
     port.prl_rch_flags.clear_all();
     port.prl_tch_flags.clear_all();
+    port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::UNSET;
 
     port.timers.stop_range(PD_TIMERS_RANGE::PRL);
     reset_msg_counters();
@@ -1421,6 +1432,9 @@ void PRL::tcpc_enquire_msg() {
     port.tx_chunk.header.message_id = port.tx_msg_id_counter;
     port.tx_chunk.header.spec_revision = port.revision;
 
+    // Here we should fill power/data roles. But since we are Sink-only UFP,
+    // we can just use default values (zeroes).
+
     // Clear PRL_TX "output" flags
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
@@ -1431,21 +1445,13 @@ void PRL::tcpc_enquire_msg() {
     tcpc.req_transmit();
 }
 
-void PRL::tx_enquire_chunk() {
+void PRL::prl_tx_enquire_chunk() {
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
     port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
     port.wakeup();
 }
 
-void PRL::report_pending_error() {
-    if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RCH_ERROR_PENDING)) {
-        port.notify_pe(MsgToPe_PrlReportError{port.rch_error});
-    }
-    if (port.prl_tch_flags.test_and_clear(TCH_FLAG::TCH_ERROR_PENDING)) {
-        port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // FSMs configs
@@ -1587,11 +1593,9 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
 
             prl.prl_rx.receive(msg);
             prl.prl_rch.receive(msg);
-            prl.report_pending_error();
             // First TCH call needed when PE enquired message, to start
             // chunking / transfer.
             prl.prl_tch.receive(msg);
-            prl.report_pending_error();
             prl.prl_tx.receive(msg);
 
             //
@@ -1600,10 +1604,8 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
 
             // After transfer complete - PE should be notified, call TCH again.
             prl.prl_tch.receive(msg);
-            prl.report_pending_error();
             // Repeat RCH call to land re-routed TCH message
             prl.prl_rch.receive(msg);
-            prl.report_pending_error();
             break;
     }
 }

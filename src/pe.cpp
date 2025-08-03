@@ -1564,6 +1564,8 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto& port = pe.port;
     auto err = msg.error;
 
+    if (!pe.is_started()) { return; }
+
     if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
         port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
         port.wakeup();
@@ -1571,7 +1573,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     }
 
     if (err == PRL_ERROR::RCH_SEND_FAIL ||
-        err ==PRL_ERROR::TCH_SEND_FAIL)
+        err == PRL_ERROR::TCH_SEND_FAIL)
     {
         pe.receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
         port.wakeup();

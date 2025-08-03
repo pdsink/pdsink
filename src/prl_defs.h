@@ -25,21 +25,19 @@ enum class PRL_FLAG {
 
 enum class RCH_FLAG {
     RX_ENQUEUED, // From RX
-    RCH_ERROR_PENDING,
     _Count
 };
 
 enum class TCH_FLAG {
     MSG_ENQUEUED, // From PE
     NEXT_CHUNK_REQUEST,
-    TCH_ERROR_PENDING,
     _Count
 };
 
 enum class PRL_TX_FLAG {
+    IS_FROM_LAYER_RESET,
     TX_CHUNK_ENQUEUED, // From TCH/RCH
     TX_COMPLETED,
-    TX_DISCARDED,
     TX_ERROR,
     START_OF_AMS_DETECTED,
     _Count
