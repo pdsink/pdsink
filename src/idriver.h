@@ -4,12 +4,6 @@
 
 namespace pd {
 
-enum class TCPC_CC {
-    CC1 = 0,
-    CC2 = 1,
-    ACTIVE = 2 // For selected polarity
-};
-
 enum class TCPC_POLARITY {
     CC1 = 0, // CC1 is active
     CC2 = 1, // CC2 is active
@@ -90,15 +84,13 @@ public:
     // Request to fetch both CC1/CC2 lines levels. May be slow, because switches
     // measurement block. Used for manual polarity detection only.
     virtual void req_scan_cc() = 0;
-    virtual bool is_scan_cc_done() = 0;
+    virtual bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) = 0;
 
     // Used only for SinkTxOK waiting in 3.0 protocol. Possible glitches,
     // caused by BMC are not critical here. Debounced polling is ok, because
     // transfer locks are very rare and short.
     virtual void req_active_cc() = 0;
-    virtual bool is_active_cc_done() = 0;
-    // Get fetched data after req_scan_cc/req_active_cc completed.
-    virtual TCPC_CC_LEVEL::Type get_cc(TCPC_CC cc) = 0;
+    virtual bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) = 0;
 
     // Spec requires VBUS detection. While we can use CC1/CC2 instead,
     // keep this method for compatibility.

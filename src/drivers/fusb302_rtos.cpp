@@ -703,23 +703,28 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 // TCPC API methods.
 //
 
-auto Fusb302Rtos::get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type {
-    switch (cc) {
-        case TCPC_CC::CC1:
-            return cc1_cache.load();
-        case TCPC_CC::CC2:
-            return cc2_cache.load();
-        case TCPC_CC::ACTIVE:
-            if (polarity.load() == TCPC_POLARITY::CC1) { return cc1_cache.load(); }
-            if (polarity.load() == TCPC_POLARITY::CC2) { return cc2_cache.load(); }
-            // fallthrough to NONE if polarity not selected
-            DRV_LOGE("get_cc: Polarity not selected, returning NONE");
-            break;
-        default:
-            // Invalid CC type, return NONE (should not happen)
-            break;
+bool Fusb302Rtos::try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) {
+    if (!sync_scan_cc.is_ready()) { return false; }
+    cc1 = cc1_cache.load();
+    cc2 = cc2_cache.load();
+    return true;
+}
+
+bool Fusb302Rtos::try_active_cc_result(TCPC_CC_LEVEL::Type& cc) {
+    if (!sync_active_cc.is_ready()) { return false; }
+
+    auto _polarity = polarity.load();
+
+    if (_polarity == TCPC_POLARITY::CC1) {
+        cc = cc1_cache.load();
     }
-    return TCPC_CC_LEVEL::NONE;
+    else if (_polarity == TCPC_POLARITY::CC2) {
+        cc = cc2_cache.load();
+    } else {
+        DRV_LOGE("try_active_cc_result: Polarity not selected, returning TCPC_CC_LEVEL::NONE");
+        cc = TCPC_CC_LEVEL::NONE;
+    }
+    return true;
 }
 
 bool Fusb302Rtos::is_vbus_ok() {

@@ -1028,10 +1028,11 @@ public:
         auto& tcpc = prl.tcpc;
 
         // Wait until CC fetch completes
-        if (!tcpc.is_active_cc_done()) { return No_State_Change; }
+        TCPC_CC_LEVEL::Type cc_level;
+        if (!tcpc.try_active_cc_result(cc_level)) { return No_State_Change; }
 
         // Wait SinkTxOK before sending first AMS message
-        if (tcpc.get_cc(TCPC_CC::ACTIVE) == TCPC_CC_LEVEL::SinkTxOK) {
+        if (cc_level == TCPC_CC_LEVEL::SinkTxOK) {
             port.prl_tx_flags.clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
             return PRL_Tx_Construct_Message;
         }

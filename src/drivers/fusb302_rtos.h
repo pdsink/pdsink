@@ -69,13 +69,13 @@ public:
         sync_scan_cc.enquire();
         kick_task();
     };
-    bool is_scan_cc_done() override { return sync_scan_cc.is_ready(); };
+    bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) override;
+
     void req_active_cc() override {
         sync_active_cc.enquire();
         kick_task();
     };
-    bool is_active_cc_done() override { return sync_active_cc.is_ready(); };
-    auto get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type override;
+    bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) override;
 
     bool is_vbus_ok() override;
 

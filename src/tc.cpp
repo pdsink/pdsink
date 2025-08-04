@@ -49,10 +49,11 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& tc = get_fsm_context();
+        auto& port = tc.port;
         tc.log_state();
 
-        tc.port.is_attached = false;
-        tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+        port.is_attached = false;
+        port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
         tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
     }
@@ -103,22 +104,21 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
+        auto& port = tc.port;
 
-        if (!tc.port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
-            if (!tc.port.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
 
-            tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        if (!port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
+            if (!port.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
+
+            port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
             tc.tcpc.req_scan_cc();
         }
 
-        if (tc.tcpc.is_scan_cc_done()) { return No_State_Change; }
+        TCPC_CC_LEVEL::Type cc1, cc2;
+        if (!tc.tcpc.try_scan_cc_result(cc1, cc2)) { return No_State_Change; }
 
         if (!tc.tcpc.is_vbus_ok()) { return TC_DETACHED; }
 
-        auto cc1 = tc.tcpc.get_cc(TCPC_CC::CC1);
-        auto cc2 = tc.tcpc.get_cc(TCPC_CC::CC2);
-
-        // We may have different SRC attached, but only PD-capable is acceptable
         if ((cc1 != cc2) && (cc1 == tc.prev_cc1) && (cc2 == tc.prev_cc2))
         {
             tc.tcpc.req_set_polarity(cc1 > cc2 ? TCPC_POLARITY::CC1 : TCPC_POLARITY::CC2);
@@ -127,13 +127,13 @@ public:
 
         tc.prev_cc1 = cc1;
         tc.prev_cc2 = cc2;
-        tc.port.timers.start(PD_TIMEOUT::TC_CC_POLL);
+        port.timers.start(PD_TIMEOUT::TC_CC_POLL);
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& tc = get_fsm_context();
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        auto& port = get_fsm_context().port;
+        port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
     }
 };
 
@@ -152,6 +152,13 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
+        auto& port = tc.port;
+
+        if (!port.is_attached) {
+            if (tc.tcpc.is_set_polarity_done()) {
+                port.is_attached = true;
+            }
+        }
 
         // TODO: Actually, we should check Safe0v. Check, if we should be more
         // strict here. In theory, active CC also could be used, but it has
