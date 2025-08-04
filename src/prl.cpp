@@ -200,25 +200,22 @@ public:
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& rch = get_fsm_context();
-        auto& port = rch.prl.port;
+        auto& prl = get_fsm_context().prl;
+        auto& port = prl.port;
 
         if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
-            auto& prl = rch.prl;
-            auto& chunk = prl.port.rx_chunk;
-
             // Copy header to output struct
-            port.rx_emsg.header = chunk.header;
+            port.rx_emsg.header = port.rx_chunk.header;
 
-            if (chunk.header.extended) {
-                PD_EXT_HEADER ehdr{chunk.read16(0)};
+            if (port.rx_chunk.header.extended) {
+                PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
                 if (ehdr.chunked) {
                     // Spec says clear vars below in RCH_Processing_Extended_Message
                     // on first chunk, but this place looks more obvious
                     port.rch_chunk_number_expected = 0;
                     port.rx_emsg.clear();
-                    port.rx_emsg.header = chunk.header;
+                    port.rx_emsg.header = port.rx_chunk.header;
                     return RCH_Processing_Extended_Message;
                 }
 
@@ -228,7 +225,7 @@ public:
             }
 
             // Non-extended message
-            port.rx_emsg = chunk;
+            port.rx_emsg = port.rx_chunk;
             port.rx_emsg.resize_by_data_obj_count();
             return RCH_Pass_Up_Message;
         }
@@ -255,9 +252,9 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& rch = get_fsm_context();
+        auto& port = rch.prl.port;
         rch.log_state();
 
-        auto& port = rch.prl.port;
 
         PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
@@ -352,10 +349,11 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& rch = get_fsm_context();
+        auto& port = rch.prl.port;
         rch.log_state();
 
-        rch.prl.port.timers.start(PD_TIMEOUT::tChunkSenderResponse);
-        rch.prl.port.timers.start(PD_TIMEOUT::tSenderResponse);
+        port.timers.start(PD_TIMEOUT::tChunkSenderResponse);
+        port.timers.start(PD_TIMEOUT::tSenderResponse);
         return No_State_Change;
     }
 
@@ -364,22 +362,20 @@ public:
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
-            auto& chunk = port.rx_chunk;
-            auto& hdr = chunk.header;
-
             // Spec requires to inform PE immediately about new message on
             // wrong sequence, prior returning to
             // RCH_Wait_For_Message_From_Protocol_Layer.
             // But we can safely land only unchunked messages this way.
 
             // NOTE: if unchunked ext msg ever supported, filter here too.
-            if (hdr.extended == 0) {
+            if (port.rx_chunk.header.extended == 0) {
                 port.rch_error = PRL_ERROR::RCH_SEQUENCE_DISCARDED;
                 return RCH_Report_Error;
             }
 
             // Now disable message forward in error reporter, and continue
-            // checks in next state
+            // checks in next state. Everything not matched will be
+            // a pure error (without message forward).
             port.prl_rch_flags.clear(RCH_FLAG::RX_ENQUEUED);
             return RCH_Processing_Extended_Message;
         }
@@ -393,8 +389,8 @@ public:
     }
 
     void on_exit_state() override {
-        auto& rch = get_fsm_context();
-        rch.prl.port.timers.stop(PD_TIMEOUT::tChunkSenderResponse);
+        auto& port = get_fsm_context().prl.port;
+        port.timers.stop(PD_TIMEOUT::tChunkSenderResponse);
     }
 };
 
@@ -426,9 +422,10 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& tch = get_fsm_context();
+        auto& port = tch.prl.port;
         tch.log_state();
 
-        tch.prl.port.prl_flags.clear(PRL_FLAG::ABORT);
+        port.prl_flags.clear(PRL_FLAG::ABORT);
         return No_State_Change;
     }
 
@@ -462,14 +459,14 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& tch = get_fsm_context();
-        auto& prl = tch.prl;
+        auto& port = tch.prl.port;
         tch.log_state();
 
         // Copy data to chunk & fill data object count
-        prl.port.tx_chunk = prl.port.tx_emsg;
-        prl.port.tx_chunk.header.data_obj_count = (prl.port.tx_emsg.data_size() + 3) >> 2;
+        port.tx_chunk = port.tx_emsg;
+        port.tx_chunk.header.data_obj_count = (port.tx_emsg.data_size() + 3) >> 2;
 
-        prl.prl_tx_enquire_chunk();
+        tch.prl.prl_tx_enquire_chunk();
         return TCH_Wait_For_Transmision_Complete;
     }
 };
@@ -518,9 +515,9 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& tch = get_fsm_context();
+        auto& port = tch.prl.port;
         tch.log_state();
 
-        auto& port = tch.prl.port;
         port.notify_pe(MsgToPe_PrlMessageSent{});
         if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
             return TCH_Message_Received;
@@ -535,9 +532,10 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& tch = get_fsm_context();
+        auto& port = tch.prl.port;
         tch.log_state();
 
-        tch.prl.port.tch_chunk_number_to_send = 0;
+        port.tch_chunk_number_to_send = 0;
         return TCH_Construct_Chunked_Message;
     }
 };
@@ -664,8 +662,8 @@ public:
     }
 
     void on_exit_state() override {
-        auto& tch = get_fsm_context();
-        tch.prl.port.timers.stop(PD_TIMEOUT::tChunkSenderRequest);
+        auto& port = get_fsm_context().prl.port;
+        port.timers.stop(PD_TIMEOUT::tChunkSenderRequest);
     }
 };
 
@@ -725,11 +723,12 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
         // Technically, we should call set_rx_enable(true). But since call is
         // async - postpone it for next state, to have vars init coordinated.
-        prl_tx.prl.port.prl_tx_flags.set(PRL_TX_FLAG::IS_FROM_LAYER_RESET);
+        port.prl_tx_flags.set(PRL_TX_FLAG::IS_FROM_LAYER_RESET);
         return PRL_Tx_Wait_for_Message_Request;
     }
 };
@@ -787,17 +786,18 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& prl_tx = get_fsm_context();
+        auto& prl = prl_tx.prl;
         prl_tx.log_state();
 
         // Note, spec says to reset only `msg_id_counter` here, and reset
         // `msg_id_stored` via RX state change. But etl::fsm does not re-run
         // `on_enter` if we come from current state to itself.
         // So, reset both here.
-        prl_tx.prl.reset_msg_counters();
+        prl.reset_msg_counters();
         // This will not make sense, because we do not send GoodCRC in software,
         // and every input packet causes returns to initial state immediately.
         // But this is left for consistency with the spec.
-        prl_tx.prl.prl_rx.receive(MsgTransitTo(PRL_Rx_Wait_for_PHY_Message));
+        prl.prl_rx.receive(MsgTransitTo(PRL_Rx_Wait_for_PHY_Message));
 
         return PRL_Tx_Construct_Message;
     }
@@ -885,13 +885,14 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        auto& port = prl_tx.prl.port;
         port.tx_msg_id_counter++;
         port.prl_tx_flags.set(PRL_TX_FLAG::TX_COMPLETED);
 
-        // Ensure one more loop run, when RCH requests next chunk
+        // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
+        // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
         port.wakeup();
 
         return PRL_Tx_Wait_for_Message_Request;
@@ -939,12 +940,16 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        auto& port = prl_tx.prl.port;
         port.tx_msg_id_counter++;
         // Don't report PE about error here, allow RCH/TCH to handle & care.
         port.prl_tx_flags.set(PRL_TX_FLAG::TX_ERROR);
+
+        // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
+        // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
+        port.wakeup();
 
         return PRL_Tx_Wait_for_Message_Request;
     }
@@ -978,9 +983,9 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        auto& port = prl_tx.prl.port;
         // Reuse existing event to switch state, if condition satisfied
         if (port.prl_tx_flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED)) {
             return PRL_Tx_Snk_Pending;
@@ -1044,8 +1049,8 @@ public:
     }
 
     void on_exit_state() override {
-        auto& prl = get_fsm_context().prl;
-        prl.port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
+        auto& port = get_fsm_context().prl.port;
+        port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
     }
 };
 
@@ -1059,21 +1064,22 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
+        auto& port = prl.port;
 
-        if (prl.port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
+        if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
             // In theory, we can have pending packet in RCH, re-routed by
             // discard. Postpone processing of new one to next cycle, to allow
             // RCH to finish.
             //
             // This is not expected to happen, because we do multiple RCH/TCH
             // calls.
-            prl.port.wakeup();
+            port.wakeup();
             return No_State_Change;
         }
 
         if (!prl.tcpc.fetch_rx_data()) { return No_State_Change; }
 
-        if (prl.port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+        if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             return PRL_Rx_Layer_Reset_for_Receive;
         }
 
@@ -1108,7 +1114,7 @@ public:
         prl.prl_tx.reset();
         prl.prl_tx.start();
 
-        prl.port.notify_pe(MsgToPe_PrlSoftResetFromPartner{});
+        port.notify_pe(MsgToPe_PrlSoftResetFromPartner{});
         return PRL_Rx_Send_GoodCRC;
     }
 };
@@ -1132,9 +1138,10 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_rx = get_fsm_context();
+        auto& port = prl_rx.prl.port;
         prl_rx.log_state();
 
-        if (prl_rx.msg_id_stored == prl_rx.prl.port.rx_chunk.header.message_id) {
+        if (port.rx_msg_id_stored == port.rx_chunk.header.message_id) {
             // Ignore duplicated
             return PRL_Rx_Wait_for_PHY_Message;
         }
@@ -1149,11 +1156,10 @@ public:
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_rx = get_fsm_context();
         auto& port = prl_rx.prl.port;
+        auto& prl = prl_rx.prl;
         prl_rx.log_state();
 
-        auto& prl = prl_rx.prl;
-
-        prl_rx.msg_id_stored = port.rx_chunk.header.message_id;
+        port.rx_msg_id_stored = port.rx_chunk.header.message_id;
 
         // Rev 3.2 says ping is deprecated => Ignore it completely
         // (it should not discard, affect chunking and so on).
@@ -1169,8 +1175,7 @@ public:
         // this status can arrive together with new incoming message.
         //
         auto status = port.tcpc_tx_status.load();
-        if ((status != TCPC_TRANSMIT_STATUS::UNSET &&
-            status != TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
+        if ((status != TCPC_TRANSMIT_STATUS::UNSET && status != TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
             port.prl_tx_flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED))
         {
             prl.prl_tx.receive(MsgTransitTo(PRL_Tx_Discard_Message));
@@ -1303,23 +1308,24 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& hr = get_fsm_context();
+        auto& port = hr.prl.port;
         hr.log_state();
 
-        hr.prl.port.timers.start(PD_TIMEOUT::tHardResetComplete);
+        port.timers.start(PD_TIMEOUT::tHardResetComplete);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& prl = get_fsm_context().prl;
-        if (prl.port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
+        auto& port = get_fsm_context().prl.port;
+        if (port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& prl = get_fsm_context().prl;
-        prl.port.timers.stop(PD_TIMEOUT::tHardResetComplete);
+        auto& port = get_fsm_context().prl.port;
+        port.timers.stop(PD_TIMEOUT::tHardResetComplete);
     }
 };
 
@@ -1329,9 +1335,10 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& hr = get_fsm_context();
+        auto& port = hr.prl.port;
         hr.log_state();
 
-        hr.prl.port.notify_pe(MsgToPe_PrlHardResetSent{});
+        port.notify_pe(MsgToPe_PrlHardResetSent{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 };
@@ -1422,7 +1429,7 @@ void PRL::init(bool from_hr_fsm) {
 }
 
 void PRL::reset_msg_counters() {
-    prl_rx.msg_id_stored = -1;
+    port.rx_msg_id_stored = -1;
     port.tx_msg_id_counter = 0;
 }
 
@@ -1437,7 +1444,8 @@ void PRL::tcpc_enquire_msg() {
     // Here we should fill power/data roles. But since we are Sink-only UFP,
     // we can just use default values (zeroes).
 
-    // Clear PRL_TX "output" flags
+    // TODO: probably not needed, because the only entry point is
+    // `prl_tx_enquire_chunk()`, which clears flags.
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
 
@@ -1448,9 +1456,14 @@ void PRL::tcpc_enquire_msg() {
 }
 
 void PRL::prl_tx_enquire_chunk() {
+    // TODO: may be used to protect re-calls for old data. Check, if we should
+    // leave it or rely on LeapSync.
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
     port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
+    // Ensure to call PRL_TX FSM after RCH/TCH
     port.wakeup();
 }
 
@@ -1606,7 +1619,9 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
 
             // After transfer complete - PE should be notified, call TCH again.
             prl.prl_tch.receive(msg);
-            // Repeat RCH call to land re-routed TCH message
+            // Repeat RCH call to land
+            // - re-routed TCH message
+            // - prl_tx status update after chunk request
             prl.prl_rch.receive(msg);
             break;
     }

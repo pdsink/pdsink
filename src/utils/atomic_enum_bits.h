@@ -2,6 +2,8 @@
 
 #include "atomic_bits.h"
 
+// Strictly typed variant of AtomicBits for enum classes.
+// When you have a lot of enums, this helps to avoid mistypes.
 template<typename E>
 class AtomicEnumBits
 {

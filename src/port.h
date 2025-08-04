@@ -50,6 +50,7 @@ public:
 
     etl::cyclic_value<int8_t, 0, 7> tx_msg_id_counter{0};
     int8_t tx_retry_counter{0};
+    int8_t rx_msg_id_stored{0};
     int8_t rch_chunk_number_expected{0};
     int8_t tch_chunk_number_to_send{0};
     // Probably, single error is enouth, but let's keep separate

@@ -22,7 +22,6 @@ class PRL_Rx: public etl::fsm {
 public:
     PRL_Rx(PRL& prl);
     void log_state();
-    int8_t msg_id_stored{0};
     PRL& prl;
 };
 

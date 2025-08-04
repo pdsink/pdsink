@@ -36,10 +36,12 @@ enum class TCH_FLAG {
 
 enum class PRL_TX_FLAG {
     IS_FROM_LAYER_RESET,
-    TX_CHUNK_ENQUEUED, // From TCH/RCH
+    START_OF_AMS_DETECTED,
+    // Input signal from RCH/TCH
+    TX_CHUNK_ENQUEUED,
+    // Ourput signal for RCH/TCH
     TX_COMPLETED,
     TX_ERROR,
-    START_OF_AMS_DETECTED,
     _Count
 };
 
