@@ -187,7 +187,7 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     }
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
-    this->polarity = polarity;
+    this->polarity.store(polarity);
     return true;
 }
 
@@ -206,8 +206,8 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     sw1.TXCC2 = 0;
 
     if (enable) {
-        if (polarity == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
-        else if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
+        if (polarity.load() == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
+        else if (polarity.load() == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
         else {
             DRV_LOGE("Can't route BMC without polarity set");
             return false;
@@ -488,7 +488,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::CC_ACTIVE_BEGIN:
-            if (polarity == TCPC_POLARITY::NONE) {
+            if (polarity.load() == TCPC_POLARITY::NONE) {
                 DRV_LOGE("Can't measure active CC without polarity set");
                 meter_state = MeterState::CC_ACTIVE_END;
                 repeat = true;
@@ -506,8 +506,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             {
                 const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
-                if (polarity == TCPC_POLARITY::CC1) { cc1_cache = cc_new; }
-                else { cc2_cache = cc_new; }
+                if (polarity.load() == TCPC_POLARITY::CC1) { cc1_cache.store(cc_new); }
+                else { cc2_cache.store(cc_new); }
             }
 
             meter_state = MeterState::CC_ACTIVE_END;
@@ -548,7 +548,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
             HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-            cc1_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+            cc1_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Measure CC2
             HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
@@ -565,7 +565,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
             HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-            cc2_cache = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+            cc2_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Restore previous state
             HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
@@ -706,12 +706,12 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 auto Fusb302Rtos::get_cc(TCPC_CC cc) -> TCPC_CC_LEVEL::Type {
     switch (cc) {
         case TCPC_CC::CC1:
-            return cc1_cache;
+            return cc1_cache.load();
         case TCPC_CC::CC2:
-            return cc2_cache;
+            return cc2_cache.load();
         case TCPC_CC::ACTIVE:
-            if (polarity == TCPC_POLARITY::CC1) { return cc1_cache; }
-            if (polarity == TCPC_POLARITY::CC2) { return cc2_cache; }
+            if (polarity.load() == TCPC_POLARITY::CC1) { return cc1_cache.load(); }
+            if (polarity.load() == TCPC_POLARITY::CC2) { return cc2_cache.load(); }
             // fallthrough to NONE if polarity not selected
             DRV_LOGE("get_cc: Polarity not selected, returning NONE");
             break;

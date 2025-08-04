@@ -498,7 +498,7 @@ public:
         // That means driver did transfer, but PRL_TX not been called yet.
         // This is possible, because TX and RX events can arrive in the same
         // time.
-        if (port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
+        if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             port.wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
@@ -743,7 +743,7 @@ public:
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::UNSET;
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
         port.tx_retry_counter = 0;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::IS_FROM_LAYER_RESET)) {
@@ -835,7 +835,9 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& port = get_fsm_context().prl.port;
 
-        if (port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
+        auto status = port.tcpc_tx_status.load();
+
+        if (status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             return PRL_Tx_Match_MessageID;
         }
 
@@ -845,7 +847,7 @@ public:
         // to have new msg + discard in sync.
         //
 
-        if (port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::FAILED) {
+        if (status == TCPC_TRANSMIT_STATUS::FAILED) {
             return PRL_Tx_Check_RetryCounter;
         }
 
@@ -961,7 +963,7 @@ public:
         // - passed to driver, and sending in progress
         // - if driver signaled discard
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
-            port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::WAITING)
+            port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::WAITING)
         {
             port.tx_msg_id_counter++;
             port.notify_pe(MsgToPe_PrlReportDiscard{});
@@ -1396,7 +1398,7 @@ void PRL::init(bool from_hr_fsm) {
     port.prl_tx_flags.clear_all();
     port.prl_rch_flags.clear_all();
     port.prl_tch_flags.clear_all();
-    port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::UNSET;
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
     port.timers.stop_range(PD_TIMERS_RANGE::PRL);
     reset_msg_counters();
@@ -1440,7 +1442,7 @@ void PRL::tcpc_enquire_msg() {
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
 
     // Rearm TCPC TX status.
-    port.tcpc_tx_status = TCPC_TRANSMIT_STATUS::WAITING;
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::WAITING);
 
     tcpc.req_transmit();
 }
@@ -1578,7 +1580,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
             // In theory, if RTOS with slow reaction used, it's possible to get
             // both TX Complete and RX updates when transmission was requested
 
-            if (prl.port.tcpc_tx_status == TCPC_TRANSMIT_STATUS::SUCCEEDED)
+            if (prl.port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED)
             {
                 // If TCPC send finished - ensure to react before discarding
                 // by RX (if both events detected in the same time).
