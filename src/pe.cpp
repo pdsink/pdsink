@@ -1497,8 +1497,6 @@ void PE::check_request_progress_exit() {
 
 auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS {
     if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
-        // This branch used ONLY when custom error processing selected.
-        // For standard cases processing happens in error handler.
         if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
             return PE_REQUEST_PROGRESS::DISCARDED;
         }

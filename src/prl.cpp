@@ -185,19 +185,10 @@ auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t { \
 
 class RCH_Wait_For_Message_From_Protocol_Layer_State : public etl::fsm_state<PRL_RCH, RCH_Wait_For_Message_From_Protocol_Layer_State, RCH_Wait_For_Message_From_Protocol_Layer, MsgSysUpdate, MsgTransitTo> {
 public:
-    ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
+    ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& rch = get_fsm_context();
-        rch.log_state();
-
-        rch.prl.port.prl_flags.clear(PRL_FLAG::ABORT);
-
-        // Spec requires to clear extended message buffer (rx_emsg), but we
-        // do that on first chunk instead. Because buffer is shared with PE.
-
-        return No_State_Change;
-    }
+    // Spec requires to clear extended message buffer (rx_emsg) on enter,
+    // but we do that on first chunk instead. Because buffer is shared with PE.
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
@@ -257,10 +248,6 @@ public:
 
 
         PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
-
-        if (port.prl_flags.test_and_clear(PRL_FLAG::ABORT)) {
-            return RCH_Wait_For_Message_From_Protocol_Layer;
-        }
 
         // Data integrity check
         if ((ehdr.chunk_number != port.rch_chunk_number_expected) ||
@@ -418,30 +405,36 @@ public:
 
 class TCH_Wait_For_Message_Request_From_Policy_Engine_State : public etl::fsm_state<PRL_TCH, TCH_Wait_For_Message_Request_From_Policy_Engine_State, TCH_Wait_For_Message_Request_From_Policy_Engine, MsgSysUpdate, MsgTransitTo> {
 public:
-    ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& tch = get_fsm_context();
-        auto& port = tch.prl.port;
-        tch.log_state();
-
-        port.prl_flags.clear(PRL_FLAG::ABORT);
-        return No_State_Change;
-    }
+    ON_ENTER_STATE_DEFAULT; ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT;
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tch = get_fsm_context();
         auto& port = tch.prl.port;
 
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+        // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
+        // Any Message Received and not in state TCH_Wait_Chunk_Request
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
         }
 
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             if (tch.prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) {
+                //
+                // This may happen, when
+                // - PRL was NOT busy
+                // - PE started DPM request
+                // - Got message from partner and RCH started to process it
+                //
+                // Spec says, reaction depends on implementation of optional ABORT flag.
+                // Since absolutely no ideas how to use that ABORT flag in real world,
+                // it's not implemented. So, according to spec, we just discard
+                // PE request and stay in the same state.
+                //
+                // In context of RCH/TCH transparency for PE, this behaviour looks
+                // more consistent than error reporting (the same as discarding TX by RX).
+                //
                 port.notify_pe(MsgToPe_PrlReportDiscard{});
-                port.tch_error = PRL_ERROR::TCH_ENQUIRE_DISCARDED;
-                return TCH_Report_Error;
+                return No_State_Change;
             }
 
             if (port.tx_emsg.header.extended) {
@@ -494,13 +487,14 @@ public:
         // Ignore case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
         // That means driver did transfer, but PRL_TX not been called yet.
         // This is possible, because TX and RX events can arrive in the same
-        // time.
+        // time. In this case just wait until PRL_TX called.
+
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             port.wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
 
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             // At this point, discard already reported by PRL_TX
             return TCH_Message_Received;
         }
@@ -519,7 +513,10 @@ public:
         tch.log_state();
 
         port.notify_pe(MsgToPe_PrlMessageSent{});
-        if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+
+        // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
+        // Any Message Received and not in state TCH_Wait_Chunk_Request
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
         }
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -565,10 +562,6 @@ public:
         port.tx_chunk.header = port.tx_emsg.header;
         port.tx_chunk.header.data_obj_count = (port.tx_chunk.data_size() + 3) >> 2;
 
-        if (port.prl_flags.test_and_clear(PRL_FLAG::ABORT)) {
-            return TCH_Wait_For_Message_Request_From_Policy_Engine;
-        }
-
         tch.prl.prl_tx_enquire_chunk();
         return TCH_Sending_Chunked_Message;
     }
@@ -590,15 +583,17 @@ public:
         // Calculate max possible bytes been sent, if all chunks are of max size
         uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
 
-        // Reached msg size => last chunk sent, land it without error
+        // Reached msg size => last chunk sent. LLand it without error,
+        // even if new message received.
         if ((max_bytes >= port.tx_emsg.data_size()) &&
             port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED))
         {
             return TCH_Message_Sent;
         }
 
-        // Handle discard (RX not in TCH_Wait_Chunk_Request)
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+        // Handle discard (RX not in TCH_Wait_Chunk_Request). PE already
+        // notified about discard by RX/TX at this moment.
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
         }
 
@@ -631,25 +626,28 @@ public:
         auto& tch = get_fsm_context();
         auto& port = tch.prl.port;
 
-        if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+        if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
             if (port.rx_emsg.header.extended) {
                 PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
-                if (ehdr.request_chunk) {
+                if (ehdr.request_chunk == 1) {
                     if (ehdr.chunk_number == port.tch_chunk_number_to_send) {
-                        port.prl_tch_flags.clear(TCH_FLAG::NEXT_CHUNK_REQUEST);
+                        port.prl_tch_flags.clear(TCH_FLAG::CHUNK_FROM_RX);
                         return TCH_Construct_Chunked_Message;
                     }
 
-                    port.prl_tch_flags.clear(TCH_FLAG::NEXT_CHUNK_REQUEST);
+                    port.prl_tch_flags.clear(TCH_FLAG::CHUNK_FROM_RX);
                     port.tch_error = PRL_ERROR::TCH_BAD_SEQUENCE;
                     return TCH_Report_Error;
                 }
             }
 
-            // Not expected message
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            port.tch_error = PRL_ERROR::TCH_DISCARDED;
+            // [rev3.2] 6.12.2.1.3.8 TCH_Wait_Chunk_Request State
+            // Any other Message than Chunk Request is received.
+
+            // TODO: It's not clear why error/discard is not reported
+            // when chunked sending was interrupted instead of consuming next
+            // chunks.
             return TCH_Message_Received;
         }
 
@@ -676,12 +674,12 @@ public:
         auto& port = tch.prl.port;
         tch.log_state();
 
-        // Forward msg to RCH
+        // Forward PRL_RX message to RCH
         port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
         port.wakeup();
 
         // Drop incoming TCH request from PE if any
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_ENQUEUED)) {
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             port.notify_pe(MsgToPe_PrlReportDiscard{});
         }
 
@@ -700,7 +698,7 @@ public:
 
         port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
 
-        if (port.prl_tch_flags.test(TCH_FLAG::NEXT_CHUNK_REQUEST)) {
+        if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
         }
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -1099,7 +1097,6 @@ public:
         prl_rx.log_state();
 
         // Similar to init, but skip RX and (?) revision clear.
-        port.prl_flags.clear_all();
         port.prl_tx_flags.clear_all();
         port.prl_rch_flags.clear_all();
         port.prl_tch_flags.clear_all();
@@ -1187,14 +1184,16 @@ public:
         // Route message to RCH/TCH. Since RTR has no stored states, it is
         // more simple to embed it's logic here.
 
-        // Spec describes chunking as "Not in initial waiting state". But
-        // PE send requests are not executed immediately, those just rise flag.
-        // So, having that flag set means "not waiting" too.
-        if (port.prl_tch_flags.test(TCH_FLAG::MSG_ENQUEUED) ||
+        // Spec describes TCH doing chunking as
+        // "Not in TCH_Wait_For_Message_Request_From_Policy_Engine state".
+        // But PE sending requests are not executed immediately, those just
+        // rise flag. So, having that flag set means "not waiting" too.
+        // Because TCH will leave waiting state on nearest call.
+        if (port.prl_tch_flags.test(TCH_FLAG::MSG_FROM_PE_ENQUEUED) ||
             prl_rx.prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine)
         {
             // TCH does chunking => route to it
-            port.prl_tch_flags.set(TCH_FLAG::NEXT_CHUNK_REQUEST);
+            port.prl_tch_flags.set(TCH_FLAG::CHUNK_FROM_RX);
         } else {
             // No TCH chunking => route to RCH
             port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
@@ -1232,18 +1231,11 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& hr = get_fsm_context();
-        auto& port = hr.prl.port;
         hr.log_state();
 
         // First, we don't "reset" anything in this state, because PRL_TX fsm
         // reset will cause enabling RX back. Until PRL_HR returns to initial
         // state, events are not precessed, and that looks safe.
-
-        // Clear flags for sure, but that seems not necessary.
-        port.prl_flags.clear_all();
-        port.prl_tx_flags.clear_all();
-        port.prl_rch_flags.clear_all();
-        port.prl_tch_flags.clear_all();
 
         // Start with RX path disable (and FIFO clear).
         hr.prl.tcpc.req_rx_enable(false);
@@ -1402,7 +1394,6 @@ void PRL::init(bool from_hr_fsm) {
     }
 
     // Reset vars before FSMs reset.
-    port.prl_flags.clear_all();
     port.prl_tx_flags.clear_all();
     port.prl_rch_flags.clear_all();
     port.prl_tch_flags.clear_all();
@@ -1651,7 +1642,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_CtlMsgFromPe& msg) {
     prl.port.tx_emsg.clear();
     prl.port.tx_emsg.header = hdr;
 
-    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_ENQUEUED);
+    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
     prl.port.wakeup();
 }
 
@@ -1660,7 +1651,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_DataMsgFromPe& msg) {
     hdr.message_type = msg.type;
     prl.port.tx_emsg.header = hdr;
 
-    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_ENQUEUED);
+    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
     prl.port.wakeup();
 }
 
@@ -1670,7 +1661,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_ExtMsgFromPe& msg) {
     hdr.extended = 1;
     prl.port.tx_emsg.header = hdr;
 
-    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_ENQUEUED);
+    prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
     prl.port.wakeup();
 }
 

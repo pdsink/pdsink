@@ -16,21 +16,14 @@ enum class PRL_ERROR {
     TCH_SEQUENCE_TIMEOUT,
 };
 
-enum class PRL_FLAG {
-    // This is implemented according to spec for consistency, but not
-    // actually used in public API
-    ABORT,
-    _Count
-};
-
 enum class RCH_FLAG {
     RX_ENQUEUED, // From RX
     _Count
 };
 
 enum class TCH_FLAG {
-    MSG_ENQUEUED, // From PE
-    NEXT_CHUNK_REQUEST,
+    MSG_FROM_PE_ENQUEUED,
+    CHUNK_FROM_RX,
     _Count
 };
 

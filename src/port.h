@@ -42,7 +42,6 @@ public:
     // PRL/Driver data
     //
 
-    AtomicEnumBits<PRL_FLAG> prl_flags{};
     AtomicEnumBits<PRL_HR_FLAG> prl_hr_flags{};
     AtomicEnumBits<PRL_TX_FLAG> prl_tx_flags{};
     AtomicEnumBits<RCH_FLAG> prl_rch_flags{};
