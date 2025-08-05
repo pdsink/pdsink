@@ -483,17 +483,17 @@ public:
 
         // Catch message discard (indirectly). This happens when new message
         // routed to TCH.
-        //
-        // Ignore case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
+
+        // First, care about case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
         // That means driver did transfer, but PRL_TX not been called yet.
         // This is possible, because TX and RX events can arrive in the same
         // time. In this case just wait until PRL_TX called.
-
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             port.wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
 
+        // At this point, if not finished TX but RX exists => discard happened
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             // At this point, discard already reported by PRL_TX
             return TCH_Message_Received;
@@ -580,29 +580,39 @@ public:
             return TCH_Report_Error;
         }
 
-        // Calculate max possible bytes been sent, if all chunks are of max size
-        uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
-
-        // Reached msg size => last chunk sent. LLand it without error,
-        // even if new message received.
-        if ((max_bytes >= port.tx_emsg.data_size()) &&
-            port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED))
+        // The same approach as in TCH_Wait_For_Transmision_Complete_State
+        // If transfer completed, but PRL_TX not yet executed before
+        // TCH called - just allow it to happen.
+        if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED &&
+            !port.prl_tx_flags.test(PRL_TX_FLAG::TX_COMPLETED))
         {
-            return TCH_Message_Sent;
+            port.wakeup(); // Probably not needed, but just in case.
+            return No_State_Change;
         }
 
-        // Handle discard (RX not in TCH_Wait_Chunk_Request). PE already
-        // notified about discard by RX/TX at this moment.
+        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
+            // Calculate max possible bytes been sent, if all chunks are of max size
+            uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
+
+            // Reached msg size => last chunk sent. Land situation without error,
+            // even if new message received.
+            if (max_bytes >= port.tx_emsg.data_size()) {
+                return TCH_Message_Sent;
+            }
+
+            // Not last chunk and probably can have incoming message
+            return TCH_Wait_Chunk_Request;
+        }
+
+        // Not completed, but has incoming msg instead => discard happened.
+        // on PRL_TX layer (most probable) OR at chunking layer (partner stopped
+        // requesting sequence). For second case - report discard.
+        // Duplicated discard reporting is not a problem (those are merged)
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
+            port.notify_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
-        // Succeeded but, not last chunk
-        if ((max_bytes < port.tx_emsg.data_size()) &&
-            port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED))
-        {
-            return TCH_Wait_Chunk_Request;
-        }
 
         return No_State_Change;
     }
@@ -619,6 +629,12 @@ public:
 
         port.tch_chunk_number_to_send++;
         port.timers.start(PD_TIMEOUT::tChunkSenderRequest);
+
+        // In edge case we could come here with RX already enquired.
+        // Then force loop wakeup() to ensure we continue processing.
+        if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
+            port.wakeup();
+        }
         return No_State_Change;
     }
 
@@ -626,8 +642,8 @@ public:
         auto& tch = get_fsm_context();
         auto& port = tch.prl.port;
 
-        if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
-            if (port.rx_emsg.header.extended) {
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
+            if (port.rx_chunk.header.extended) {
                 PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
                 if (ehdr.request_chunk == 1) {
@@ -647,7 +663,8 @@ public:
 
             // TODO: It's not clear why error/discard is not reported
             // when chunked sending was interrupted instead of consuming next
-            // chunks.
+            // chunks. Let's add discard for sure.
+            port.notify_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
@@ -698,7 +715,7 @@ public:
 
         port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
 
-        if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
+        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
         }
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -1610,6 +1627,8 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
             //
 
             // After transfer complete - PE should be notified, call TCH again.
+            prl.prl_tch.receive(msg);
+            // Once more to catch edge case
             prl.prl_tch.receive(msg);
             // Repeat RCH call to land
             // - re-routed TCH message

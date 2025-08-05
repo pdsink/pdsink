@@ -867,11 +867,12 @@ public:
         auto& pe = get_fsm_context();
 
         // Wait until PRL layer ready
-        if (!pe.port.is_prl_running()) return No_State_Change;
+        if (!pe.port.is_prl_running()) { return No_State_Change; }
 
         // Send only once per state enter
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Soft_Reset);
+            return No_State_Change;
         }
 
         auto send_status = pe.check_request_progress_run();
@@ -973,6 +974,10 @@ public:
         auto& pe = get_fsm_context();
 
         auto send_status = pe.check_request_progress_run();
+
+        if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
+            return PE_SNK_Ready;
+        }
 
         if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
             pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
