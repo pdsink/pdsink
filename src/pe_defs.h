@@ -7,9 +7,6 @@ enum class DPM_REQUEST_FLAG {
     UNUSED, // Skip 0 to simplify current request checks
     NEW_POWER_LEVEL,
     EPR_MODE_ENTRY,
-    GET_PPS_STATUS,
-    GET_SRC_INFO,
-    GET_REVISION,
 
     _Count
 };

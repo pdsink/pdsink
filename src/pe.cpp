@@ -54,11 +54,6 @@ enum PE_State {
 
     // 8.3.3.2.7 PE_SRC_Disabled State
     PE_Src_Disabled,
-
-    // Simple DPM requests for partner info
-    PE_Dpm_Get_PPS_Status,
-    PE_Dpm_Get_Revision,
-    PE_Dpm_Get_Source_Info,
 };
 
 namespace {
@@ -87,9 +82,6 @@ namespace {
             case PE_BIST_Test_Mode: return "PE_BIST_Test_Mode";
             case PE_Give_Revision: return "PE_Give_Revision";
             case PE_Src_Disabled: return "PE_Src_Disabled";
-            case PE_Dpm_Get_PPS_Status: return "PE_Dpm_Get_PPS_Status";
-            case PE_Dpm_Get_Revision: return "PE_Dpm_Get_Revision";
-            case PE_Dpm_Get_Source_Info: return "PE_Dpm_Get_Source_Info";
             default: return "Unknown PE state";
         }
     }
@@ -602,17 +594,9 @@ public:
                 return PE_SNK_Select_Capability;
             }
 
-            if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::GET_PPS_STATUS)) {
-                return PE_Dpm_Get_PPS_Status;
-            }
-
-            if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::GET_REVISION)) {
-                return PE_Dpm_Get_Revision;
-            }
-
-            if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::GET_SRC_INFO)) {
-                return PE_Dpm_Get_Source_Info;
-            }
+            //
+            // Add here more DPM requests, if needed.
+            //
 
             pe.port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         }
@@ -1234,143 +1218,6 @@ public:
 };
 
 
-class PE_Dpm_Get_PPS_Status_State : public etl::fsm_state<PE, PE_Dpm_Get_PPS_Status_State, PE_Dpm_Get_PPS_Status, MsgSysUpdate, MsgTransitTo> {
-public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
-        pe.log_state();
-
-        pe.send_ctrl_msg(PD_CTRL_MSGT::Get_PPS_Status);
-        pe.check_request_progress_enter();
-        return No_State_Change;
-    }
-
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
-        auto send_status = pe.check_request_progress_run();
-
-        if (send_status == PE_REQUEST_PROGRESS::FINISHED &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
-        {
-            auto& msg = pe.port.rx_emsg;
-            auto result{0}; // 0 means unsupported
-
-            if (msg.is_ext_msg(PD_EXT_MSGT::PPS_Status)) {
-                result = msg.read32(0);
-            }
-
-            pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_PPS_STATUS);
-            pe.port.notify_dpm(MsgToDpm_PPSStatus(result));
-            return PE_SNK_Ready;
-        }
-
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
-
-        return No_State_Change;
-    }
-
-    void on_exit_state() {
-        auto& pe = get_fsm_context();
-        pe.check_request_progress_exit();
-    }
-};
-
-
-class PE_Dpm_Get_Revision_State : public etl::fsm_state<PE, PE_Dpm_Get_Revision_State, PE_Dpm_Get_Revision, MsgSysUpdate, MsgTransitTo> {
-public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
-        pe.log_state();
-
-        pe.send_ctrl_msg(PD_CTRL_MSGT::Get_Revision);
-        pe.check_request_progress_enter();
-        return No_State_Change;
-    }
-
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
-        auto send_status = pe.check_request_progress_run();
-
-        if (send_status == PE_REQUEST_PROGRESS::FINISHED &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
-        {
-            auto& msg = pe.port.rx_emsg;
-            auto result{0}; // 0 means unsupported
-
-            if (msg.is_data_msg(PD_DATA_MSGT::Revision)) {
-                result = msg.read32(0);
-            }
-
-            pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_REVISION);
-            pe.port.notify_dpm(MsgToDpm_PartnerRevision(result));
-            return PE_SNK_Ready;
-        }
-
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
-
-        return No_State_Change;
-    }
-
-    void on_exit_state() {
-        auto& pe = get_fsm_context();
-        pe.check_request_progress_exit();
-    }
-};
-
-
-class PE_Dpm_Get_Source_Info_State : public etl::fsm_state<PE, PE_Dpm_Get_Source_Info_State, PE_Dpm_Get_Source_Info, MsgSysUpdate, MsgTransitTo> {
-public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
-        pe.log_state();
-
-        pe.send_ctrl_msg(PD_CTRL_MSGT::Get_Source_Info);
-        pe.check_request_progress_enter();
-        return No_State_Change;
-    }
-
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
-        auto send_status = pe.check_request_progress_run();
-
-        if (send_status == PE_REQUEST_PROGRESS::FINISHED &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
-        {
-            auto& msg = pe.port.rx_emsg;
-            auto result{0}; // 0 means unsupported
-
-            if (msg.is_data_msg(PD_DATA_MSGT::Source_Info)) {
-                result = msg.read32(0);
-            }
-
-            pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::GET_SRC_INFO);
-            pe.port.notify_dpm(MsgToDpm_SourceInfo(result));
-            return PE_SNK_Ready;
-        }
-
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
-
-        return No_State_Change;
-    }
-
-    void on_exit_state() {
-        auto& pe = get_fsm_context();
-        pe.check_request_progress_exit();
-    }
-};
-
 etl_ext::fsm_state_pack<
     PE_SNK_Startup_State,
     PE_SNK_Discovery_State,
@@ -1394,10 +1241,7 @@ etl_ext::fsm_state_pack<
     PE_BIST_Carrier_Mode_State,
     PE_BIST_Test_Mode_State,
     PE_Give_Revision_State,
-    PE_Src_Disabled_State,
-    PE_Dpm_Get_PPS_Status_State,
-    PE_Dpm_Get_Revision_State,
-    PE_Dpm_Get_Source_Info_State
+    PE_Src_Disabled_State
 > pe_state_list;
 
 PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)

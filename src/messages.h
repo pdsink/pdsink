@@ -63,9 +63,6 @@ enum msg_dpm_id {
     MSG_TO_DPM__EPR_ENTRY_FAILED,
     // Results of DPM requests
     MSG_TO_DPM__NEW_POWER_LEVEL,
-    MSG_TO_DPM__PPS_STATUS,
-    MSG_TO_DPM__PARTNER_REVISION,
-    MSG_TO_DPM__SOURCE_INFO,
     // Sugar
     MSG_TO_DPM__HANDSHAKE_DONE, // Contracted and upgraded to EPR if possible.
     MSG_TO_DPM__IDLE, // PE_SNK_Ready with no activity.
@@ -79,9 +76,6 @@ DEFINE_SIMPLE_MSG(MsgToDpm_SrcDisabled, MSG_TO_DPM__SRC_DISABLED);
 DEFINE_PARAM_MSG(MsgToDpm_Alert, MSG_TO_DPM__ALERT, uint32_t, value);
 DEFINE_PARAM_MSG(MsgToDpm_EPREntryFailed, MSG_TO_DPM__EPR_ENTRY_FAILED, uint32_t, reason);
 DEFINE_PARAM_MSG(MsgToDpm_NewPowerLevel, MSG_TO_DPM__NEW_POWER_LEVEL, bool, ok);
-DEFINE_PARAM_MSG(MsgToDpm_PPSStatus, MSG_TO_DPM__PPS_STATUS, uint32_t, value);
-DEFINE_PARAM_MSG(MsgToDpm_PartnerRevision, MSG_TO_DPM__PARTNER_REVISION, uint32_t, value);
-DEFINE_PARAM_MSG(MsgToDpm_SourceInfo, MSG_TO_DPM__SOURCE_INFO, uint32_t, value);
 DEFINE_SIMPLE_MSG(MsgToDpm_HandshakeDone, MSG_TO_DPM__HANDSHAKE_DONE);
 DEFINE_SIMPLE_MSG(MsgToDpm_Idle, MSG_TO_DPM__IDLE);
 
