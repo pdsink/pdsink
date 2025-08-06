@@ -60,7 +60,7 @@ public:
     // shared with DRV
     PD_CHUNK rx_chunk{};
     PD_CHUNK tx_chunk{};
-    etl::atomic<TCPC_TRANSMIT_STATUS::Type> tcpc_tx_status{TCPC_TRANSMIT_STATUS::UNSET};
+    etl::atomic<TCPC_TRANSMIT_STATUS> tcpc_tx_status{TCPC_TRANSMIT_STATUS::UNSET};
 
 
     // In full PD stack we should keep separate revision for all SOP*.

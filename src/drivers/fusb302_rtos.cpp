@@ -220,14 +220,11 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     return true;
 }
 
-void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status) {
-    sync_transmit.mark_finished();
-
-    // Safety check. If TX was repeated without waiting previous one =>
-    // status is outdated, don't update. Probably, this should not happen
-    // because of FIFO flush before transmit.
-    if (!sync_transmit.is_enquired()) {
-        port.tcpc_tx_status.store(status);
+void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
+    // Ensure transmit was not re-called. In other case our info is outdated
+    // and should be discarded.
+    auto expected = TCPC_TRANSMIT_STATUS::SENDING;
+    if (port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
         has_deferred_wakeup = true;
     }
 }
@@ -342,7 +339,7 @@ bool Fusb302Rtos::fusb_hr_send_begin() {
     sync_hr_send.mark_started();
 
     // Cleanup before send
-    sync_transmit.reset();
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
     rx_queue.clear_from_producer();
 
     Control3 ctrl3;
@@ -363,7 +360,7 @@ bool Fusb302Rtos::hr_cleanup() {
     // Cleanup internal states after hard reset received or been sent.
     DRV_FAIL_ON_ERROR(fusb_pd_reset());
     rx_queue.clear_from_producer();
-    sync_transmit.reset();
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
     return true;
 }
 
@@ -613,7 +610,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
 
     if (sync_rx_enable.is_enquired()) {
         // TODO: ensure discard pending TX and in-progress operations.
-        if (sync_transmit.is_enquired()) { sync_transmit.reset(); }
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
         sync_rx_enable.mark_started();
         DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
@@ -632,8 +629,8 @@ bool Fusb302Rtos::handle_tcpc_calls() {
         has_deferred_wakeup = true;
     }
 
-    if (sync_transmit.is_enquired()) {
-        sync_transmit.mark_started();
+    auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
+    if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
         DRV_LOG_ON_ERROR(fusb_tx_pkt_begin());
     }
 

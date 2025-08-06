@@ -93,11 +93,7 @@ public:
 
     bool fetch_rx_data() override;
 
-    void req_transmit() override {
-        sync_transmit.enquire();
-        kick_task();
-    };
-    bool is_transmit_done() override { return sync_transmit.is_ready(); };
+    void req_transmit() override { kick_task(); };
 
     void req_set_bist(TCPC_BIST_MODE mode) override {
         sync_set_bist.enquire(mode);
@@ -142,7 +138,7 @@ private:
     bool fusb_set_polarity(TCPC_POLARITY polarity);
     bool fusb_set_rx_enable(bool enable);
     bool fusb_tx_pkt_begin();
-    void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::Type status);
+    void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status);
     bool fusb_rx_pkt();
     bool fusb_hr_send_begin();
     bool fusb_hr_send_end();
@@ -176,7 +172,6 @@ private:
     LeapSync<> sync_active_cc;
     LeapSync<TCPC_POLARITY> sync_set_polarity;
     LeapSync<bool> sync_rx_enable;
-    LeapSync<> sync_transmit;
     LeapSync<TCPC_BIST_MODE> sync_set_bist;
     LeapSync<> sync_hr_send;
 

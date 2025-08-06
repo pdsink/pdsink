@@ -91,8 +91,6 @@ public:
 
     // Mark TX chunk for sending (+ cleanup status flags from prev operations)
     void prl_tx_enquire_chunk();
-    // Fill revision / message id fields and send packet to TCPC driver
-    void tcpc_enquire_msg();
 
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING

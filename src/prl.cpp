@@ -761,6 +761,7 @@ public:
         port.tx_retry_counter = 0;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::IS_FROM_LAYER_RESET)) {
+            // This also resets fusb302 FIFO
             prl_tx.prl.tcpc.req_rx_enable(true);
         }
 
@@ -824,9 +825,32 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& prl_tx = get_fsm_context();
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        prl_tx.prl.tcpc_enquire_msg();
+        port.tx_chunk.header.message_id = port.tx_msg_id_counter;
+        port.tx_chunk.header.spec_revision = port.revision;
+
+        // Here we should fill power/data roles. But since we are Sink-only UFP,
+        // we can just use default values (zeroes).
+
+        //
+        // Prepare for sending (PRL_TX can be used without RCH/TCH).
+        //
+
+        // Block pending garbage from driver
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+
+        // Reset PRL_TX "output"
+        port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
+        port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
+
+        // Mark data ready to be consumed by TCPC
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
+
+        // Kick driver
+        prl_tx.prl.tcpc.req_transmit();
+
         return No_State_Change;
     }
 };
@@ -855,12 +879,6 @@ public:
         if (status == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             return PRL_Tx_Match_MessageID;
         }
-
-        //
-        // NOTE: do NOT check TCPC_TRANSMIT_STATUS::DISCARDED.
-        // Rely on teleport to PRL_Tx_Discard_Message by prl_rx,
-        // to have new msg + discard in sync.
-        //
 
         if (status == TCPC_TRANSMIT_STATUS::FAILED) {
             return PRL_Tx_Check_RetryCounter;
@@ -981,9 +999,8 @@ public:
         // Do discard, if any TX chunk processing:
         // - input queued to send
         // - passed to driver, and sending in progress
-        // - if driver signaled discard
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
-            port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::WAITING)
+            is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
         {
             port.tx_msg_id_counter++;
             port.notify_pe(MsgToPe_PrlReportDiscard{});
@@ -1084,8 +1101,8 @@ public:
 
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
             // In theory, we can have pending packet in RCH, re-routed by
-            // discard. Postpone processing of new one to next cycle, to allow
-            // RCH to finish.
+            // discard in TCH. Postpone processing of new one to next cycle,
+            // to allow RCH to finish.
             //
             // This is not expected to happen, because we do multiple RCH/TCH
             // calls.
@@ -1184,7 +1201,7 @@ public:
         //
         // - new data enquired (but not sent yet)
         // - sending in progress
-        // - failed/discarded
+        // - failed
         //
         // Don't discard if sending succeeded. Let it finish as usual, because
         // this status can arrive together with new incoming message.
@@ -1446,33 +1463,17 @@ void PRL::reset_revision() {
     port.revision = PD_REVISION::REV30;
 }
 
-void PRL::tcpc_enquire_msg() {
-    port.tx_chunk.header.message_id = port.tx_msg_id_counter;
-    port.tx_chunk.header.spec_revision = port.revision;
-
-    // Here we should fill power/data roles. But since we are Sink-only UFP,
-    // we can just use default values (zeroes).
-
-    // TODO: probably not needed, because the only entry point is
-    // `prl_tx_enquire_chunk()`, which clears flags.
-    port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
-    port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
-
-    // Rearm TCPC TX status.
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::WAITING);
-
-    tcpc.req_transmit();
-}
-
 void PRL::prl_tx_enquire_chunk() {
-    // TODO: may be used to protect re-calls for old data. Check, if we should
-    // leave it or rely on LeapSync.
+    // Ensure to prohibit accepting statuses from driver
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
+    // Clear PRL_TX "output"
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
     port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
+
+    // Mark tx_chunk ready to be sent
     port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
-    // Ensure to call PRL_TX FSM after RCH/TCH
+
     port.wakeup();
 }
 

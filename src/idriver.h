@@ -39,18 +39,23 @@ struct TCPC_HW_FEATURES {
 };
 
 // NOTE: discarding is done at PRL layer.
-namespace TCPC_TRANSMIT_STATUS {
-    enum Type {
-        // No operation
-        UNSET = -1,
-        // Transmission is in progress (including I2C transfer)
-        WAITING = 0,
-        // Transmission is completed (and GoodCRC received, if supported)
-        SUCCEEDED = 1,
-        // Transmission failed (no GoodCRC received)
-        FAILED = 2
-    };
+enum class TCPC_TRANSMIT_STATUS {
+    // No operation
+    UNSET = 0,
+    // PRL prepared data for PHY
+    ENQUIRED = 1,
+    // PHY accepted data and started sending
+    SENDING = 2,
+    // Transmission is completed (and GoodCRC received, if supported)
+    SUCCEEDED = 3,
+    // Transmission failed (no GoodCRC received)
+    FAILED = 4
 };
+
+static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
+    return status == TCPC_TRANSMIT_STATUS::ENQUIRED ||
+           status == TCPC_TRANSMIT_STATUS::SENDING;
+}
 
 //
 // Interfaces
@@ -111,7 +116,6 @@ public:
 
     // Transmit packet in tx_info
     virtual void req_transmit() = 0;
-    virtual bool is_transmit_done() = 0;
 
     // BIST mode set
     virtual void req_set_bist(TCPC_BIST_MODE mode) = 0;
