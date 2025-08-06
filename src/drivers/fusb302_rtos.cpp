@@ -302,8 +302,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     }
 
     // Pick all pending packets from RX FIFO.
-    // Note, this should not happen, but in theory we can get several packets
-    // per interrupt handler call. Use loop to be sure all those are extracted.
+    //
+    // NOTE: This should not happen, but in theory we can get several packets
+    // per interrupt handler call. Use a loop to be sure all those are extracted.
     while (!status1.RX_EMPTY) {
         HAL_FAIL_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
 
@@ -459,15 +460,15 @@ bool Fusb302Rtos::handle_interrupt() {
     return true;
 }
 
-// Since FUSB302 does not allow make different measurements in parallel,
-// do all in single place to avoid collisions. Also, use simple FSM to implement
+// Since FUSB302 does not allow making different measurements in parallel,
+// do all in a single place to avoid collisions. Also, use simple FSM to implement
 // non-blocking delays.
 bool Fusb302Rtos::meter_tick(bool &repeat) {
     repeat = false;
     Status0 status0;
     Switches0 sw0;
 
-    // Should be 250uS, but FreeRTOS not allows that precise timing.
+    // Should be 250uS, but FreeRTOS does not allow that precise timing.
     // Use 2 timer ticks (2ms) to guarantee at least 1ms after jitter.
     static constexpr uint32_t MEASURE_DELAY_MS = 2;
 

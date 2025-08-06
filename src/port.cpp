@@ -41,7 +41,7 @@ void Port::wait_dpm_transit_to_default(bool enable) {
 }
 
 bool Port::is_prl_running() {
-    // Note, those defaults will be returned if PRL instance not yet subscribed
+    // Those defaults will be returned if PRL instance not yet subscribed
     // to the message bus. That's an acceptable behavior.
     bool is_running = false, is_busy = false;
 

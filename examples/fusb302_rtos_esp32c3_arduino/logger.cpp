@@ -36,7 +36,7 @@ void logger_start() {
 }
 */
 
-// Use idf api for output. It's connection detector is more robust for re-uploads.
+// Use idf api for output. Its connection detector is more robust for re-uploads.
 void logger_start() {
     xTaskCreate([](void* pvParameters) {
         (void)pvParameters;

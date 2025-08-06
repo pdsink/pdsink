@@ -62,7 +62,7 @@ void Fusb302RtosHalEsp32::init_pins() {
 
     esp_err_t err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        // Ignore error, is someone already called gpio_install_isr_service,
+        // Ignore error, if someone already called gpio_install_isr_service,
         // this is expected use case. But report all other errors.
         ESP_ERROR_CHECK(err);
     }

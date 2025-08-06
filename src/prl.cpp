@@ -724,12 +724,12 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Note, this is low level layer for packet rx/tx.
+// This is low level layer for packet rx/tx.
 //
 // - Only discards are reported to PE from here
 // - Success/errors are forwarded to RCH/TCH via flags.
 // - Some room is reserved for CRC processing, to stay close to spec. But
-//   but currently only branches for hardware-supported GoodCRC are actual.
+//   currently only branches for hardware-supported GoodCRC are actual.
 //   This should be revisited and cleaned if software CRC support is not actual.
 
 class PRL_Tx_PHY_Layer_Reset_State : public etl::fsm_state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset, MsgSysUpdate, MsgTransitTo> {
@@ -804,7 +804,7 @@ public:
         auto& prl = prl_tx.prl;
         prl_tx.log_state();
 
-        // Note, spec says to reset only `msg_id_counter` here, and reset
+        // NOTE: Spec says to reset only `msg_id_counter` here, and reset
         // `msg_id_stored` via RX state change. But etl::fsm does not re-run
         // `on_enter` if we come from current state to itself.
         // So, reset both here.
@@ -888,8 +888,8 @@ public:
         auto& prl_tx = get_fsm_context();
         prl_tx.log_state();
 
-        // Since msg id match currently embedded in transfer success status,
-        // just forward to next state
+        // Since message id match is currently embedded in
+        // transfer success status, just forward to next state
         return PRL_Tx_Message_Sent;
     }
 };
@@ -1138,7 +1138,7 @@ class PRL_Rx_Send_GoodCRC_State : public etl::fsm_state<PRL_Rx, PRL_Rx_Send_Good
 public:
     ON_TRANSIT_TO; ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
 
-    // All modern hardware send CRC automatically. This state exists
+    // All modern hardware sends CRC automatically. This state exists
     // to match spec and for potential extensions.
     auto on_enter_state() -> etl::fsm_state_id_t {
         auto& prl_rx = get_fsm_context();

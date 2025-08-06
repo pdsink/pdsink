@@ -4,7 +4,7 @@
 
 <img src="./docs/images/intro1.jpg" width="30%"> <img src="./docs/images/intro2.jpg" width="30%">
 
-This library is focused on most demanded needs of PD-powered projects and
+This library is focused on the most demanded needs of PD-powered projects and
 the simplicity of use.
 
 Features:

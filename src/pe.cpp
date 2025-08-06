@@ -241,12 +241,12 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        // By spec, we should request PDO on previous stage. But for sink-only
+        // By spec, we should request PDO at the previous stage. But for sink-only
         // this place looks more convenient, as unified DPM point for all cases.
         // This decision can be changed later, if needed.
         RDO_ANY rdo{pe.dpm.get_request_data_object(pe.port.source_caps)};
 
-        // Minimal check for RDO validity.
+        // A minimal check for RDO validity.
         // DPM implementation MUST NOT return invalid data.
         if (rdo.obj_position < 1 || rdo.obj_position > pe.port.source_caps.size()) {
             PE_LOGE("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
@@ -257,7 +257,7 @@ public:
         auto& msg = pe.port.tx_emsg;
         msg.clear();
 
-        // remember RDO, to store after success
+        // remember RDO to store after success
         pe.port.rdo_to_request = rdo.raw_value;
 
         if (pe.is_in_epr_mode()) {
@@ -571,8 +571,8 @@ public:
             //
             // Process DPM requests
             //
-            // Note, request flags are cleared from inside of states, when
-            // result determined (succees or failure). Any interrupt of process
+            // NOTE: Request flags are cleared from inside of states, when
+            // result determined (success or failure). Any interrupt of process
             // leaves request armed. Should be ok for sink. Can be changed later.
             //
 

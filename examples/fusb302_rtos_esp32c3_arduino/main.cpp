@@ -6,8 +6,8 @@
 // This may be useful for EPR mode to keep HW simple, because fusb302b allows
 // 28v max at VBUS pin, and can die.
 //
-// But it's better not use this hack, and connect VBUS pin using resistor
-// and TVS instead. Without EPR direct VBUS connection will be fine.
+// But it's better not to use this hack, and connect VBUS pin using resistor
+// and TVS instead. Without EPR, direct VBUS connection will be fine.
 class Driver : public pd::fusb302::Fusb302Rtos {
 public:
     Driver(pd::Port& port, pd::fusb302::Fusb302RtosHalEsp32& hal)

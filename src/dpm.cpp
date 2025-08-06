@@ -14,10 +14,10 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 
     //
     // By default demand as much as possible. In other case SRC can
-    // hide some capabilities. Note, this list does NOT depends on SRC and
+    // hide some capabilities. This list does NOT depend on SRC and
     // exists to describe SNK needs.
     //
-    // Note, this can be just a list of uint32_t constants, but for better
+    // NOTE: this can be just a list of uint32_t constants, but for better
     // readability we use PDO structures to fill data.
     //
 
@@ -27,7 +27,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 
     // See [rev3.2] 6.4.1.3 Sink Power Data Objects
     // PDO 1 is always vSafe5V, with extra flags to describe demands.
-    // Note, those flags should be zero in following PDO-s
+    // NOTE: These flags should be zero in following PDO-s
     SNK_PDO_FIXED pdo1{};
     pdo1.pdo_type = PDO_TYPE::FIXED;
     pdo1.dual_role_power = 0; // No DRP support, Sink only
@@ -151,7 +151,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
     // Customize if required.
 
     //
-    // Note, here we indirectly check EPR mode. At the start we go to SRP, where
+    // NOTE: Here we indirectly check EPR mode. At the start we go to SRP, where
     // EPR voltage will not be available, and fallback to vSafe5V will be used.
     // Then, PE will automatically upgrade to EPR (with new EPR Caps) and this
     // function will be called again.

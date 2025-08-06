@@ -96,12 +96,12 @@ public:
     // keep this method for compatibility.
     virtual bool is_vbus_ok() = 0;
 
-    // Note, any other actions should NOT reset selected polarity. It's updated
+    // NOTE: Any other actions should NOT reset selected polarity. It's updated
     // only by this call, when new cable connect detected.
     virtual void req_set_polarity(TCPC_POLARITY active_cc) = 0;
     virtual bool is_set_polarity_done() = 0;
 
-    // Note, this should flush RX/TX FIFO on disable,
+    // NOTE: This should flush RX/TX FIFO on disable,
     // and TX FIFO (only) on enable.
     virtual void req_rx_enable(bool enable) = 0;
     virtual bool is_rx_enable_done() = 0;
