@@ -191,8 +191,7 @@ private:
     };
     MeterState meter_state{MeterState::IDLE};
     PD_TIME_T meter_wait_until_ts{0};
-    uint8_t meter_backup_cc1{0};
-    uint8_t meter_backup_cc2{0};
+    Switches0 meter_sw0_backup{0};
 };
 
 } // namespace fusb302

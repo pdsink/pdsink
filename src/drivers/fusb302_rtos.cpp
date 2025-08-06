@@ -492,6 +492,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
                 DRV_LOGE("Can't measure active CC without polarity set");
                 meter_state = MeterState::CC_ACTIVE_END;
                 repeat = true;
+                break;
             }
 
             static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
@@ -528,8 +529,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
         case MeterState::SCAN_CC_BEGIN:
             HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
-            meter_backup_cc1 = sw0.MEAS_CC1;
-            meter_backup_cc2 = sw0.MEAS_CC2;
+            // save MEAS_CC1/MEAS_CC2
+            meter_sw0_backup = sw0;
 
             // Measure CC1
             sw0.MEAS_CC1 = 1;
@@ -569,8 +570,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             // Restore previous state
             HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
-            sw0.MEAS_CC1 = meter_backup_cc1;
-            sw0.MEAS_CC2 = meter_backup_cc2;
+            sw0.MEAS_CC1 = meter_sw0_backup.MEAS_CC1;
+            sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
             HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
             sync_scan_cc.mark_finished();
