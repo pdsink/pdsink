@@ -140,8 +140,7 @@ private:
     bool fusb_tx_pkt_begin(PD_CHUNK& chunk);
     void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status);
     bool fusb_rx_pkt();
-    bool fusb_hr_send_begin();
-    bool fusb_hr_send_end();
+    bool fusb_hr_send();
     bool fusb_set_bist(TCPC_BIST_MODE mode);
     // Clear insternal states after hard reset received or been sent.
     bool hr_cleanup();

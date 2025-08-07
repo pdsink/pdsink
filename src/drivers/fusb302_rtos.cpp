@@ -340,11 +340,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     return true;
 }
 
-bool Fusb302Rtos::fusb_hr_send_begin() {
-    // Cleanup before send
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-    rx_queue.clear_from_producer();
-
+bool Fusb302Rtos::fusb_hr_send() {
     Control3 ctrl3;
     HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
@@ -353,17 +349,10 @@ bool Fusb302Rtos::fusb_hr_send_begin() {
     return true;
 }
 
-bool Fusb302Rtos::fusb_hr_send_end() {
-    sync_hr_send.job_finish();
-    has_deferred_wakeup = true;
-    return true;
-}
-
 bool Fusb302Rtos::hr_cleanup() {
     // Cleanup internal states after hard reset received or been sent.
     DRV_FAIL_ON_ERROR(fusb_pd_reset());
     rx_queue.clear_from_producer();
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
     return true;
 }
 
@@ -429,7 +418,7 @@ bool Fusb302Rtos::handle_interrupt() {
         if (interrupta.I_HARDSENT) {
             DRV_LOGI("IRQ: hard reset sent");
             DRV_FAIL_ON_ERROR(hr_cleanup());
-            fusb_hr_send_end();
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
         }
 
         if (interrupt.I_COLLISION) {
@@ -629,7 +618,18 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     }
 
     if (sync_hr_send.get_job()) {
-        DRV_LOG_ON_ERROR(fusb_hr_send_begin());
+        // Cleanup before send (FIFOs are cleared automatically)
+        rx_queue.clear_from_producer();
+
+        // Emulate transmit entry to get result as for ordinary chunk
+        // (because we can have both success and failure)
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::SENDING);
+
+        // Initiate hard reset sending. Then PRL should check
+        // port.tcpc_tx_status to get result.
+        DRV_LOG_ON_ERROR(fusb_hr_send());
+        sync_hr_send.job_finish();
+        has_deferred_wakeup = true;
     }
 
     TCPC_BIST_MODE _bist_mode{};

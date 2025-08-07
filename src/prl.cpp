@@ -1318,7 +1318,10 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
-        // Wait for TCPC call to complete
+        // Wait for TCPC call to complete. This does NOT means transfer ended.
+        // This means driver accepted request and commended chip to send HR.
+        // Final result is available via `port.tcpc_tx_status` (as for ordinary
+        // transfer)
         if (prl.tcpc.is_hr_send_done()) { return No_State_Change; }
 
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
@@ -1340,7 +1343,9 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& port = get_fsm_context().prl.port;
-        if (port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
+        if ((port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
+            port.timers.is_expired(PD_TIMEOUT::tHardResetComplete))
+        {
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
         return No_State_Change;
@@ -1372,6 +1377,16 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& port = get_fsm_context().prl.port;
+
+        //
+        // 6.12.2.4.7 PRL_HR_PE_Hard_Reset_Complete
+        // If Hard Reset Signaling is still pending due to a non-Idle channel
+        // this Shall be cleared and not sent
+        //
+        // TODO: fusb302 has no way to interrupt pending HR. We rely on
+        // chip/timer timeouts. May be, driver API should be extended
+        // for another hardware.
+        //
 
         if (port.prl_hr_flags.test_and_clear(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE)) {
             return PRL_HR_PE_Hard_Reset_Complete;
