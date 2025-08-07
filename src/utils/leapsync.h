@@ -7,15 +7,15 @@ template<typename ParamType = void>
 class LeapSync {
 private:
     struct empty_storage {};
-    struct param_storage { etl::atomic<ParamType> value; };
+    struct param_storage { ParamType value; };
 
-    etl::atomic<uint16_t> target_version;
-    etl::atomic<uint16_t> completed_version;
-    etl::atomic<uint16_t> processing_version;
+    enum class STATE{
+        IDLE,
+        ENQUIRED,
+        WORKING
+    };
 
-    static bool is_greater(uint16_t a, uint16_t b) {
-        return (int16_t)(a - b) > 0;
-    }
+    etl::atomic<STATE> state{STATE::IDLE};
 
     typename etl::conditional<
         etl::is_void<ParamType>::value,
@@ -24,8 +24,6 @@ private:
     >::type storage;
 
 public:
-    LeapSync() : target_version(0), completed_version(0), processing_version(0) {}
-
     //
     // Producer methods
     //
@@ -34,51 +32,60 @@ public:
     template<typename T = ParamType>
     typename etl::enable_if<!etl::is_void<T>::value>::type
     enquire(const T& params) {
-        storage.value.store(params);
-        target_version.fetch_add(1);
+        // 2-phase commit
+        state.store(STATE::IDLE);
+        storage.value = params;
+        state.store(STATE::ENQUIRED);
     }
 
     // enquire for void
     template<typename T = ParamType>
     typename etl::enable_if<etl::is_void<T>::value>::type
     enquire() {
-        target_version.fetch_add(1);
+        state.store(STATE::ENQUIRED);
     }
 
-    bool is_ready() const {
-        return target_version.load() == completed_version.load();
-    }
+    bool is_idle() const { return state.load() == STATE::IDLE; }
+
+    // Both producer and consumer
+    void reset() { state.store(STATE::IDLE); }
 
     //
     // Consumer methods
     //
 
-    bool is_enquired() const {
-        return is_greater(target_version.load(), processing_version.load());
-    }
-
-    bool is_started() const {
-        return is_greater(processing_version.load(), completed_version.load());
-    }
-
-    void mark_started() {
-        processing_version.store(target_version.load());
-    }
-
-    void mark_finished() {
-        completed_version.store(processing_version.load());
-    }
-
-    void reset() {
-        uint16_t target = target_version.load();
-        completed_version.store(target);
-        processing_version.store(target);
-    }
-
-    // access to params (only for non-void)
+    // job fetch for non-void types
     template<typename T = ParamType>
-    typename etl::enable_if<!etl::is_void<T>::value, etl::atomic<T>&>::type
-    get_param() {
-        return storage.value;
+    typename etl::enable_if<!etl::is_void<T>::value, bool>::type
+    get_job(T& params) {
+        // Empty or working => no new job to fetch
+        if (state.load() != STATE::ENQUIRED) { return false; }
+
+        T tmp = storage.value;
+        auto expected = STATE::ENQUIRED;
+
+        if (state.compare_exchange_strong(expected, STATE::WORKING)) {
+            params = tmp;
+            return true;
+        }
+        return false;
+    }
+
+    // job fetch for void
+    template<typename T = ParamType>
+    typename etl::enable_if<etl::is_void<T>::value, bool>::type
+    get_job() {
+        auto expected = STATE::ENQUIRED;
+        if (state.compare_exchange_strong(expected, STATE::WORKING)) {
+            return true;
+        }
+        return false;
+    }
+
+    // mark job finished
+    void job_finish() {
+        auto expected = STATE::WORKING;
+        // Update status only if NOT overwritten by producer (with new job)
+        state.compare_exchange_strong(expected, STATE::IDLE);
     }
 };

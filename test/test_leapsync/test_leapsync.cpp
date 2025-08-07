@@ -1,81 +1,109 @@
 #include <gtest/gtest.h>
 #include "utils/leapsync.h"
 
-TEST(LeapSyncTest, BasicEnquireAndReady) {
+TEST(LeapSyncTest, BasicWorkflow) {
     LeapSync<int> sync;
-    EXPECT_TRUE(sync.is_ready());
+    EXPECT_TRUE(sync.is_idle());
 
+    // Producer enquires
     sync.enquire(42);
-    EXPECT_FALSE(sync.is_ready());
+    EXPECT_FALSE(sync.is_idle());
 
-    EXPECT_TRUE(sync.is_enquired());
-    sync.mark_started();
-    EXPECT_TRUE(sync.is_started());
-    sync.mark_finished();
+    // Consumer gets job
+    int param;
+    EXPECT_TRUE(sync.get_job(param));
+    EXPECT_EQ(param, 42);
 
-    EXPECT_TRUE(sync.is_ready());
-    EXPECT_FALSE(sync.is_started());
+    // Consumer finishes
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
 }
 
-TEST(LeapSyncTest, NoParamsVersion) {
+TEST(LeapSyncTest, VoidParamsWorkflow) {
     LeapSync<> sync;
-    EXPECT_TRUE(sync.is_ready());
+    EXPECT_TRUE(sync.is_idle());
 
     sync.enquire();
-    EXPECT_FALSE(sync.is_ready());
+    EXPECT_FALSE(sync.is_idle());
 
-    sync.mark_started();
-    sync.mark_finished();
-
-    EXPECT_TRUE(sync.is_ready());
+    EXPECT_TRUE(sync.get_job());
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
 }
 
-TEST(LeapSyncTest, RequestCoalescing) {
+TEST(LeapSyncTest, EnquireCoalescing) {
     LeapSync<int> sync;
+
+    // Multiple enquires - only last one matters
     sync.enquire(100);
     sync.enquire(200);
     sync.enquire(300);
 
-    EXPECT_TRUE(sync.is_enquired());
-    sync.mark_started();
+    int param;
+    EXPECT_TRUE(sync.get_job(param));
+    EXPECT_EQ(param, 300);  // Should get the last value
 
-    int param = sync.get_param().load();
-    EXPECT_EQ(param, 300);
-
-    sync.mark_finished();
-    EXPECT_TRUE(sync.is_ready());
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
 }
 
-TEST(LeapSyncTest, WorkerWorkflow) {
-    LeapSync<bool> sync;
-    EXPECT_FALSE(sync.is_enquired());
-    EXPECT_FALSE(sync.is_started());
+TEST(LeapSyncTest, NoJobWhenIdle) {
+    LeapSync<int> sync;
 
-    sync.enquire(true);
-    EXPECT_TRUE(sync.is_enquired());
-    EXPECT_FALSE(sync.is_started());
+    int param;
+    EXPECT_FALSE(sync.get_job(param));  // No job when idle
+    EXPECT_TRUE(sync.is_idle());
+}
 
-    sync.mark_started();
-    EXPECT_FALSE(sync.is_enquired());
-    EXPECT_TRUE(sync.is_started());
+TEST(LeapSyncTest, NoJobWhenWorking) {
+    LeapSync<int> sync;
+    sync.enquire(123);
 
-    sync.mark_finished();
-    EXPECT_FALSE(sync.is_enquired());
-    EXPECT_FALSE(sync.is_started());
-    EXPECT_TRUE(sync.is_ready());
+    int param1, param2;
+    EXPECT_TRUE(sync.get_job(param1));   // First get_job succeeds
+    EXPECT_FALSE(sync.get_job(param2));  // Second fails - already working
+
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
+}
+
+TEST(LeapSyncTest, EnquireDuringWork) {
+    LeapSync<int> sync;
+    sync.enquire(111);
+
+    int param;
+    EXPECT_TRUE(sync.get_job(param));
+    EXPECT_EQ(param, 111);
+
+    // New enquire while working
+    sync.enquire(222);
+    EXPECT_FALSE(sync.is_idle());  // Should be ENQUIRED now
+
+    sync.job_finish();
+    // job_finish saw ENQUIRED state, so CAS failed - stays ENQUIRED
+    EXPECT_FALSE(sync.is_idle());
+
+    // Can get the new job
+    EXPECT_TRUE(sync.get_job(param));
+    EXPECT_EQ(param, 222);
+
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
 }
 
 TEST(LeapSyncTest, ResetFunctionality) {
     LeapSync<int> sync;
-    sync.enquire(555);
-    sync.mark_started();
-    EXPECT_TRUE(sync.is_started());
-    EXPECT_FALSE(sync.is_ready());
+    sync.enquire(999);
+
+    int param;
+    EXPECT_TRUE(sync.get_job(param));
+    EXPECT_FALSE(sync.is_idle());  // Working state
 
     sync.reset();
-    EXPECT_FALSE(sync.is_started());
-    EXPECT_TRUE(sync.is_ready());
-    EXPECT_FALSE(sync.is_enquired());
+    EXPECT_TRUE(sync.is_idle());
+
+    // No more jobs after reset
+    EXPECT_FALSE(sync.get_job(param));
 }
 
 TEST(LeapSyncTest, EnumParams) {
@@ -83,60 +111,13 @@ TEST(LeapSyncTest, EnumParams) {
     LeapSync<Mode> sync;
 
     sync.enquire(Mode::AUTO);
-    sync.mark_started();
 
-    Mode mode = sync.get_param().load();
+    Mode mode;
+    EXPECT_TRUE(sync.get_job(mode));
     EXPECT_EQ(mode, Mode::AUTO);
 
-    sync.mark_finished();
-    EXPECT_TRUE(sync.is_ready());
-}
-
-TEST(LeapSyncTest, DoubleMarkStarted) {
-    LeapSync<int> sync;
-    sync.enquire(123);
-    sync.mark_started();
-    sync.mark_started();
-
-    EXPECT_TRUE(sync.is_started());
-
-    sync.mark_finished();
-    EXPECT_TRUE(sync.is_ready());
-}
-
-TEST(LeapSyncTest, CounterOverflow) {
-    LeapSync<> sync;
-    for (int i = 0; i < 65530; ++i) {
-        sync.enquire();
-        sync.mark_started();
-        sync.mark_finished();
-    }
-
-    sync.enquire();
-    EXPECT_TRUE(sync.is_enquired());
-
-    sync.mark_started();
-    EXPECT_TRUE(sync.is_started());
-
-    sync.mark_finished();
-    EXPECT_TRUE(sync.is_ready());
-}
-
-TEST(LeapSyncTest, MultipleEnquireDuringWork) {
-    LeapSync<uint8_t> sync;
-    sync.enquire(10);
-    sync.mark_started();
-
-    sync.enquire(20);
-    sync.enquire(30);
-
-    EXPECT_TRUE(sync.is_started());
-    EXPECT_FALSE(sync.is_ready());
-
-    sync.mark_finished();
-
-    EXPECT_TRUE(sync.is_enquired());
-    EXPECT_FALSE(sync.is_ready());
+    sync.job_finish();
+    EXPECT_TRUE(sync.is_idle());
 }
 
 int main(int argc, char** argv) {

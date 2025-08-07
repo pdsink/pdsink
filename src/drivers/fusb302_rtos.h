@@ -83,13 +83,13 @@ public:
         sync_set_polarity.enquire(active_cc);
         kick_task();
     };
-    bool is_set_polarity_done() override { return sync_set_polarity.is_ready(); };
+    bool is_set_polarity_done() override { return sync_set_polarity.is_idle(); };
 
     void req_rx_enable(bool enable) override {
         sync_rx_enable.enquire(enable);
         kick_task();
     };
-    bool is_rx_enable_done() override { return sync_rx_enable.is_ready(); };
+    bool is_rx_enable_done() override { return sync_rx_enable.is_idle(); };
 
     bool fetch_rx_data() override;
 
@@ -99,13 +99,13 @@ public:
         sync_set_bist.enquire(mode);
         kick_task();
     };
-    bool is_set_bist_done() override { return sync_set_bist.is_ready(); };
+    bool is_set_bist_done() override { return sync_set_bist.is_idle(); };
 
     void req_hr_send() override {
         sync_hr_send.enquire();
         kick_task();
     };
-    bool is_hr_send_done() override { return sync_hr_send.is_ready(); };
+    bool is_hr_send_done() override { return sync_hr_send.is_idle(); };
 
     auto get_hw_features() -> TCPC_HW_FEATURES override { return tcpc_hw_features; };
 

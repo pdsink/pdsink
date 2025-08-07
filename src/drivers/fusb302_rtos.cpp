@@ -336,8 +336,6 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 }
 
 bool Fusb302Rtos::fusb_hr_send_begin() {
-    sync_hr_send.mark_started();
-
     // Cleanup before send
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
     rx_queue.clear_from_producer();
@@ -351,7 +349,7 @@ bool Fusb302Rtos::fusb_hr_send_begin() {
 }
 
 bool Fusb302Rtos::fusb_hr_send_end() {
-    sync_hr_send.mark_finished();
+    sync_hr_send.job_finish();
     has_deferred_wakeup = true;
     return true;
 }
@@ -471,14 +469,12 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
     switch (meter_state) {
         case MeterState::IDLE:
-            if (sync_active_cc.is_enquired()) {
-                sync_active_cc.mark_started();
+            if (sync_active_cc.get_job()) {
                 meter_state = MeterState::CC_ACTIVE_BEGIN;
                 repeat = true;
                 return true;
             }
-            if (sync_scan_cc.is_enquired()) {
-                sync_scan_cc.mark_started();
+            if (sync_scan_cc.get_job()) {
                 meter_state = MeterState::SCAN_CC_BEGIN;
                 repeat = true;
                 return true;
@@ -520,7 +516,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::CC_ACTIVE_END:
-            sync_active_cc.mark_finished();
+            sync_active_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
             break;
@@ -572,7 +568,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
             HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
-            sync_scan_cc.mark_finished();
+            sync_scan_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
 
@@ -601,31 +597,32 @@ bool Fusb302Rtos::handle_timer() {
 }
 
 bool Fusb302Rtos::handle_tcpc_calls() {
-    if (sync_set_polarity.is_enquired()) {
-        sync_set_polarity.mark_started();
-        DRV_LOG_ON_ERROR(fusb_set_polarity(sync_set_polarity.get_param()));
-        sync_set_polarity.mark_finished();
+
+    TCPC_POLARITY _polarity{};
+    if (sync_set_polarity.get_job(_polarity)) {
+        DRV_LOG_ON_ERROR(fusb_set_polarity(_polarity));
+        sync_set_polarity.job_finish();
         has_deferred_wakeup = true;
     }
 
-    if (sync_rx_enable.is_enquired()) {
+    bool _rx_enabled{};
+    if (sync_rx_enable.get_job(_rx_enabled)) {
         // TODO: ensure discard pending TX and in-progress operations.
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
-        sync_rx_enable.mark_started();
-        DRV_LOG_ON_ERROR(fusb_set_rx_enable(sync_rx_enable.get_param()));
-        sync_rx_enable.mark_finished();
+        DRV_LOG_ON_ERROR(fusb_set_rx_enable(_rx_enabled));
+        sync_rx_enable.job_finish();
         has_deferred_wakeup = true;
     }
 
-    if (sync_hr_send.is_enquired()) {
+    if (sync_hr_send.get_job()) {
         DRV_LOG_ON_ERROR(fusb_hr_send_begin());
     }
 
-    if (sync_set_bist.is_enquired()) {
-        sync_set_bist.mark_started();
-        DRV_LOG_ON_ERROR(fusb_set_bist(sync_set_bist.get_param()));
-        sync_set_bist.mark_finished();
+    TCPC_BIST_MODE _bist_mode{};
+    if (sync_set_bist.get_job(_bist_mode)) {
+        DRV_LOG_ON_ERROR(fusb_set_bist(_bist_mode));
+        sync_set_bist.job_finish();
         has_deferred_wakeup = true;
     }
 
@@ -703,14 +700,14 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 //
 
 bool Fusb302Rtos::try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) {
-    if (!sync_scan_cc.is_ready()) { return false; }
+    if (!sync_scan_cc.is_idle()) { return false; }
     cc1 = cc1_cache.load();
     cc2 = cc2_cache.load();
     return true;
 }
 
 bool Fusb302Rtos::try_active_cc_result(TCPC_CC_LEVEL::Type& cc) {
-    if (!sync_active_cc.is_ready()) { return false; }
+    if (!sync_active_cc.is_idle()) { return false; }
 
     auto _polarity = polarity.load();
 
