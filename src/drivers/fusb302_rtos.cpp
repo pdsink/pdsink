@@ -97,7 +97,9 @@ bool Fusb302Rtos::fusb_setup() {
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
 
-    // Note: we don't touch data/power role bits.
+    DRV_FAIL_ON_ERROR(fusb_set_rxtx_interrupts(true));
+
+    // NOTE: we don't touch data/power role bits.
     // - defaults are ok for sink/ufp
     // - driver API has no appropriate methods.
     return true;
@@ -105,7 +107,7 @@ bool Fusb302Rtos::fusb_setup() {
 
 bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     //
-    // Note: I_BC_LVL interrupts usage should be restricted, due lot of false
+    // NOTE: I_BC_LVL interrupts usage should be restricted, due lot of false
     // positives on BMC exchange. Usually, in all scenarios better alternatives
     // exist.
     //
@@ -171,52 +173,59 @@ bool Fusb302Rtos::fusb_pd_reset() {
 }
 
 bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
+    //
+    // Attach comparator
+    //
     Switches0 sw0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
     sw0.MEAS_CC1 = 0;
     sw0.MEAS_CC2 = 0;
 
-    if (polarity == TCPC_POLARITY::CC1) {
-        sw0.MEAS_CC1 = 1;
-        DRV_LOGI("Selected polarity: CC1");
-    } else if (polarity == TCPC_POLARITY::CC2) {
-        sw0.MEAS_CC2 = 1;
-        DRV_LOGI("Selected polarity: CC2");
-    } else {
-        DRV_LOGI("Selected polarity: NONE");
-    }
+    if (polarity == TCPC_POLARITY::CC1) { sw0.MEAS_CC1 = 1; }
+    if (polarity == TCPC_POLARITY::CC2) { sw0.MEAS_CC2 = 1; }
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
-    this->polarity.store(polarity);
-    return true;
-}
-
-bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
-    DRV_FAIL_ON_ERROR(fusb_flush_rx_fifo());
-    rx_queue.clear_from_producer();
-    DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
-    DRV_FAIL_ON_ERROR(fusb_set_auto_goodcrc(enable));
-    DRV_FAIL_ON_ERROR(fusb_set_rxtx_interrupts(enable));
-
-    // Probably, this can be moved to fusb_set_polarity in favor of using
-    // rx_enabled flag only (+ disabling auto goodcrc when off).
+    //
+    // Attach BMC
+    //
     Switches1 sw1;
     HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.TXCC1 = 0;
     sw1.TXCC2 = 0;
 
-    if (enable) {
-        if (polarity.load() == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
-        else if (polarity.load() == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
-        else {
-            DRV_LOGE("Can't route BMC without polarity set");
-            return false;
-        }
-    }
-
+    if (polarity == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
+    if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
     HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
+    this->polarity.store(polarity);
+
+    if (polarity == TCPC_POLARITY::NONE) {
+        DRV_FAIL_ON_ERROR(fusb_set_rx_enable(false));
+    }
+    return true;
+}
+
+bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
+    //
+    // NOTE:
+    // - Clearing TX FIFO is important to interrupt any ongoing TX
+    //   on TX discard.
+    // - Seems clearing everything is safe
+    //
+
+    if (rx_enabled == enable) {
+        // If no state change - only drop TX FIFO.
+        DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+        return true; // No change
+    }
+
     rx_enabled = enable;
+
+    DRV_FAIL_ON_ERROR(fusb_flush_rx_fifo());
+    rx_queue.clear_from_producer();
+    DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+
+    DRV_FAIL_ON_ERROR(fusb_set_auto_goodcrc(enable));
     return true;
 }
 
@@ -229,25 +238,21 @@ void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
     }
 }
 
-bool Fusb302Rtos::fusb_tx_pkt_begin() {
+bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
 
     etl::vector<uint8_t, 40> fifo_buf{};
-
-    // TODO: ensure no races possible here.
-    // Create a local copy, to reduce theoretical races
-    auto chunk = port.tx_chunk;
 
     // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4]
     // = 39. One extra byte may be used if HAL API uses first byte as
     // i2c address (but current API takes it as separate parameter)
     static_assert(decltype(fifo_buf)::MAX_SIZE >=
-        4 + 1 + 2 + decltype(chunk)::MAX_SIZE + 4,
+        4 + 1 + 2 + PD_CHUNK::MAX_SIZE + 4,
         "TX buffer too small to fit all possible data");
 
     // Ensure only "legacy" packets allowed. We do NOT support unchunked extended
     // packets and long vendor packets (that's really useless for sink mode).
-    static_assert(decltype(chunk)::MAX_SIZE <= 28,
+    static_assert(PD_CHUNK::MAX_SIZE <= 28,
         "Packet size should not exceed 28 bytes in this implementation");
 
     // Hardcode Msg SOP, since library supports only sink mode
@@ -600,6 +605,14 @@ bool Fusb302Rtos::handle_tcpc_calls() {
 
     TCPC_POLARITY _polarity{};
     if (sync_set_polarity.get_job(_polarity)) {
+        // "Drop" tx for sure
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+        // Since polarity reconfigures comparator - terminate measurer
+        // to prohibit restore old config from backup
+        sync_scan_cc.reset();
+        sync_active_cc.reset();
+        meter_state = MeterState::IDLE;
+
         DRV_LOG_ON_ERROR(fusb_set_polarity(_polarity));
         sync_set_polarity.job_finish();
         has_deferred_wakeup = true;
@@ -628,7 +641,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
 
     auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
     if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
-        DRV_LOG_ON_ERROR(fusb_tx_pkt_begin());
+        DRV_LOG_ON_ERROR(fusb_tx_pkt_begin(enquired_tx_chunk));
     }
 
     return true;
@@ -688,6 +701,13 @@ void Fusb302Rtos::kick_task(bool from_isr) {
         xTaskNotifyGive(xWaitingTaskHandle);
     }
 }
+
+void Fusb302Rtos::req_transmit() {
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+    enquired_tx_chunk = port.tx_chunk;
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
+    kick_task();
+};
 
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
     if (event == HAL_EVENT_TYPE::Timer) { flags.set(DRV_FLAG::TIMER_EVENT); }

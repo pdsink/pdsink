@@ -93,7 +93,7 @@ public:
 
     bool fetch_rx_data() override;
 
-    void req_transmit() override { kick_task(); };
+    void req_transmit() override;
 
     void req_set_bist(TCPC_BIST_MODE mode) override {
         sync_set_bist.enquire(mode);
@@ -137,7 +137,7 @@ private:
     bool fusb_pd_reset();
     bool fusb_set_polarity(TCPC_POLARITY polarity);
     bool fusb_set_rx_enable(bool enable);
-    bool fusb_tx_pkt_begin();
+    bool fusb_tx_pkt_begin(PD_CHUNK& chunk);
     void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status);
     bool fusb_rx_pkt();
     bool fusb_hr_send_begin();
@@ -174,6 +174,8 @@ private:
     LeapSync<bool> sync_rx_enable;
     LeapSync<TCPC_BIST_MODE> sync_set_bist;
     LeapSync<> sync_hr_send;
+
+    PD_CHUNK enquired_tx_chunk{};
 
     enum class MeterState {
         IDLE,

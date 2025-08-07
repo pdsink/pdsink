@@ -845,9 +845,6 @@ public:
         port.prl_tx_flags.clear(PRL_TX_FLAG::TX_COMPLETED);
         port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
 
-        // Mark data ready to be consumed by TCPC
-        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
-
         // Kick driver
         prl_tx.prl.tcpc.req_transmit();
 
@@ -1322,9 +1319,8 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC call to complete
-        if (prl.tcpc.is_hr_send_done()) {
-            return No_State_Change;
-        }
+        if (prl.tcpc.is_hr_send_done()) { return No_State_Change; }
+
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
     }
 };
