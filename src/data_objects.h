@@ -502,13 +502,16 @@ struct PD_MSG_TPL : public I_PD_MSG {
 
     // Helpers to simplify payload access
     uint16_t read16(size_t pos) const override {
-        return uint16_t(_buffer[pos]) | (uint16_t(_buffer[pos + 1]) << 8);
+        size_t size = _buffer.size();
+        return uint16_t((pos >= size) ? 0 : _buffer[pos]) |
+            (uint16_t((pos + 1 >= size) ? 0 : _buffer[pos + 1]) << 8);
     }
     uint32_t read32(size_t pos) const override {
-        return uint32_t(_buffer[pos]) |
-            (uint32_t(_buffer[pos + 1]) << 8) |
-            (uint32_t(_buffer[pos + 2]) << 16) |
-            (uint32_t(_buffer[pos + 3]) << 24);
+        size_t size = _buffer.size();
+        return uint32_t((pos >= size) ? 0 : _buffer[pos]) |
+            (uint32_t((pos + 1 >= size) ? 0 : _buffer[pos + 1]) << 8) |
+            (uint32_t((pos + 2 >= size) ? 0 : _buffer[pos + 2]) << 16) |
+            (uint32_t((pos + 3 >= size) ? 0 : _buffer[pos + 3]) << 24);
     }
 
     void append16(uint16_t value) override {

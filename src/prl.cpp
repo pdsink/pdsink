@@ -560,7 +560,8 @@ public:
         port.tx_chunk.append_from(port.tx_emsg, offset, offset + chunk_data_len);
 
         port.tx_chunk.header = port.tx_emsg.header;
-        port.tx_chunk.header.data_obj_count = (port.tx_chunk.data_size() + 3) >> 2;
+        // single data object size is 4 bytes
+        port.tx_chunk.header.data_obj_count = (port.tx_chunk.data_size() + 3) / 4;
 
         tch.prl.prl_tx_enquire_chunk();
         return TCH_Sending_Chunked_Message;
@@ -959,6 +960,7 @@ public:
         // TODO: check if retries count should depend on negotiated revision (2 or 3)
         if (port.tx_retry_counter > 2 /* nRetryCount */) {
             return PRL_Tx_Transmission_Error;
+
         }
         return PRL_Tx_Construct_Message;
     }

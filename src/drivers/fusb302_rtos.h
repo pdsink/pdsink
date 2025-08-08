@@ -120,7 +120,7 @@ public:
 
     AtomicEnumBits<DRV_FLAG> flags{};
 
-    private:
+protected:
     void task();
     bool handle_interrupt();
     bool handle_timer();
@@ -192,6 +192,10 @@ public:
     MeterState meter_state{MeterState::IDLE};
     uint32_t meter_wait_until_ts{0};
     Switches0 meter_sw0_backup{0};
+
+    // Overwrite in inherited class if needed.
+    uint32_t task_stack_size{1024*4}; // 4K
+    uint32_t task_priority{10};
 };
 
 } // namespace fusb302

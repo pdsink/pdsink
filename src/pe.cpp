@@ -1304,9 +1304,11 @@ auto PE::is_epr_mode_available() const -> bool {
         return false;
     }
 
-    const PDO_FIXED fisrt_src_pdo{port.source_caps[0]};
+    // That's not needed, but exists to dim warnings from code checkers.
+    if (port.source_caps.empty()) { return false; }
 
-    return fisrt_src_pdo.epr_capable;
+    const PDO_FIXED first_src_pdo{port.source_caps[0]};
+    return first_src_pdo.epr_capable;
 }
 
 bool PE::is_in_epr_mode() const {
@@ -1323,6 +1325,12 @@ auto PE::is_in_pps_contract() const -> bool {
     if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
 
     const RDO_ANY rdo{port.rdo_contracted};
+
+    // That's not needed, but exists to dim warnings from code checkers.
+    if (rdo.obj_position == 0 || rdo.obj_position > port.source_caps.size()) {
+        return false;
+    }
+
     const PDO_SPR_PPS pdo{port.source_caps[rdo.obj_position-1]};
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
@@ -1435,7 +1443,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
             port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
-        receive(MsgTransitTo(PE_SNK_Ready));
+        pe.receive(MsgTransitTo(PE_SNK_Ready));
         port.wakeup();
         return;
     }

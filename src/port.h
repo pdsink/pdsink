@@ -52,7 +52,7 @@ public:
     int8_t rx_msg_id_stored{0};
     int8_t rch_chunk_number_expected{0};
     int8_t tch_chunk_number_to_send{0};
-    // Probably, single error is enouth, but let's keep separate
+    // Probably, single error is enough, but let's keep separate
     // for current RCH/TCH logic.
     PRL_ERROR rch_error{};
     PRL_ERROR tch_error{};

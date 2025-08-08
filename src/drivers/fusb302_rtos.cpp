@@ -672,7 +672,7 @@ void Fusb302Rtos::setup() {
     auto result = xTaskCreate(
         [](void* params) {
             static_cast<Fusb302Rtos*>(params)->task();
-        }, "Fusb302Rtos", 1024*4, this, 10, &xWaitingTaskHandle
+        }, "Fusb302Rtos", task_stack_size, this, task_priority, &xWaitingTaskHandle
     );
 
     if (result != pdPASS) {
