@@ -61,7 +61,7 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
 
-        if (tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
+        if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
         if (!vbus_ok) {

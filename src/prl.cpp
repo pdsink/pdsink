@@ -457,7 +457,7 @@ public:
 
         // Copy data to chunk & fill data object count
         port.tx_chunk = port.tx_emsg;
-        port.tx_chunk.header.data_obj_count = (port.tx_emsg.data_size() + 3) >> 2;
+        port.tx_chunk.header.data_obj_count = port.tx_emsg.size_to_pdo_count();
 
         tch.prl.prl_tx_enquire_chunk();
         return TCH_Wait_For_Transmision_Complete;
@@ -561,7 +561,7 @@ public:
 
         port.tx_chunk.header = port.tx_emsg.header;
         // single data object size is 4 bytes
-        port.tx_chunk.header.data_obj_count = (port.tx_chunk.data_size() + 3) / 4;
+        port.tx_chunk.header.data_obj_count = port.tx_chunk.size_to_pdo_count();
 
         tch.prl.prl_tx_enquire_chunk();
         return TCH_Sending_Chunked_Message;
@@ -958,7 +958,7 @@ public:
         port.tx_retry_counter++;
 
         // TODO: check if retries count should depend on negotiated revision (2 or 3)
-        if (port.tx_retry_counter > 2 /* nRetryCount */) {
+        if (port.tx_retry_counter > port.max_retries()) {
             return PRL_Tx_Transmission_Error;
 
         }

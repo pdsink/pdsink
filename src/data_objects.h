@@ -12,8 +12,11 @@ constexpr int MaxExtendedMsgChunkLen = 26;
 constexpr int MaxExtendedMsgLegacyLen = 26;
 constexpr int MaxChunksPerMsg = 10;
 
-constexpr int MaxPdoObjects = 11; // 7 for SPR, 11 for EPR.
+constexpr int MaxPdoObjects = 11; // 11 for EPR mode.
+constexpr int MaxPdoObjects_SPR = 7; // 7 for SPR mode.
 constexpr int MaxUnchunkedMsgLen = 28;
+
+constexpr int nHardResetCount = 2;
 
 using PDO_LIST = etl::vector<uint32_t, MaxPdoObjects>;
 
@@ -446,6 +449,7 @@ public:
     virtual void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) = 0;
     virtual uint32_t data_size() const = 0;
     virtual void resize_by_data_obj_count() = 0;
+    virtual uint16_t size_to_pdo_count() const = 0;
 
     virtual ~I_PD_MSG() = default;
 };
@@ -537,6 +541,10 @@ struct PD_MSG_TPL : public I_PD_MSG {
 
     void resize_by_data_obj_count() {
         _buffer.resize(header.data_obj_count * 4);
+    }
+
+    uint16_t size_to_pdo_count() const {
+        return static_cast<uint16_t>((_buffer.size() + 3) / 4); // 4 bytes per PDO
     }
 };
 

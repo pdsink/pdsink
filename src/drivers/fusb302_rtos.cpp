@@ -85,7 +85,8 @@ bool Fusb302Rtos::fusb_setup() {
     HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
 
     // Sync VBUSOK
-    vTaskDelay(pdMS_TO_TICKS(2) || 1); // instead of 250uS
+    auto delay = pdMS_TO_TICKS(2);
+    vTaskDelay(delay ? delay : 1); // instead of 250uS
     Status0 status0;
     HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));

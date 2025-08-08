@@ -53,8 +53,9 @@ struct PD_TIMERS_RANGE {
 struct PD_TIMEOUT {
     using Type = etl::pair<PD_TIMER::Type, uint32_t>;
 
-    static constexpr Type TC_VBUS_DEBOUNCE {PD_TIMER::TC_DEBOUNCE, 100 * ms_mult}; // 100-200 ms
-    static constexpr Type TC_CC_POLL {PD_TIMER::TC_DEBOUNCE, 20 * ms_mult}; // 100-200 ms
+    // Custom timeouts (not from spec, for manual polarity detection)
+    static constexpr Type TC_VBUS_DEBOUNCE {PD_TIMER::TC_DEBOUNCE, 100 * ms_mult}; // 100 ms
+    static constexpr Type TC_CC_POLL {PD_TIMER::TC_DEBOUNCE, 20 * ms_mult}; // 20 ms
 
     static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms_mult}; // 310-620 ms
     static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms_mult}; // 27-36 ms

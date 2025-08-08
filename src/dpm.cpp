@@ -1,5 +1,6 @@
 #include "common_macros.h"
 #include "dpm.h"
+#include "pd_log.h"
 #include "port.h"
 
 namespace pd {
@@ -92,8 +93,8 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     sink_rdo_list.push_back(pdo7.raw_value);
 
     //
-    // EPR PDOs. MUST start from 8. If SPR PDOs count < 7, the gap must be
-    // padded with zeros. EPR block an have up to 3 Fixed PDOs + 1 AVS.
+    // EPR PDOs. MUST start from 8. If SPR PDOs count < 7, the gap MUST be
+    // padded with zeros. EPR block can have up to 3 Fixed PDOs + 1 AVS.
     //
 
     SNK_PDO_FIXED pdo8{};
@@ -156,6 +157,11 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
     // Then, PE will automatically upgrade to EPR (with new EPR Caps) and this
     // function will be called again.
     //
+
+    if (src_caps.empty()) {
+        DPM_LOGE("get_request_data_object: invalid SRC Caps input");
+        return 0;
+    }
 
     if (trigger_mode == TRIGGER_MODE::FIXED) {
         for (int i = 0, max = src_caps.size(); i < max; i++) {

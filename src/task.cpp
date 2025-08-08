@@ -75,12 +75,10 @@ void Task::set_event(uint32_t event_mask) {
 
 void Task_EventListener::on_receive(const MsgTask_Wakeup&) {
     task.set_event(Task::EVENT_WAKEUP_MSK);
-    task.loop();
 }
 
 void Task_EventListener::on_receive(const MsgTask_Timer&) {
     task.set_event(Task::EVENT_TIMER_MSK);
-    task.loop();
 }
 
 } // namespace pd

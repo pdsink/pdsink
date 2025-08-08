@@ -199,15 +199,13 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        auto& msg = port.rx_emsg;
-
         port.hard_reset_counter = 0;
         port.revision = static_cast<PD_REVISION::Type>(
-            etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
+            etl::min(static_cast<uint16_t>(PD_REVISION::REV30), port.rx_emsg.header.spec_revision));
 
         port.source_caps.clear();
-        for (int i = 0, pdo_num = msg.data_size() >> 2; i < pdo_num; i++) {
-            port.source_caps.push_back(msg.read32(i*4));
+        for (int i = 0; i < port.rx_emsg.size_to_pdo_count(); i++) {
+            port.source_caps.push_back(port.rx_emsg.read32(i*4));
         }
 
         port.pe_flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
@@ -493,7 +491,7 @@ public:
 
                 case PD_DATA_MSGT::Vendor_Defined:
                     // No VDM support. Reject for 3.0+, and ignore for 2.0
-                    if (port.revision != PD_REVISION::REV20) { return PE_SNK_Send_Not_Supported; }
+                    if (port.revision >= PD_REVISION::REV30) { return PE_SNK_Send_Not_Supported; }
                     break;
 
                 case PD_DATA_MSGT::BIST:
@@ -644,6 +642,7 @@ public:
         bool is_epr = port.rx_emsg.header.extended;
         port.tx_emsg.clear();
 
+        // DPM is responsible for providing properly padded sink PDOs.
         auto caps = pe.dpm.get_sink_pdo_list();
 
         // Fill data, length depends on request type
@@ -652,10 +651,8 @@ public:
 
             if (!is_epr) {
                 // For regular request (non-EPR) only 7 PDOs allowed
-                if (i >= 7) { break; }
+                if (i >= MaxPdoObjects_SPR) { break; }
             }
-            // NOTE: Not sure about this. Do we need zero-padded EPR caps?
-            if (pdo == 0) { continue; }
 
             port.tx_emsg.append32(pdo);
         }
@@ -755,7 +752,7 @@ public:
         pe.log_state();
 
         if (port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
-            port.hard_reset_counter > 2 /* nHardResetCount */)
+            port.hard_reset_counter > nHardResetCount)
         {
             return PE_Src_Disabled;
         }
@@ -921,7 +918,7 @@ public:
         pe.log_state();
 
         // Reply depends on PD revision. For 3.0+, use Not_Supported,
-        if (pe.port.revision == PD_REVISION::REV20) {
+        if (pe.port.revision < PD_REVISION::REV30) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Reject);
         } else {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Not_Supported);
@@ -1302,7 +1299,7 @@ void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
 auto PE::is_epr_mode_available() const -> bool {
     if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) ||
         port.pe_flags.test(PE_FLAG::EPR_AUTO_ENTER_DISABLED) ||
-        port.revision == PD_REVISION::REV20)
+        port.revision < PD_REVISION::REV30)
     {
         return false;
     }
@@ -1321,7 +1318,8 @@ bool PE::is_in_epr_mode() const {
 
 auto PE::is_in_spr_contract() const -> bool {
     const RDO_ANY rdo{port.rdo_contracted};
-    return port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) && (rdo.obj_position < 8);
+    return port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) &&
+        (rdo.obj_position <= MaxPdoObjects_SPR);
 }
 
 auto PE::is_in_pps_contract() const -> bool {
