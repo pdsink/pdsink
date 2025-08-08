@@ -1,7 +1,5 @@
 #pragma once
 
-#include <etl/delegate.h>
-
 #include "pd_conf.h"
 #include "utils/timer_pack.h"
 
@@ -97,9 +95,7 @@ class Timers : public TimerPack<PD_TIMER::PD_TIMER_COUNT> {
     using Base::is_expired;
 
 public:
-    using GetTimeFunc = etl::delegate<uint32_t()>;
-
-    void set_time_provider(const GetTimeFunc& func) {
+    void set_time_provider(const ITimer::TimeFunc func) {
         get_time_func = func;
     }
 
@@ -125,7 +121,7 @@ public:
     }
 
 private:
-    GetTimeFunc get_time_func;
+    ITimer::TimeFunc get_time_func{nullptr};
 
     uint32_t get_time() {
         return get_time_func ? get_time_func() : 0;

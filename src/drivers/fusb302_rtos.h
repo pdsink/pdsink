@@ -30,7 +30,7 @@ class IFusb302RtosHal {
 public:
     virtual void setup() = 0;
     virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
-    virtual uint32_t get_timestamp() = 0;
+    virtual ITimer::TimeFunc get_time_func() const = 0;
 
     virtual bool read_reg(uint8_t reg, uint8_t& data) = 0;
     virtual bool write_reg(uint8_t reg, uint8_t data) = 0;
@@ -50,7 +50,9 @@ enum class DRV_FLAG {
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
 public:
-    Fusb302Rtos(Port& port, IFusb302RtosHal& hal) : port{port}, hal{hal} {};
+    Fusb302Rtos(Port& port, IFusb302RtosHal& hal) : port{port}, hal{hal} {
+        get_timestamp = hal.get_time_func();
+    };
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
@@ -112,12 +114,13 @@ public:
     //
     // Timer
     //
-    uint32_t get_timestamp() override { return hal.get_timestamp(); };
+    ITimer::TimeFunc get_time_func() const override { return hal.get_time_func(); };
     void rearm(uint32_t interval) override {};
     bool is_rearm_supported() override { return false; };
 
     AtomicEnumBits<DRV_FLAG> flags{};
-private:
+
+    private:
     void task();
     bool handle_interrupt();
     bool handle_timer();
@@ -147,6 +150,7 @@ private:
 
     Port& port;
     IFusb302RtosHal& hal;
+    ITimer::TimeFunc get_timestamp;
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 

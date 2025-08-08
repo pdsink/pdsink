@@ -57,12 +57,8 @@ void Task::loop() {
 void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
     loop_flags.set(LOOP_FLAGS::IS_IN_LOOP);
 
-    port.timers.set_time_provider(
-        Timers::GetTimeFunc::create<ITimer, &ITimer::get_timestamp>(driver)
-    );
-
+    port.timers.set_time_provider(driver.get_time_func());
     port.msgbus.subscribe(task_event_listener);
-
     driver.setup();
     prl.setup();
     pe.setup();

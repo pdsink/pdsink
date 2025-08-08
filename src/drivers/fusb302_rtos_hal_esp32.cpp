@@ -13,6 +13,19 @@ namespace pd {
 
 namespace fusb302 {
 
+static uint32_t get_timestamp() {
+    // Alternate implementation:
+    // - `esp_timer_get_time() / 1000` (64 bits)
+    // - `esp_log_timestamp()`
+    // - `millis()` (arduino)
+
+    // FreeRTOS usage is more portable, fast and sleep-friendly.
+    // 1ms tick or faster is recommended for correct operation.
+    TickType_t t = xPortInIsrContext() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+
+    return pdTICKS_TO_MS(t); // (uint32_t)((uint64_t)t * 1000ULL / configTICK_RATE_HZ)
+}
+
 void Fusb302RtosHalEsp32::init_timer() {
     esp_timer_create_args_t timer_args = {
         .callback = [](void* arg) {
@@ -87,17 +100,8 @@ Fusb302RtosHalEsp32::~Fusb302RtosHalEsp32() {
     }
 }
 
-uint32_t Fusb302RtosHalEsp32::get_timestamp() {
-    // Alternate implementation:
-    // - `esp_timer_get_time() / 1000` (64 bits)
-    // - `esp_log_timestamp()`
-    // - `millis()` (arduino)
-
-    // FreeRTOS usage is more portable, fast and sleep-friendly.
-    // 1ms tick or faster is recommended for correct operation.
-    TickType_t t = xPortInIsrContext() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
-
-    return pdTICKS_TO_MS(t); // (uint32_t)((uint64_t)t * 1000ULL / configTICK_RATE_HZ)
+auto Fusb302RtosHalEsp32::get_time_func() const -> ITimer::TimeFunc {
+    return get_timestamp;
 }
 
 bool Fusb302RtosHalEsp32::is_interrupt_active() {

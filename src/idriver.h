@@ -63,7 +63,8 @@ static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
 
 class ITimer {
 public:
-    virtual uint32_t get_timestamp() = 0;
+    using TimeFunc = uint32_t(*)();
+    virtual TimeFunc get_time_func() const = 0;
     // Set interval (from "now") of next timer tick. For simple implementation
     // make this dummy and tick every 1 ms.
     virtual void rearm(uint32_t interval) = 0;
