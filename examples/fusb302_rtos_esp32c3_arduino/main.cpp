@@ -4,7 +4,7 @@
 
 // For HW with disconnected VBUS pin, should work for sink with "dead battery".
 // This may be useful for EPR mode to keep HW simple, because fusb302b allows
-// 28v max at VBUS pin, and can die.
+// 28v max at VBUS pin, and may be damaged.
 //
 // But it's better not to use this hack, and connect VBUS pin using resistor
 // and TVS instead. Without EPR, direct VBUS connection will be fine.

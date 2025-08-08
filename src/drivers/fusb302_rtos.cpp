@@ -351,7 +351,7 @@ bool Fusb302Rtos::fusb_hr_send() {
 }
 
 bool Fusb302Rtos::hr_cleanup() {
-    // Cleanup internal states after hard reset received or been sent.
+    // Cleanup internal states after hard reset received or sent.
     DRV_FAIL_ON_ERROR(fusb_pd_reset());
     rx_queue.clear_from_producer();
     return true;

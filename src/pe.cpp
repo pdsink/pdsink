@@ -89,7 +89,7 @@ namespace {
 
 
 //
-// Macros to quick-create common methods
+// Macros to quickly create common methods
 //
 #define ON_ENTER_STATE_DEFAULT \
 auto on_enter_state() -> etl::fsm_state_id_t override { \
@@ -140,8 +140,8 @@ public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
     auto on_enter_state() -> etl::fsm_state_id_t {
-        // For Sink we detect TC attach via CC1/CC2, with debounce. VBUS should
-        // be stable at this moment, so no need to wait.
+        // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
+        // be stable at this moment, so there is no need to wait.
         return PE_SNK_Wait_for_Capabilities;
     }
 };
@@ -164,8 +164,8 @@ public:
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
-            // Spec requires exact match of caps type and current sink mode
-            // to accept.
+            // The spec requires an exact match of the capabilities type and the
+            // current sink mode to accept.
             if (pe.is_in_epr_mode()) {
                 if (port.rx_emsg.is_ext_msg(PD_EXT_MSGT::Source_Capabilities_Extended)) {
                     return PE_SNK_Evaluate_Capability;
@@ -215,22 +215,23 @@ public:
 };
 
 //
-// This is the main place, where explicit contract is established / changed.
-// We come here in this cases:
+// This is the main place where the explicit contract is established or changed.
+// We come here in these cases:
 //
-// 1. Initially, after got Source_Capabilities message.
-// 2. After upgrading to EPR and EPR_Source_Capabilities message.
-// 3. In PPS mode after timeout.
-// 4. After DPM requested to change contract.
+// 1. Initially, after receiving a Source_Capabilities message.
+// 2. After upgrading to EPR and receiving an EPR_Source_Capabilities message.
+// 3. In PPS mode after a timeout.
+// 4. After the DPM requests a contract change.
 //
-// This state request desired RDO from DPM. send it to source and wait for
-// confirmation. If SRC ask to WAIT - go to READY state (it will repeat after
-// delay)
+// This state requests the desired RDO from the DPM, sends it to the Source,
+// and waits for confirmation. If the SRC asks to WAIT, go to the READY state
+// (it will retry after a delay).
 //
-// After success, if SRC supports EPR and we are NOT in EPR mode => force
-// upgrade. This upgrade is not part of PD spec, but for Sink-only device
-// it's the good place to keep things simple.
+// After success, if the SRC supports EPR and we are NOT in EPR mode => force
+// an upgrade. This upgrade is not part of the PD spec, but for a sink-only
+// device this is a good place to keep things simple.
 //
+
 class PE_SNK_Select_Capability_State : public etl::fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
@@ -240,22 +241,22 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // By spec, we should request PDO at the previous stage. But for sink-only
-        // this place looks more convenient, as unified DPM point for all cases.
+        // By spec, we should request PDO at the previous stage. But for a sink-only
+        // device this place looks more convenient, as a unified DPM point for all cases.
         // This decision can be changed later, if needed.
         RDO_ANY rdo{pe.dpm.get_request_data_object(port.source_caps)};
 
         // A minimal check for RDO validity.
         // DPM implementation MUST NOT return invalid data.
         if (rdo.obj_position < 1 || rdo.obj_position > port.source_caps.size()) {
-            PE_LOGE("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
+            PE_LOGE("DPM requested an RDO with a malformed index: {}, performing a hard reset", rdo.obj_position);
             return PE_SNK_Hard_Reset;
         }
 
         // Prepare & send request, depending on SPR/EPR mode
         port.tx_emsg.clear();
 
-        // remember RDO to store after success
+        // Remember the RDO to store after success
         port.rdo_to_request = rdo.raw_value;
 
         if (pe.is_in_epr_mode()) {
@@ -270,7 +271,7 @@ public:
         pe.check_request_progress_enter();
         port.timers.stop(PD_TIMEOUT::tSinkRequest);
 
-        // Don't break on error, process errors manually.
+        // Don't break on error; process errors manually.
         port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
@@ -280,11 +281,11 @@ public:
         auto& port = pe.port;
         auto send_status = pe.check_request_progress_run();
 
-        // Reproduce AMS interrupt logic.
-        // - If this state is standalone request (DPM) - roll back to Ready
-        //   state. DPM means explicit contract already exists.
-        // - If we came from Evaluate_Capability - AMS interrupted after first
-        //   message => do soft reset
+        // Reproduce AMS interrupt logic:
+        // - If this state is a standalone request (DPM), roll back to the Ready
+        //   state. DPM means an explicit contract already exists.
+        // - If we came from Evaluate_Capability and the AMS was interrupted after
+        //   the first message => perform a Soft Reset.
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
             if (port.pe_flags.test(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY)) {
                 return PE_SNK_Send_Soft_Reset;
@@ -308,7 +309,8 @@ public:
                 port.rdo_contracted = port.rdo_to_request;
 
                 if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
-                    // Report handshake complete, if first contract and should not try EPR
+                    // Report handshake complete if this is the first contract
+                    // and we should not try EPR
                     port.notify_dpm(MsgToDpm_HandshakeDone());
                 }
 
@@ -323,8 +325,8 @@ public:
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Wait))
             {
                 if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-                    // Pend another retry. Spec requires to init this timer
-                    // on PE_SNK_Ready enter, but it looks more convenient here.
+                    // The spec requires initializing this timer on PE_SNK_Ready entry,
+                    // but it is more convenient to do it here.
                     port.timers.start(PD_TIMEOUT::tSinkRequest);
                     return PE_SNK_Ready;
                 }
@@ -372,8 +374,8 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // There are 2 timeouts, depending on EPR mode. Both uses the same
-        // timer. Use proper one for setup, but SPR one for clear/check
+        // There are two timeouts, depending on EPR mode. Both use the same
+        // timer. Use the proper one for setup, but the SPR one for clear/check
         // (because clear/check use the same timer ID).
         if (port.pe_flags.test(PE_FLAG::IN_EPR_MODE)) {
             port.timers.start(PD_TIMEOUT::tPSTransition_EPR);
@@ -381,7 +383,7 @@ public:
             port.timers.start(PD_TIMEOUT::tPSTransition_SPR);
         }
 
-        // Any PRL error at this stage should cause hard reset.
+        // Any PRL error at this stage should cause a hard reset.
         port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
@@ -420,30 +422,30 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // Ensure to clear flags from past send attempt. If sink returned to
-        // this state - all starts from scratch.
+        // Ensure flags from the previous send attempt are cleared.
+        // If the sink returned to this state, everything starts from scratch.
         port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
         port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
 
         if (pe.is_in_epr_mode()) {
-            // If we are in EPR mode, rearm timer for EPR Keep Alive request
+            // If we are in EPR mode, re-arm the timer for an EPR Keep-Alive request
             port.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
         } else {
-            // Force enter EPR mode if possible
+            // Force entering EPR mode if possible
             if (pe.is_epr_mode_available()) {
                 port.dpm_requests.set(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
             }
         }
 
         if (pe.is_in_pps_contract()) {
-            // PPS contract should be refreshed at least every 10s
-            // of inactivity. We use 5s for sure.
+            // The PPS contract should be refreshed at least every 10 s
+            // of inactivity. We use 5 s to be safe.
             port.timers.start(PD_TIMEOUT::tPPSRequest);
         }
 
-        // Ensure to run after state enter, to proceed pending things (DPM requests)
+        // Ensure we run after entering the state to process pending items (DPM requests)
         port.wakeup();
         return No_State_Change;
     }
@@ -461,7 +463,6 @@ public:
                 //
                 // Extended message
                 //
-
                 switch (hdr.message_type)
                 {
                 case PD_EXT_MSGT::Source_Capabilities_Extended:
@@ -490,7 +491,7 @@ public:
                     return PE_SNK_Evaluate_Capability;
 
                 case PD_DATA_MSGT::Vendor_Defined:
-                    // No VDM support. Reject for 3.0+, and ignore for 2.0
+                    // No VDM support. Reject for PD 3.0+, and ignore for 2.0
                     if (port.revision >= PD_REVISION::REV30) { return PE_SNK_Send_Not_Supported; }
                     break;
 
@@ -502,7 +503,7 @@ public:
 
                 case PD_DATA_MSGT::EPR_Mode: {
                     // SRC requested to exit EPR mode (should not happen, but
-                    // allowed by the spec)
+                    // it's allowed by the spec)
                     EPRMDO eprmdo{msg.read32(0)};
                     if (eprmdo.action == EPR_MODE_ACTION::EXIT) {
                         return PE_SNK_EPR_Mode_Exit_Received;
@@ -522,7 +523,7 @@ public:
                 case PD_CTRL_MSGT::GoodCRC: // Nothing to do, ignoring
                     break;
 
-                case PD_CTRL_MSGT::GotoMin: // Deprecated as "not supported"
+                case PD_CTRL_MSGT::GotoMin: // Deprecated as "Not Supported"
                     return PE_SNK_Send_Not_Supported;
 
                 // Unexpected => soft reset
@@ -543,9 +544,9 @@ public:
                     return PE_SNK_Send_Soft_Reset;
 
                 case PD_CTRL_MSGT::Not_Supported:
-                    // Can not be initiated by SRC, but can be reply after
-                    // interrupted AMS. So, do nothing, just ignore garbage
-                    // to avoid infinite ping-pong.
+                    // Cannot be initiated by the SRC, but can be a reply after
+                    // an interrupted AMS. So do nothing; just ignore the garbage
+                    // to avoid an infinite ping-pong.
                     break;
 
                 case PD_CTRL_MSGT::Get_Revision:
@@ -559,8 +560,8 @@ public:
 
         if (port.is_prl_busy()) { return No_State_Change; }
 
-        // Special case, process postponed src caps request. If pending - don't
-        // try DPM requests queue.
+        // Special case: process a postponed Source Capabilities request.
+        // If pending, don't try the DPM requests queue.
         if (!port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
             if (port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
@@ -573,9 +574,9 @@ public:
             //
             // Process DPM requests
             //
-            // NOTE: Request flags are cleared from inside of states, when
-            // result determined (success or failure). Any interrupt of process
-            // leaves request armed. Should be ok for sink. Can be changed later.
+            // NOTE: Request flags are cleared inside states when the result is
+            // determined (success or failure). Any interruption of the process
+            // leaves the request armed. Should be OK for the sink. Can be changed later.
             //
 
             port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
@@ -597,7 +598,7 @@ public:
             }
 
             //
-            // Add here more DPM requests, if needed.
+            // Add more DPM requests here if needed.
             //
 
             port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
@@ -615,7 +616,7 @@ public:
             return PE_SNK_Select_Capability;
         }
 
-        // If event caused no activity, emit idle to DPM
+        // If the event caused no activity, emit Idle to the DPM
         port.notify_dpm(MsgToDpm_Idle());
 
         return No_State_Change;
@@ -645,12 +646,12 @@ public:
         // DPM is responsible for providing properly padded sink PDOs.
         auto caps = pe.dpm.get_sink_pdo_list();
 
-        // Fill data, length depends on request type
+        // Fill data; length depends on the request type
         for (int i = 0, max = caps.size(); i < max; i++) {
             auto pdo = caps[i];
 
             if (!is_epr) {
-                // For regular request (non-EPR) only 7 PDOs allowed
+                // For a regular request (non-EPR) only 7 PDOs are allowed
                 if (i >= MaxPdoObjects_SPR) { break; }
             }
 
@@ -707,8 +708,8 @@ public:
         auto send_status = pe.check_request_progress_run();
 
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
-            // If message discarded due another activity => connection is ok,
-            // and heartbit is not needed. End with success.
+            // If the message was discarded due to another activity => the connection
+            // is OK, and a heartbeat is not needed. Consider it successful.
             return PE_SNK_Ready;
         }
 
@@ -787,7 +788,7 @@ public:
         port.pe_flags.clear_all();
         port.dpm_requests.clear_all();
 
-        // If need to pend - call `wait_dpm_transit_to_default(true)` in
+        // If you need to pend, call `wait_dpm_transit_to_default(true)` in the
         // event handler, and `wait_dpm_transit_to_default(false)` to continue.
         port.notify_dpm(MsgToDpm_TransitToDefault());
         port.wakeup();
@@ -806,7 +807,7 @@ public:
 };
 
 
-// Come here, when received soft reset from SRC
+// Come here when a Soft Reset is received from the SRC
 class PE_SNK_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset, MsgSysUpdate, MsgTransitTo> {
 public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
@@ -852,12 +853,12 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // Cleanup previous operations flags
+        // Clean up flags from previous operations
         port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
         port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
 
-        // Setup error handling and initial state
+        // Set up error handling and initial state
         port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
         port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
@@ -870,10 +871,10 @@ public:
         auto& pe = get_fsm_context();
         auto& port = pe.port;
 
-        // Wait until PRL layer ready
+        // Wait until the PRL layer is ready
         if (!port.is_prl_running()) { return No_State_Change; }
 
-        // Send only once per state enter
+        // Send only once per state entry
         if (port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Soft_Reset);
             return No_State_Change;
@@ -917,7 +918,8 @@ public:
         auto& pe = get_fsm_context();
         pe.log_state();
 
-        // Reply depends on PD revision. For 3.0+, use Not_Supported,
+        // The reply depends on the PD revision. For PD 3.0+, use Not_Supported;
+        // otherwise use Reject.
         if (pe.port.revision < PD_REVISION::REV30) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Reject);
         } else {
@@ -997,7 +999,7 @@ public:
                 port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
                 port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
-                PE_LOGE("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode entry failed [code 0x{:02x}]", eprmdo.action);
 
                 port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
                 port.notify_dpm(MsgToDpm_HandshakeDone());
@@ -1041,7 +1043,7 @@ public:
                     return PE_SNK_Wait_for_Capabilities;
                 }
 
-                PE_LOGE("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode entry failed [code 0x{:02x}]", eprmdo.action);
             }
 
             return PE_SNK_Send_Soft_Reset;
@@ -1064,7 +1066,7 @@ public:
         auto& port = pe.port;
 
         if (!pe.is_in_spr_contract()) {
-            PE_LOGE("Not in SPR contract before EPR mode exit => Hard Reset");
+            PE_LOGE("Not in an SPR contract before EPR mode exit => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
@@ -1085,14 +1087,14 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // Can enter only in connected mode with vSafe5v
+        // Can enter only when connected at vSafe5V
         if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return PE_SNK_Ready; }
 
         // Simplified check - verify PDO index instead of voltage
         RDO_ANY rdo{port.rdo_contracted};
         if (rdo.obj_position != 1) { return PE_SNK_Ready; }
 
-        // Setup supported modes
+        // Set up supported modes
         BISTDO bdo{port.rx_emsg.read32(0)};
         if (bdo.mode == BIST_MODE::Carrier) {
             pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
@@ -1111,11 +1113,11 @@ public:
         auto& pe = get_fsm_context();
         auto& port = pe.port;
 
-        // Wait TCPC call to complete
+        // Wait for the TCPC call to complete
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
 
-        // Small cheat to avoid state store. Parse BISTDO again, it should
-        // not be broken for such small time.
+        // Small cheat to avoid storing state. Parse BISTDO again; it should
+        // not be corrupted in such a short time.
         BISTDO bdo{port.rx_emsg.read32(0)};
         if (bdo.mode == BIST_MODE::Carrier) { return PE_BIST_Carrier_Mode; }
         return PE_BIST_Test_Mode;
@@ -1166,7 +1168,7 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& port = get_fsm_context().port;
         // Ignore everything.
-        // Exit from  test data mode is possible only via hard reset.
+        // Exiting test data mode is only possible via a hard reset.
         port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
         return No_State_Change;
     }
@@ -1304,7 +1306,7 @@ auto PE::is_epr_mode_available() const -> bool {
         return false;
     }
 
-    // That's not needed, but exists to dim warnings from code checkers.
+    // This is not needed, but it exists to suppress warnings from code checkers.
     if (port.source_caps.empty()) { return false; }
 
     const PDO_FIXED first_src_pdo{port.source_caps[0]};
@@ -1327,7 +1329,7 @@ auto PE::is_in_pps_contract() const -> bool {
 
     const RDO_ANY rdo{port.rdo_contracted};
 
-    // That's not needed, but exists to dim warnings from code checkers.
+    // This is not needed, but it exists to suppress warnings from code checkers.
     if (rdo.obj_position == 0 || rdo.obj_position > port.source_caps.size()) {
         return false;
     }
@@ -1339,9 +1341,9 @@ auto PE::is_in_pps_contract() const -> bool {
 }
 
 //
-// "Virtual" state to proceed [request] + [response] sequence. Main idea is to
-// automate response timer start and restore DPM task when custom error
-// processing used.
+// "Virtual" state to handle a [request] + [response] sequence. The main idea is to
+// automate starting the response timer and to restore the DPM task when custom error
+// processing is used.
 //
 
 void PE::check_request_progress_enter() {
@@ -1414,7 +1416,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
 //
 // 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
 //
-// NOTE: May be need care, spec is not clear
+// NOTE: May need care; the spec is not clear
 //
 void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto& port = pe.port;
@@ -1440,7 +1442,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
         !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
     {
-        // Discard is not possible without RX msg, but let's check for sure.
+        // Discard is not possible without an RX msg, but let's check to be sure.
         if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
             port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
@@ -1477,7 +1479,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
 }
 
 void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PE_LOGE("PE unknown message, id: {}", msg.get_message_id());
+    PE_LOGE("PE unknown message, ID: {}", msg.get_message_id());
 }
 
 } // namespace pd

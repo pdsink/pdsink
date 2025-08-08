@@ -9,7 +9,7 @@
 
 // For old compilers ETL can fallback to spinlocks, that's not acceptable.
 // Can be workarounded by using separate bool flag for each bit at cost of
-// extra memory. But seems to not worth efforts - just disable ancient garbage.
+// extra memory. But seems not worth the effort - just disable ancient garbage.
 #if __cplusplus < 201402L
     #error "At least C++14 compiler required (use -std=c++14 or higher)"
 #endif

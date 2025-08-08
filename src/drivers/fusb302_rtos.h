@@ -145,7 +145,7 @@ protected:
     bool fusb_rx_pkt();
     bool fusb_hr_send();
     bool fusb_set_bist(TCPC_BIST_MODE mode);
-    // Clear insternal states after hard reset received or been sent.
+    // Clear internal states after hard reset received or sent.
     bool hr_cleanup();
 
     Port& port;

@@ -62,7 +62,7 @@ public:
         }
     };
 
-    // May be used for precise timer management. If regular 1ms interrupts
+    // May be used for precise timer management. If regular 1ms interrupts are
     // used, that's not needed.
     int32_t get_next_expiration() {
         constexpr int32_t MAX_EXPIRE = etl::numeric_limits<int32_t>::max();

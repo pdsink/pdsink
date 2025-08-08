@@ -485,7 +485,7 @@ public:
         // routed to TCH.
 
         // First, care about case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
-        // That means driver did transfer, but PRL_TX not been called yet.
+        // That means driver did transfer, but PRL_TX has not been called yet.
         // This is possible, because TX and RX events can arrive in the same
         // time. In this case just wait until PRL_TX called.
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
@@ -592,7 +592,7 @@ public:
         }
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
-            // Calculate max possible bytes been sent, if all chunks are of max size
+            // Calculate max possible bytes sent, if all chunks are of max size
             uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
 
             // Reached msg size => last chunk sent. Land situation without error,
@@ -631,7 +631,7 @@ public:
         port.tch_chunk_number_to_send++;
         port.timers.start(PD_TIMEOUT::tChunkSenderRequest);
 
-        // In edge case we could come here with RX already enquired.
+        // In edge case we could come here with RX already enqueued.
         // Then force loop wakeup() to ensure we continue processing.
         if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
             port.wakeup();
@@ -1198,7 +1198,7 @@ public:
 
         // Discard TX if:
         //
-        // - new data enquired (but not sent yet)
+        // - new data enqueued (but not sent yet)
         // - sending in progress
         // - failed
         //
@@ -1215,7 +1215,7 @@ public:
         // [rev3.2] 6.12.2.1.4 Chunked Message Router State Diagram
         //
         // Route message to RCH/TCH. Since RTR has no stored states, it is
-        // more simple to embed it's logic here.
+        // more simple to embed its logic here.
 
         // Spec describes TCH doing chunking as
         // "Not in TCH_Wait_For_Message_Request_From_Policy_Engine state".
@@ -1268,7 +1268,7 @@ public:
 
         // First, we don't "reset" anything in this state, because PRL_TX fsm
         // reset will cause enabling RX back. Until PRL_HR returns to initial
-        // state, events are not precessed, and that looks safe.
+        // state, events are not processed, and that looks safe.
 
         // Start with RX path disable (and FIFO clear).
         hr.prl.tcpc.req_rx_enable(false);
@@ -1320,8 +1320,8 @@ public:
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& prl = get_fsm_context().prl;
 
-        // Wait for TCPC call to complete. This does NOT means transfer ended.
-        // This means driver accepted request and commended chip to send HR.
+        // Wait for TCPC call to complete. This does NOT mean transfer ended.
+        // This means driver accepted request and commanded chip to send HR.
         // Final result is available via `port.tcpc_tx_status` (as for ordinary
         // transfer)
         if (prl.tcpc.is_hr_send_done()) { return No_State_Change; }
@@ -1433,7 +1433,7 @@ void PRL::setup() {
 void PRL::init(bool from_hr_fsm) {
     PRL_LOGI("PRL init");
 
-    // If init called from PRL_HR, don't intrude HR fsm
+    // If init called from PRL_HR, don't interfere with HR fsm
     if (!from_hr_fsm) {
         port.prl_hr_flags.clear_all();
         prl_hr.reset();
@@ -1631,7 +1631,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
 
             prl.prl_rx.receive(msg);
             prl.prl_rch.receive(msg);
-            // First TCH call needed when PE enquired message, to start
+            // First TCH call needed when PE enqueued message, to start
             // chunking / transfer.
             prl.prl_tch.receive(msg);
             prl.prl_tx.receive(msg);
