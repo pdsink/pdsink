@@ -30,7 +30,7 @@ class IFusb302RtosHal {
 public:
     virtual void setup() = 0;
     virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
-    virtual PD_TIME_T get_timestamp() = 0;
+    virtual uint32_t get_timestamp() = 0;
 
     virtual bool read_reg(uint8_t reg, uint8_t& data) = 0;
     virtual bool write_reg(uint8_t reg, uint8_t data) = 0;
@@ -112,7 +112,7 @@ public:
     //
     // Timer
     //
-    PD_TIME_T get_timestamp() override { return hal.get_timestamp(); };
+    uint32_t get_timestamp() override { return hal.get_timestamp(); };
     void rearm(uint32_t interval) override {};
     bool is_rearm_supported() override { return false; };
 
@@ -186,7 +186,7 @@ private:
         SCAN_CC2_MEASURE_WAIT,
     };
     MeterState meter_state{MeterState::IDLE};
-    PD_TIME_T meter_wait_until_ts{0};
+    uint32_t meter_wait_until_ts{0};
     Switches0 meter_sw0_backup{0};
 };
 

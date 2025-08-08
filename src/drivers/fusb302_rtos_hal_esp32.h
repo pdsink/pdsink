@@ -14,7 +14,7 @@ class Fusb302RtosHalEsp32 : public IFusb302RtosHal {
 public:
     void set_event_handler(const hal_event_handler_t& handler) override { event_cb = handler; }
     void setup() override;
-    PD_TIME_T get_timestamp() override;
+    uint32_t get_timestamp() override;
     bool read_reg(uint8_t reg, uint8_t& data) override;
     bool write_reg(uint8_t reg, uint8_t data) override;
     bool read_block(uint8_t reg, uint8_t *data, uint32_t size) override;

@@ -1,12 +1,9 @@
 #pragma once
 
-#include "pd_conf.h"
-#include "utils/atomic_bits.h"
-
-#include <etl/array.h>
-#include <etl/atomic.h>
 #include <etl/delegate.h>
-#include <etl/utility.h>
+
+#include "pd_conf.h"
+#include "utils/timer_pack.h"
 
 namespace pd {
 
@@ -90,77 +87,49 @@ struct PD_TIMEOUT {
     static constexpr Type tActiveCcPollingDebounce {PD_TIMER::PRL_ActiveCcPollingDebounce, 20 * ms_mult}; // 20 ms
 };
 
-class Timers {
-public:
-    using GetTimeFunc = etl::delegate<PD_TIME_T()>;
+class Timers : public TimerPack<PD_TIMER::PD_TIMER_COUNT> {
+    using Base = TimerPack<PD_TIMER::PD_TIMER_COUNT>;
+    using Base::set_time;
+    using Base::start;
+    using Base::stop;
+    using Base::stop_range;
+    using Base::is_disabled;
+    using Base::is_expired;
 
-    explicit Timers() {
-        active.clear_all();
-        disabled.set_all();
-        timers_changed.store(false);
-    }
+public:
+    using GetTimeFunc = etl::delegate<uint32_t()>;
 
     void set_time_provider(const GetTimeFunc& func) {
         get_time_func = func;
     }
 
-    void start(int timer_id, uint32_t time);
-    void stop(int timer_id);
-    void stop_range(const PD_TIMEOUT::Type& range);
-    inline bool is_disabled(int timer_id) { return disabled.test(int(timer_id)); }
-    bool is_expired(int timer_id);
+    void stop_range(const PD_TIMERS_RANGE::Type& range) {
+        stop_range(range.first, range.second);
+    }
 
-    // Duplicated methods, accepting PD_TIMEOUT::Type, for convenience
-    inline void start(const PD_TIMEOUT::Type& timeout) {
+    void start(const PD_TIMEOUT::Type& timeout) {
+        set_time(get_time());
         start(timeout.first, timeout.second);
     }
-    inline void stop(const PD_TIMEOUT::Type& timeout) {
+
+    void stop(const PD_TIMEOUT::Type& timeout) {
         stop(timeout.first);
     }
-    inline bool is_disabled(const PD_TIMEOUT::Type& timeout) {
+
+    bool is_disabled(const PD_TIMEOUT::Type& timeout) {
         return is_disabled(timeout.first);
     }
-    inline bool is_expired(const PD_TIMEOUT::Type& timeout) {
+
+    bool is_expired(const PD_TIMEOUT::Type& timeout) {
         return is_expired(timeout.first);
     }
-
-    // A kind of gc - deactivates expired timers to reduce regular checks
-    void cleanup();
-
-    // May be used for precise timer management. If regular 1ms interrupts
-    // used, that's not needed.
-    int32_t get_next_expiration();
-
-    static constexpr int32_t NO_EXPIRE = -1;
-    etl::atomic<bool> timers_changed{false};
 
 private:
     GetTimeFunc get_time_func;
 
-    PD_TIME_T get_time() {
+    uint32_t get_time() {
         return get_time_func ? get_time_func() : 0;
     }
-
-    // After expiration, timer becomes deactivated, but not disabled, to
-    // keep expire status.
-    inline bool is_inactive(int timer_id) {
-        return !active.test(timer_id) && !disabled.test(timer_id);
-    }
-    inline void deactivate(int timer_id) {
-        active.clear(timer_id);
-        disabled.clear(timer_id);
-    }
-
-    // Timestamps compare with care about overflow
-    int32_t time_diff(PD_TIME_T expiration, PD_TIME_T now) {
-        return static_cast<int32_t>(expiration - now);
-    }
-
-    etl::array<PD_TIME_T, PD_TIMER::PD_TIMER_COUNT> expire_at{};
-
-    AtomicBits<PD_TIMER::PD_TIMER_COUNT> active;
-    AtomicBits<PD_TIMER::PD_TIMER_COUNT> disabled;
 };
-
 
 } // namespace pd

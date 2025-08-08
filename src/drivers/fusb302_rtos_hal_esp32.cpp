@@ -87,7 +87,7 @@ Fusb302RtosHalEsp32::~Fusb302RtosHalEsp32() {
     }
 }
 
-PD_TIME_T Fusb302RtosHalEsp32::get_timestamp() {
+uint32_t Fusb302RtosHalEsp32::get_timestamp() {
     // Alternate implementation:
     // - `esp_timer_get_time() / 1000` (64 bits)
     // - `esp_log_timestamp()`
