@@ -118,17 +118,18 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
-        pe.port.notify_prl(MsgToPrl_SoftResetFromPe{});
-        pe.port.pe_flags.clear(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+        port.notify_prl(MsgToPrl_SoftResetFromPe{});
+        port.pe_flags.clear(PE_FLAG::HAS_EXPLICIT_CONTRACT);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (!pe.port.is_prl_running()) { return No_State_Change; }
+        if (!port.is_prl_running()) { return No_State_Change; }
         return PE_SNK_Discovery;
     }
 };
@@ -160,26 +161,24 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
-            auto& msg = pe.port.rx_emsg;
-
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             // Spec requires exact match of caps type and current sink mode
             // to accept.
-
             if (pe.is_in_epr_mode()) {
-                if (msg.is_ext_msg(PD_EXT_MSGT::Source_Capabilities_Extended)) {
+                if (port.rx_emsg.is_ext_msg(PD_EXT_MSGT::Source_Capabilities_Extended)) {
                     return PE_SNK_Evaluate_Capability;
                 }
             } else {
-                if (msg.is_data_msg(PD_DATA_MSGT::Source_Capabilities)) {
+                if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::Source_Capabilities)) {
                     return PE_SNK_Evaluate_Capability;
                 }
             }
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tTypeCSinkWaitCap)) {
-            pe.port.pe_flags.set(PE_FLAG::HR_BY_CAPS_TIMEOUT);
+        if (port.timers.is_expired(PD_TIMEOUT::tTypeCSinkWaitCap)) {
+            port.pe_flags.set(PE_FLAG::HR_BY_CAPS_TIMEOUT);
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
@@ -197,21 +196,22 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
-        auto& msg = pe.port.rx_emsg;
+        auto& msg = port.rx_emsg;
 
-        pe.port.hard_reset_counter = 0;
-        pe.port.revision = static_cast<PD_REVISION::Type>(
+        port.hard_reset_counter = 0;
+        port.revision = static_cast<PD_REVISION::Type>(
             etl::min(static_cast<uint16_t>(PD_REVISION::REV30), msg.header.spec_revision));
 
-        pe.port.source_caps.clear();
+        port.source_caps.clear();
         for (int i = 0, pdo_num = msg.data_size() >> 2; i < pdo_num; i++) {
-            pe.port.source_caps.push_back(msg.read32(i*4));
+            port.source_caps.push_back(msg.read32(i*4));
         }
 
-        pe.port.pe_flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
-        pe.port.notify_dpm(MsgToDpm_SrcCapsReceived());
+        port.pe_flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
+        port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
 };
@@ -239,46 +239,47 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         // By spec, we should request PDO at the previous stage. But for sink-only
         // this place looks more convenient, as unified DPM point for all cases.
         // This decision can be changed later, if needed.
-        RDO_ANY rdo{pe.dpm.get_request_data_object(pe.port.source_caps)};
+        RDO_ANY rdo{pe.dpm.get_request_data_object(port.source_caps)};
 
         // A minimal check for RDO validity.
         // DPM implementation MUST NOT return invalid data.
-        if (rdo.obj_position < 1 || rdo.obj_position > pe.port.source_caps.size()) {
+        if (rdo.obj_position < 1 || rdo.obj_position > port.source_caps.size()) {
             PE_LOGE("DPM requested RDO with malformed index: {}, doing HW reset", rdo.obj_position);
             return PE_SNK_Hard_Reset;
         }
 
         // Prepare & send request, depending on SPR/EPR mode
-        auto& msg = pe.port.tx_emsg;
-        msg.clear();
+        port.tx_emsg.clear();
 
         // remember RDO to store after success
-        pe.port.rdo_to_request = rdo.raw_value;
+        port.rdo_to_request = rdo.raw_value;
 
         if (pe.is_in_epr_mode()) {
-            msg.append32(rdo.raw_value);
-            msg.append32(pe.port.source_caps[rdo.obj_position - 1]);
+            port.tx_emsg.append32(rdo.raw_value);
+            port.tx_emsg.append32(port.source_caps[rdo.obj_position - 1]);
             pe.send_data_msg(PD_DATA_MSGT::EPR_Request);
         } else {
-            msg.append32(rdo.raw_value);
+            port.tx_emsg.append32(rdo.raw_value);
             pe.send_data_msg(PD_DATA_MSGT::Request);
         }
 
         pe.check_request_progress_enter();
-        pe.port.timers.stop(PD_TIMEOUT::tSinkRequest);
+        port.timers.stop(PD_TIMEOUT::tSinkRequest);
 
         // Don't break on error, process errors manually.
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         auto send_status = pe.check_request_progress_run();
 
         // Reproduce AMS interrupt logic.
@@ -287,7 +288,7 @@ public:
         // - If we came from Evaluate_Capability - AMS interrupted after first
         //   message => do soft reset
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
-            if (pe.port.pe_flags.test(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY)) {
+            if (port.pe_flags.test(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY)) {
                 return PE_SNK_Send_Soft_Reset;
             }
             return PE_SNK_Ready;
@@ -297,36 +298,36 @@ public:
         }
 
         if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
+            port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
-            auto& msg = pe.port.rx_emsg;
+            auto& msg = port.rx_emsg;
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Accept))
             {
-                bool is_first_contract = !pe.port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+                bool is_first_contract = !port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
 
-                pe.port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
-                pe.port.rdo_contracted = pe.port.rdo_to_request;
+                port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+                port.rdo_contracted = port.rdo_to_request;
 
                 if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
                     // Report handshake complete, if first contract and should not try EPR
-                    pe.port.notify_dpm(MsgToDpm_HandshakeDone());
+                    port.notify_dpm(MsgToDpm_HandshakeDone());
                 }
 
-                if (pe.port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    pe.port.notify_dpm(MsgToDpm_NewPowerLevel(true));
+                if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+                    port.notify_dpm(MsgToDpm_NewPowerLevel(true));
                 }
 
-                pe.port.notify_dpm(MsgToDpm_SelectCapDone());
+                port.notify_dpm(MsgToDpm_SelectCapDone());
                 return PE_SNK_Transition_Sink;
             }
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Wait))
             {
-                if (pe.port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+                if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
                     // Pend another retry. Spec requires to init this timer
                     // on PE_SNK_Ready enter, but it looks more convenient here.
-                    pe.port.timers.start(PD_TIMEOUT::tSinkRequest);
+                    port.timers.start(PD_TIMEOUT::tSinkRequest);
                     return PE_SNK_Ready;
                 }
                 return PE_SNK_Wait_for_Capabilities;
@@ -334,11 +335,11 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
-                if (pe.port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    pe.port.notify_dpm(MsgToDpm_NewPowerLevel(false));
+                if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+                    port.notify_dpm(MsgToDpm_NewPowerLevel(false));
                 }
 
-                if (pe.port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+                if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
                     return PE_SNK_Ready;
                 }
                 return PE_SNK_Wait_for_Capabilities;
@@ -348,7 +349,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -370,43 +371,44 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         // There are 2 timeouts, depending on EPR mode. Both uses the same
         // timer. Use proper one for setup, but SPR one for clear/check
         // (because clear/check use the same timer ID).
-        if (pe.port.pe_flags.test(PE_FLAG::IN_EPR_MODE)) {
-            pe.port.timers.start(PD_TIMEOUT::tPSTransition_EPR);
+        if (port.pe_flags.test(PE_FLAG::IN_EPR_MODE)) {
+            port.timers.start(PD_TIMEOUT::tPSTransition_EPR);
         } else {
-            pe.port.timers.start(PD_TIMEOUT::tPSTransition_SPR);
+            port.timers.start(PD_TIMEOUT::tPSTransition_SPR);
         }
 
         // Any PRL error at this stage should cause hard reset.
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
-            if (pe.port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::PS_RDY)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
+            if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::PS_RDY)) {
                 return PE_SNK_Ready;
             }
             // Anything else - protocol error
             return PE_SNK_Hard_Reset;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tPSTransition_SPR)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tPSTransition_SPR)) {
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& pe = get_fsm_context();
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-        pe.port.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
+        auto& port = get_fsm_context().port;
+        port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
+        port.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
     }
 };
 
@@ -417,42 +419,44 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         // Ensure to clear flags from past send attempt. If sink returned to
         // this state - all starts from scratch.
-        pe.port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
-        pe.port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
-        pe.port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
-        pe.port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+        port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
+        port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
+        port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
+        port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
 
         if (pe.is_in_epr_mode()) {
             // If we are in EPR mode, rearm timer for EPR Keep Alive request
-            pe.port.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
+            port.timers.start(PD_TIMEOUT::tSinkEPRKeepAlive);
         } else {
             // Force enter EPR mode if possible
             if (pe.is_epr_mode_available()) {
-                pe.port.dpm_requests.set(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
+                port.dpm_requests.set(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
             }
         }
 
         if (pe.is_in_pps_contract()) {
             // PPS contract should be refreshed at least every 10s
             // of inactivity. We use 5s for sure.
-            pe.port.timers.start(PD_TIMEOUT::tPPSRequest);
+            port.timers.start(PD_TIMEOUT::tPPSRequest);
         }
 
         // Ensure to run after state enter, to proceed pending things (DPM requests)
-        pe.port.wakeup();
+        port.wakeup();
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
-        bool sr_on_unsupported = pe.port.pe_flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
+        auto& port = pe.port;
+        bool sr_on_unsupported = port.pe_flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
-            auto& msg = pe.port.rx_emsg;
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
+            auto& msg = port.rx_emsg;
             auto hdr = msg.header;
 
             if (hdr.extended > 0) {
@@ -489,7 +493,7 @@ public:
 
                 case PD_DATA_MSGT::Vendor_Defined:
                     // No VDM support. Reject for 3.0+, and ignore for 2.0
-                    if (!pe.is_rev_2_0()) { return PE_SNK_Send_Not_Supported; }
+                    if (port.revision != PD_REVISION::REV20) { return PE_SNK_Send_Not_Supported; }
                     break;
 
                 case PD_DATA_MSGT::BIST:
@@ -555,14 +559,14 @@ public:
             }
         }
 
-        if (pe.port.is_prl_busy()) { return No_State_Change; }
+        if (port.is_prl_busy()) { return No_State_Change; }
 
         // Special case, process postponed src caps request. If pending - don't
         // try DPM requests queue.
-        if (!pe.port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
+        if (!port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
-            if (pe.port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
-                pe.port.timers.stop(PD_TIMEOUT::tSinkRequest);
+            if (port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
+                port.timers.stop(PD_TIMEOUT::tSinkRequest);
                 return PE_SNK_Select_Capability;
             }
         }
@@ -576,21 +580,21 @@ public:
             // leaves request armed. Should be ok for sink. Can be changed later.
             //
 
-            pe.port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
+            port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
 
-            if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::EPR_MODE_ENTRY)) {
+            if (port.dpm_requests.test(DPM_REQUEST_FLAG::EPR_MODE_ENTRY)) {
                 if (pe.is_in_epr_mode()) {
                     PE_LOGI("EPR mode entry requested, but already in EPR mode");
-                    pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
+                    port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else if (!pe.is_epr_mode_available()) {
                     PE_LOGI("EPR mode entry requested, but not allowed");
-                    pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
+                    port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else {
                     return PE_SNK_Send_EPR_Mode_Entry;
                 }
             }
 
-            if (pe.port.dpm_requests.test(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+            if (port.dpm_requests.test(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
                 return PE_SNK_Select_Capability;
             }
 
@@ -598,32 +602,32 @@ public:
             // Add here more DPM requests, if needed.
             //
 
-            pe.port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
+            port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         }
 
         //
         // Keep-alive for EPR mode / PPS contract
         //
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSinkEPRKeepAlive)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tSinkEPRKeepAlive)) {
             return PE_SNK_EPR_Keep_Alive;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
             return PE_SNK_Select_Capability;
         }
 
         // If event caused no activity, emit idle to DPM
-        pe.port.notify_dpm(MsgToDpm_Idle());
+        port.notify_dpm(MsgToDpm_Idle());
 
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& pe = get_fsm_context();
-        pe.port.timers.stop(PD_TIMEOUT::tSinkEPRKeepAlive);
-        pe.port.timers.stop(PD_TIMEOUT::tPPSRequest);
-        pe.port.pe_flags.clear(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
+        auto& port = get_fsm_context().port;
+        port.timers.stop(PD_TIMEOUT::tSinkEPRKeepAlive);
+        port.timers.stop(PD_TIMEOUT::tPPSRequest);
+        port.pe_flags.clear(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
     }
 };
 
@@ -634,11 +638,11 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
-        bool is_epr = pe.port.rx_emsg.header.extended;
-        auto& msg = pe.port.tx_emsg;
-        msg.clear();
+        bool is_epr = port.rx_emsg.header.extended;
+        port.tx_emsg.clear();
 
         auto caps = pe.dpm.get_sink_pdo_list();
 
@@ -653,7 +657,7 @@ public:
             // NOTE: Not sure about this. Do we need zero-padded EPR caps?
             if (pdo == 0) { continue; }
 
-            msg.append32(pdo);
+            port.tx_emsg.append32(pdo);
         }
 
         if (!is_epr) {
@@ -665,9 +669,9 @@ public:
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
 
@@ -683,24 +687,25 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         ECDB ecdb{};
         ecdb.type = PD_EXT_CTRL_MSGT::EPR_KeepAlive;
 
-        auto& msg = pe.port.tx_emsg;
-        msg.clear();
-        msg.append16(ecdb.raw_value);
+        port.tx_emsg.clear();
+        port.tx_emsg.append16(ecdb.raw_value);
 
         pe.send_ext_msg(PD_EXT_MSGT::Extended_Control);
         pe.check_request_progress_enter();
 
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
 
@@ -715,19 +720,17 @@ public:
         }
 
         if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
+            port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
-            auto& msg = pe.port.rx_emsg;
-
-            if (msg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
+            if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
                 return PE_SNK_Ready;
             }
 
-            PE_LOGE("Protocol error: unexpected message received [0x{:04x}]", msg.header.raw_value);
+            PE_LOGE("Protocol error: unexpected message received [0x{:04x}]", port.rx_emsg.header.raw_value);
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -748,25 +751,26 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
-            pe.port.hard_reset_counter > 2 /* nHardResetCount */)
+        if (port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
+            port.hard_reset_counter > 2 /* nHardResetCount */)
         {
             return PE_Src_Disabled;
         }
 
-        pe.port.pe_flags.set(PE_FLAG::PRL_HARD_RESET_PENDING);
-        pe.port.notify_prl(MsgToPrl_HardResetFromPe{});
-        pe.port.hard_reset_counter++;
+        port.pe_flags.set(PE_FLAG::PRL_HARD_RESET_PENDING);
+        port.notify_prl(MsgToPrl_HardResetFromPe{});
+        port.hard_reset_counter++;
 
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
+        if (port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
             return No_State_Change;
         }
         return PE_SNK_Transition_to_default;
@@ -780,23 +784,24 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
-        pe.port.pe_flags.clear_all();
-        pe.port.dpm_requests.clear_all();
+        port.pe_flags.clear_all();
+        port.dpm_requests.clear_all();
 
         // If need to pend - call `wait_dpm_transit_to_default(true)` in
         // event handler, and `wait_dpm_transit_to_default(false)` to continue.
-        pe.port.notify_dpm(MsgToDpm_TransitToDefault());
-        pe.port.wakeup();
+        port.notify_dpm(MsgToDpm_TransitToDefault());
+        port.wakeup();
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (!pe.port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
-            pe.port.notify_prl(MsgToPrl_PEHardResetDone{});
+        if (!port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
+            port.notify_prl(MsgToPrl_PEHardResetDone{});
             return PE_SNK_Startup;
         }
         return No_State_Change;
@@ -820,23 +825,23 @@ public:
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Wait_for_Capabilities;
         }
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_DISCARDED)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_DISCARDED)) {
             return PE_SNK_Hard_Reset;
         }
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
     }
 
     void on_exit_state() override {
-        auto& pe = get_fsm_context();
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
+        auto& port = get_fsm_context().port;
+        port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
     }
 };
 
@@ -847,30 +852,32 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         // Cleanup previous operations flags
-        pe.port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
-        pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
-        pe.port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
+        port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
+        port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+        port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
 
         // Setup error handling and initial state
-        pe.port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
+        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
-        pe.port.notify_prl(MsgToPrl_SoftResetFromPe{});
+        port.notify_prl(MsgToPrl_SoftResetFromPe{});
         pe.check_request_progress_enter();
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
         // Wait until PRL layer ready
-        if (!pe.port.is_prl_running()) { return No_State_Change; }
+        if (!port.is_prl_running()) { return No_State_Change; }
 
         // Send only once per state enter
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Soft_Reset);
             return No_State_Change;
         }
@@ -882,15 +889,15 @@ public:
         }
 
         if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
+            port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
-            if (pe.port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Accept)) {
+            if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Accept)) {
                 return PE_SNK_Wait_for_Capabilities;
             }
         }
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR) ||
-            pe.port.timers.is_expired(PD_TIMEOUT::tSenderResponse))
+        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR) ||
+            port.timers.is_expired(PD_TIMEOUT::tSenderResponse))
         {
             return PE_SNK_Hard_Reset;
         }
@@ -914,7 +921,7 @@ public:
         pe.log_state();
 
         // Reply depends on PD revision. For 3.0+, use Not_Supported,
-        if (pe.is_rev_2_0()) {
+        if (pe.port.revision == PD_REVISION::REV20) {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Reject);
         } else {
             pe.send_ctrl_msg(PD_CTRL_MSGT::Not_Supported);
@@ -924,9 +931,9 @@ public:
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
         return No_State_Change;
@@ -939,8 +946,8 @@ public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
     auto on_enter_state() -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
-        pe.port.notify_dpm(MsgToDpm_Alert(pe.port.rx_emsg.read32(0)));
+        auto& port = get_fsm_context().port;
+        port.notify_dpm(MsgToDpm_Alert(port.rx_emsg.read32(0)));
         return PE_SNK_Ready;
     }
 };
@@ -952,26 +959,27 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         EPRMDO eprmdo{};
         eprmdo.action = EPR_MODE_ACTION::ENTER;
         eprmdo.data = pe.dpm.get_epr_watts();
 
-        auto& msg = pe.port.tx_emsg;
-        msg.clear();
-        msg.append32(eprmdo.raw_value);
+        port.tx_emsg.clear();
+        port.tx_emsg.append32(eprmdo.raw_value);
 
         pe.send_data_msg(PD_DATA_MSGT::EPR_Mode);
         pe.check_request_progress_enter();
 
-        pe.port.timers.start(PD_TIMEOUT::tEnterEPR);
+        port.timers.start(PD_TIMEOUT::tEnterEPR);
 
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
 
@@ -980,23 +988,22 @@ public:
         }
 
         if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
-            pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
+            port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
-            auto& msg = pe.port.rx_emsg;
-            if (msg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
-                EPRMDO eprmdo{msg.read32(0)};
+            if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
+                EPRMDO eprmdo{port.rx_emsg.read32(0)};
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_ACKNOWLEDGED) {
                     return PE_SNK_EPR_Mode_Entry_Wait_For_Response;
                 }
 
-                pe.port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
-                pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
+                port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
+                port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
                 PE_LOGE("EPR mode enter failed [code 0x{:02x}]", eprmdo.action);
 
-                pe.port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
-                pe.port.notify_dpm(MsgToDpm_HandshakeDone());
+                port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
+                port.notify_dpm(MsgToDpm_HandshakeDone());
 
                 return PE_SNK_Ready;
             }
@@ -1004,7 +1011,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1024,16 +1031,15 @@ public:
     ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
-            auto& msg = pe.port.rx_emsg;
-            if (msg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
-                EPRMDO eprmdo{msg.read32(0)};
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
+            if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
+                EPRMDO eprmdo{port.rx_emsg.read32(0)};
 
                 if (eprmdo.action == EPR_MODE_ACTION::ENTER_SUCCEEDED) {
-                    pe.port.pe_flags.set(PE_FLAG::IN_EPR_MODE);
-                    pe.port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
+                    port.pe_flags.set(PE_FLAG::IN_EPR_MODE);
+                    port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
                     return PE_SNK_Wait_for_Capabilities;
                 }
@@ -1044,7 +1050,7 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (pe.port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
             return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
@@ -1058,14 +1064,15 @@ public:
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
 
         if (!pe.is_in_spr_contract()) {
             PE_LOGE("Not in SPR contract before EPR mode exit => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
-        pe.port.pe_flags.clear(PE_FLAG::IN_EPR_MODE);
-        pe.port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
+        port.pe_flags.clear(PE_FLAG::IN_EPR_MODE);
+        port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
 
         return PE_SNK_Wait_for_Capabilities;
     }
@@ -1089,7 +1096,7 @@ public:
         if (rdo.obj_position != 1) { return PE_SNK_Ready; }
 
         // Setup supported modes
-        BISTDO bdo{pe.port.rx_emsg.read32(0)};
+        BISTDO bdo{port.rx_emsg.read32(0)};
         if (bdo.mode == BIST_MODE::Carrier) {
             pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
             return No_State_Change;
@@ -1149,8 +1156,8 @@ public:
     }
 
     void on_exit_state() override {
-        auto& pe = get_fsm_context();
-        pe.port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+        auto& port = get_fsm_context().port;
+        port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
     }
 };
 
@@ -1175,6 +1182,7 @@ public:
 
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
         pe.log_state();
 
         RMDO rmdo{};
@@ -1183,18 +1191,17 @@ public:
         rmdo.ver_major = 1;
         rmdo.ver_minor = 1;
 
-        auto& msg = pe.port.tx_emsg;
-        msg.clear();
-        msg.append32(rmdo.raw_value);
+        port.tx_emsg.clear();
+        port.tx_emsg.append32(rmdo.raw_value);
 
         pe.send_data_msg(PD_DATA_MSGT::Revision);
         return No_State_Change;
     }
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+        auto& port = get_fsm_context().port;
 
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
         return No_State_Change;
@@ -1274,32 +1281,28 @@ void PE::init() {
 //
 // Msg sending helpers
 //
-void PE::send_data_msg(PD_DATA_MSGT::Type msg) {
+void PE::send_data_msg(PD_DATA_MSGT::Type msgt) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    port.notify_prl(MsgToPrl_DataMsgFromPe{msg});
+    port.notify_prl(MsgToPrl_DataMsgFromPe{msgt});
 }
 
-void PE::send_ext_msg(PD_EXT_MSGT::Type msg) {
+void PE::send_ext_msg(PD_EXT_MSGT::Type msgt) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    port.notify_prl(MsgToPrl_ExtMsgFromPe{msg});
+    port.notify_prl(MsgToPrl_ExtMsgFromPe{msgt});
 }
 
-void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msg) {
+void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
     port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-    port.notify_prl(MsgToPrl_CtlMsgFromPe{msg});
+    port.notify_prl(MsgToPrl_CtlMsgFromPe{msgt});
 }
 
 //
 // Utilities
 //
-auto PE::is_rev_2_0() const -> bool {
-    return port.revision < PD_REVISION::REV30;
-}
-
 auto PE::is_epr_mode_available() const -> bool {
     if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) ||
         port.pe_flags.test(PE_FLAG::EPR_AUTO_ENTER_DISABLED) ||
-        is_rev_2_0())
+        port.revision == PD_REVISION::REV20)
     {
         return false;
     }

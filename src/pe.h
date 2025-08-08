@@ -67,7 +67,6 @@ public:
     bool is_in_spr_contract() const;
     bool is_in_pps_contract() const;
     bool is_epr_mode_available() const;
-    bool is_rev_2_0() const;
 
     void check_request_progress_enter();
     auto check_request_progress_run() -> PE_REQUEST_PROGRESS;
