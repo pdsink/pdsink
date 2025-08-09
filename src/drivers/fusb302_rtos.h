@@ -122,10 +122,10 @@ public:
 
 protected:
     void task();
-    bool handle_interrupt();
-    bool handle_timer();
-    bool handle_tcpc_calls();
-    bool handle_meter();
+    void handle_interrupt();
+    void handle_timer();
+    void handle_tcpc_calls();
+    void handle_meter();
     bool meter_tick(bool &retry);
 
     void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);

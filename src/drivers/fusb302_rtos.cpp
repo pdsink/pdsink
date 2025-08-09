@@ -19,11 +19,19 @@ namespace fusb302 {
         } \
     } while (0)
 
-#define HAL_FAIL_ON_ERROR(expr) \
+#define HAL_RET_FALSE_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
             DRV_LOGE("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
             return false; \
+        } \
+    } while (0)
+
+#define HAL_RET_ON_ERROR(expr) \
+    do { \
+        if (!(expr)) { \
+            DRV_LOGE("FUSB302 HAL IO error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            return; \
         } \
     } while (0)
 
@@ -34,11 +42,19 @@ namespace fusb302 {
         } \
     } while (0)
 
-#define DRV_FAIL_ON_ERROR(expr) \
+#define DRV_RET_FALSE_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
             DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
             return false; \
+        } \
+    } while (0)
+
+#define DRV_RET_ON_ERROR(expr) \
+    do { \
+        if (!(expr)) { \
+            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            return; \
         } \
     } while (0)
 
@@ -64,41 +80,41 @@ bool Fusb302Rtos::fusb_setup() {
     // Reset chip
     Reset rst{0};
     rst.SW_RES = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
 
     // Read ID to check connection
     DeviceID id;
-    HAL_FAIL_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
     DRV_LOGI("FUSB302 ID: VER={}, PROD={}, REV={}",
         id.VERSION_ID, id.PRODUCT_ID, id.REVISION_ID);
 
     // Power up all blocks
     Power pwr{0};
     pwr.PWR = 0xF;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
 
     // By default disable all interrupts except VBUSOK.
     Mask1 mask{0xFF};
     mask.M_VBUSOK = 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, 0xFF));
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Maska::addr, 0xFF));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
 
     // Sync VBUSOK
     auto delay = pdMS_TO_TICKS(2);
     vTaskDelay(delay ? delay : 1); // instead of 250uS
     Status0 status0;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
 
     // TODO: Retries are in PRL now, consider use here.
-    DRV_FAIL_ON_ERROR(fusb_set_tx_auto_retries(0));
+    DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(0));
 
-    DRV_FAIL_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
+    DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
 
-    DRV_FAIL_ON_ERROR(fusb_set_rxtx_interrupts(true));
+    DRV_RET_FALSE_ON_ERROR(fusb_set_rxtx_interrupts(true));
 
     // NOTE: we don't touch data/power role bits.
     // - defaults are ok for sink/ufp
@@ -113,63 +129,63 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     // exist.
     //
     Mask1 mask;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Mask1::addr, mask.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Mask1::addr, mask.raw_value));
     mask.M_COLLISION = enable ? 0 : 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
 
     Maska maska;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Maska::addr, maska.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Maska::addr, maska.raw_value));
     maska.M_HARDRST = enable ? 0 : 1;
     maska.M_TXSENT = enable ? 0 : 1;
     maska.M_HARDSENT = enable ? 0 : 1;
     maska.M_RETRYFAIL = enable ? 0 : 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
 
     Maskb maskb;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Maskb::addr, maskb.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Maskb::addr, maskb.raw_value));
     maskb.M_GCRCSENT = enable ? 0 : 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
 
     return true;
 }
 
 bool Fusb302Rtos::fusb_set_auto_goodcrc(bool enable) {
     Switches1 sw1;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.AUTO_CRC = enable ? 1 : 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_set_tx_auto_retries(uint8_t count) {
     Control3 ctl3;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctl3.raw_value));
     ctl3.N_RETRIES = count & 3; // 0-3 retries
     ctl3.AUTO_RETRY = count > 0 ? 1 : 0;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctl3.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_flush_rx_fifo() {
     Control1 ctrl1{0};
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
     ctrl1.RX_FLUSH = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_flush_tx_fifo() {
     Control0 ctrl0{0};
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
     ctrl0.TX_FLUSH = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_pd_reset() {
     Reset rst{0};
     rst.PD_RESET = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
     return fusb_setup();
 }
 
@@ -178,30 +194,30 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     // Attach comparator
     //
     Switches0 sw0;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
     sw0.MEAS_CC1 = 0;
     sw0.MEAS_CC2 = 0;
 
     if (polarity == TCPC_POLARITY::CC1) { sw0.MEAS_CC1 = 1; }
     if (polarity == TCPC_POLARITY::CC2) { sw0.MEAS_CC2 = 1; }
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
     //
     // Attach BMC
     //
     Switches1 sw1;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.TXCC1 = 0;
     sw1.TXCC2 = 0;
 
     if (polarity == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
     if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
-    HAL_FAIL_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
     this->polarity.store(polarity);
 
     if (polarity == TCPC_POLARITY::NONE) {
-        DRV_FAIL_ON_ERROR(fusb_set_rx_enable(false));
+        DRV_RET_FALSE_ON_ERROR(fusb_set_rx_enable(false));
     }
     return true;
 }
@@ -216,17 +232,17 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
     if (rx_enabled == enable) {
         // If no state change - only drop TX FIFO.
-        DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+        DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
         return true; // No change
     }
 
     rx_enabled = enable;
 
-    DRV_FAIL_ON_ERROR(fusb_flush_rx_fifo());
+    DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
     rx_queue.clear_from_producer();
-    DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+    DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
-    DRV_FAIL_ON_ERROR(fusb_set_auto_goodcrc(enable));
+    DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(enable));
     return true;
 }
 
@@ -240,7 +256,7 @@ void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
 }
 
 bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
-    DRV_FAIL_ON_ERROR(fusb_flush_tx_fifo());
+    DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
@@ -286,7 +302,7 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     fifo_buf.push_back(TX_TKN::TX_OFF);
     fifo_buf.push_back(TX_TKN::TXON);
 
-    HAL_FAIL_ON_ERROR(hal.write_block(FIFOs::addr, fifo_buf.data(), fifo_buf.size()));
+    HAL_RET_FALSE_ON_ERROR(hal.write_block(FIFOs::addr, fifo_buf.data(), fifo_buf.size()));
     return true;
 }
 
@@ -297,7 +313,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     uint8_t crc_junk[4];
 
     Status1 status1{};
-    HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
 
     if (status1.RX_EMPTY) {
         DRV_LOGI("Can't read from empty FIFO");
@@ -309,9 +325,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     // NOTE: We can get mixture of chunks and GoodCRC. That's why we read in
     // cycle all available packets and skip GoodCRC.
     while (!status1.RX_EMPTY) {
-        HAL_FAIL_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
+        HAL_RET_FALSE_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
 
-        HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, hdr, 2));
+        HAL_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, hdr, 2));
         pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
 
         if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
@@ -325,9 +341,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         // Chunks have only 7 bits for data objects count. Max 28 bytes in total.
         // So, it's impossible to overflow chunk buffer.
         pkt.resize_by_data_obj_count();
-        HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, pkt.get_data().data(), pkt.data_size()));
+        HAL_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, pkt.get_data().data(), pkt.data_size()));
 
-        HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, crc_junk, 4));
+        HAL_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, crc_junk, 4));
 
         // Process all but GoodCRC, coming after TX. Processing of TX was
         // already scheduled, and here we just ignore GoodCRC as garbage.
@@ -338,23 +354,23 @@ bool Fusb302Rtos::fusb_rx_pkt() {
             has_deferred_wakeup = true;
         }
 
-        HAL_FAIL_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
+        HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
     }
     return true;
 }
 
 bool Fusb302Rtos::fusb_hr_send() {
     Control3 ctrl3;
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
 
     return true;
 }
 
 bool Fusb302Rtos::hr_cleanup() {
     // Cleanup internal states after hard reset received or sent.
-    DRV_FAIL_ON_ERROR(fusb_pd_reset());
+    DRV_RET_FALSE_ON_ERROR(fusb_pd_reset());
     rx_queue.clear_from_producer();
     return true;
 }
@@ -363,8 +379,8 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
     Control1 ctrl1;
     Control3 ctrl3;
 
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
-    HAL_FAIL_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl1.BIST_MODE2 = 0;
     ctrl3.BIST_TMODE = 0;
 
@@ -379,33 +395,33 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
             break;
     }
 
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
-    HAL_FAIL_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
+    HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
 
     if (mode == TCPC_BIST_MODE::Carrier) {
         Control0 ctrl0;
-        HAL_FAIL_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
+        HAL_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
         ctrl0.TX_START = 1;
-        HAL_FAIL_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
+        HAL_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
     }
 
     return true;
 }
 
-bool Fusb302Rtos::handle_interrupt() {
+void Fusb302Rtos::handle_interrupt() {
     while (hal.is_interrupt_active()) {
         Interrupt interrupt;
         Interrupta interrupta;
         Interruptb interruptb;
 
         // TODO: Consider 5-bytes block read (0x3E-0x42) with single call.
-        HAL_FAIL_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
-        HAL_FAIL_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
-        HAL_FAIL_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
+        HAL_RET_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
+        HAL_RET_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
+        HAL_RET_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
 
         if (interrupt.I_VBUSOK) {
             Status0 status0;
-            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            HAL_RET_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
             DRV_LOGI("IRQ: VBUS changed");
             has_deferred_wakeup = true;
@@ -413,14 +429,14 @@ bool Fusb302Rtos::handle_interrupt() {
 
         if (interrupta.I_HARDRST) {
             DRV_LOGI("IRQ: hard reset received");
-            DRV_FAIL_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
-            DRV_FAIL_ON_ERROR(hr_cleanup());
+            DRV_RET_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
+            DRV_RET_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
 
         if (interrupta.I_HARDSENT) {
             DRV_LOGI("IRQ: hard reset sent");
-            DRV_FAIL_ON_ERROR(hr_cleanup());
+            DRV_RET_ON_ERROR(hr_cleanup());
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
         }
 
@@ -449,7 +465,7 @@ bool Fusb302Rtos::handle_interrupt() {
         }
     }
 
-    return true;
+    return;
 }
 
 // Since FUSB302 does not allow making different measurements in parallel,
@@ -488,7 +504,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
 
-            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             if (status0.ACTIVITY) {
                 meter_wait_until_ts = get_timestamp() + DEBOUNCE_PERIOD_MS;
                 meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
@@ -519,14 +535,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::SCAN_CC_BEGIN:
-            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
             // save MEAS_CC1/MEAS_CC2
             meter_sw0_backup = sw0;
 
             // Measure CC1
             sw0.MEAS_CC1 = 1;
             sw0.MEAS_CC2 = 0;
-            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
             // Technically, 250uS is ok, but precise match would be platform-dependant
             // and, probably, blocking. We rely on FreeRTOS ticks instead.
@@ -539,14 +555,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::SCAN_CC1_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
-            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             cc1_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Measure CC2
-            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
             sw0.MEAS_CC1 = 0;
             sw0.MEAS_CC2 = 1;
-            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
             meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
             meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
             repeat = true;
@@ -556,14 +572,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::SCAN_CC2_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
-            HAL_FAIL_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             cc2_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Restore previous state
-            HAL_FAIL_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
             sw0.MEAS_CC1 = meter_sw0_backup.MEAS_CC1;
             sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
-            HAL_FAIL_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
             sync_scan_cc.job_finish();
             meter_state = MeterState::IDLE;
@@ -575,25 +591,25 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
     return true;
 }
 
-bool Fusb302Rtos::handle_meter() {
+void Fusb302Rtos::handle_meter() {
     bool repeat = false;
 
     while (1) {
-        DRV_FAIL_ON_ERROR(meter_tick(repeat));
+        DRV_RET_ON_ERROR(meter_tick(repeat));
         if (!repeat) { break; }
     }
 
-    return true;
+    return;
 }
 
-bool Fusb302Rtos::handle_timer() {
-    if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return true; }
+void Fusb302Rtos::handle_timer() {
+    if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return; }
 
     port.notify_task(MsgTask_Timer{});
-    return true;
+    return;
 }
 
-bool Fusb302Rtos::handle_tcpc_calls() {
+void Fusb302Rtos::handle_tcpc_calls() {
 
     TCPC_POLARITY _polarity{};
     if (sync_set_polarity.get_job(_polarity)) {
@@ -644,8 +660,6 @@ bool Fusb302Rtos::handle_tcpc_calls() {
     if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
         DRV_LOG_ON_ERROR(fusb_tx_pkt_begin(enquired_tx_chunk));
     }
-
-    return true;
 }
 
 void Fusb302Rtos::task() {
