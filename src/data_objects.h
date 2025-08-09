@@ -507,6 +507,8 @@ struct PD_MSG_TPL : public I_PD_MSG {
     // Helpers to simplify payload access
     uint16_t read16(size_t pos) const override {
         size_t size = _buffer.size();
+        // Bounds check is not needed, but it exists to suppress warnings from
+        // code checkers. In reality, RX messages are padded in PRL.
         return uint16_t((pos >= size) ? 0 : _buffer[pos]) |
             (uint16_t((pos + 1 >= size) ? 0 : _buffer[pos + 1]) << 8);
     }
@@ -530,9 +532,14 @@ struct PD_MSG_TPL : public I_PD_MSG {
     }
 
     void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) {
-        if (start < end) {
-            _buffer.insert(_buffer.end(), src.get_data().begin() + start, src.get_data().begin() + end);
-        }
+        // Bounds check is not needed, but it exists to suppress warnings from code checkers.
+        auto available = _buffer.available();
+
+        if (start >= end) { return; }
+        if (available == 0) { return; }
+        if (end - start > available) { end = start + available; }
+
+        _buffer.insert(_buffer.end(), src.get_data().begin() + start, src.get_data().begin() + end);
     }
 
     uint32_t data_size() const {
