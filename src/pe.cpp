@@ -241,30 +241,20 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        // By spec, we should request PDO at the previous stage. But for a sink-only
-        // device this place looks more convenient, as a unified DPM point for all cases.
-        // This decision can be changed later, if needed.
-        RDO_ANY rdo{pe.dpm.get_request_data_object(port.source_caps)};
-
-        // A minimal check for RDO validity.
-        // DPM implementation MUST NOT return invalid data.
-        if (rdo.obj_position < 1 || rdo.obj_position > port.source_caps.size()) {
-            PE_LOGE("DPM requested an RDO with a malformed index: {}, performing a hard reset", rdo.obj_position);
-            return PE_SNK_Hard_Reset;
-        }
+        auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
 
         // Prepare & send request, depending on SPR/EPR mode
         port.tx_emsg.clear();
 
         // Remember the RDO to store after success
-        port.rdo_to_request = rdo.raw_value;
+        port.rdo_to_request = rdo_and_pdo.first;
 
         if (pe.is_in_epr_mode()) {
-            port.tx_emsg.append32(rdo.raw_value);
-            port.tx_emsg.append32(port.source_caps[rdo.obj_position - 1]);
+            port.tx_emsg.append32(rdo_and_pdo.first);
+            port.tx_emsg.append32(rdo_and_pdo.second);
             pe.send_data_msg(PD_DATA_MSGT::EPR_Request);
         } else {
-            port.tx_emsg.append32(rdo.raw_value);
+            port.tx_emsg.append32(rdo_and_pdo.first);
             pe.send_data_msg(PD_DATA_MSGT::Request);
         }
 

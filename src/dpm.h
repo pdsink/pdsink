@@ -1,6 +1,6 @@
 #pragma once
 
-#include <etl/fsm.h>
+#include <etl/utility.h>
 
 #include "data_objects.h"
 
@@ -11,7 +11,7 @@ class Port; class PE;
 class IDPM {
 public:
     virtual void setup() = 0;
-    virtual uint32_t get_request_data_object(const etl::ivector<uint32_t>& src_caps) = 0;
+    virtual etl::pair<uint32_t, uint32_t> get_request_data_object(const etl::ivector<uint32_t>& src_caps) = 0;
     virtual PDO_LIST get_sink_pdo_list() = 0;
     virtual uint32_t get_epr_watts() = 0;
 };
@@ -39,7 +39,7 @@ public:
 
     // This one is called from `SRC Capabilities` and `EPR SRC Capabilities`
     // Override with your custom logic to evaluate capabilities and return
-    virtual uint32_t get_request_data_object(const etl::ivector<uint32_t>& src_caps) override;
+    virtual etl::pair<uint32_t, uint32_t> get_request_data_object(const etl::ivector<uint32_t>& src_caps) override;
 
     // This one is called via `Sink Capabilities` and `EPR Sink Capabilities`
     // requests from SRC. By default, provides max possible list of Sink PDOs.

@@ -147,7 +147,7 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
 
 // This one is called when `SRC Capabilities` and `EPR SRC Capabilities`
 // are received from power source. Returns RDO and appropriate PDO as pair
-auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uint32_t {
+auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl::pair<uint32_t, uint32_t> {
     // This is default stub implementation, with simple trigger support.
     // Customize if required.
 
@@ -160,7 +160,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
 
     if (src_caps.empty()) {
         DPM_LOGE("get_request_data_object: invalid SRC Caps input");
-        return 0;
+        return {0, 0};
     }
 
     if (trigger_mode == TRIGGER_MODE::FIXED) {
@@ -182,7 +182,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
                 rdo.max_current = pdo_ma / 10U;
                 rdo.operating_current = pdo_ma / 10U;
 
-                return rdo.raw_value;
+                return {rdo.raw_value, pdo};
             }
         }
     }
@@ -206,7 +206,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
                 rdo.operating_current = trigger_ma / 50U;
                 rdo.output_voltage = trigger_mv / 20U;
 
-                return rdo.raw_value;
+                return {rdo.raw_value, pdo};
             }
         }
     }
@@ -223,7 +223,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> uin
         rdo.operating_current = pdo_ma / 10U;
     };
 
-    return rdo.raw_value;
+    return {rdo.raw_value, src_caps[0]};
 }
 
 void DPM::trigger_fixed(uint32_t mv) {

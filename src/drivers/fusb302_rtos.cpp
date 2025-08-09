@@ -612,9 +612,7 @@ bool Fusb302Rtos::handle_tcpc_calls() {
 
     bool _rx_enabled{};
     if (sync_rx_enable.get_job(_rx_enabled)) {
-        // TODO: ensure discard pending TX and in-progress operations.
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-
         DRV_LOG_ON_ERROR(fusb_set_rx_enable(_rx_enabled));
         sync_rx_enable.job_finish();
         has_deferred_wakeup = true;
