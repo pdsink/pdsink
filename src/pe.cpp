@@ -1010,7 +1010,9 @@ public:
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if (port.timers.is_expired(PD_TIMEOUT::tEnterEPR)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse) ||
+            port.timers.is_expired(PD_TIMEOUT::tEnterEPR))
+        {
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -1019,8 +1021,15 @@ public:
 
     void on_exit_state() {
         auto& pe = get_fsm_context();
+        auto& port = pe.port;
+
         pe.check_request_progress_exit();
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
+
+        // On protocol fuckup free `tEnterEPR` timer. In other case
+        // it will continue in PE_SNK_EPR_Mode_Entry_Wait_For_Response
+        if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
+            port.timers.stop(PD_TIMEOUT::tEnterEPR);
+        }
     }
 };
 
@@ -1054,14 +1063,19 @@ public:
         }
         return No_State_Change;
     }
+
+    void on_exit_state() override {
+        auto& port = get_fsm_context().port;
+        port.timers.stop(PD_TIMEOUT::tEnterEPR);
+    }
 };
 
 
 class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received, MsgSysUpdate, MsgTransitTo> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
+    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
+    auto on_enter_state() -> etl::fsm_state_id_t {
         auto& pe = get_fsm_context();
         auto& port = pe.port;
 
@@ -1424,8 +1438,14 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
 
     if (!pe.is_started()) { return; }
 
+    // Always arm this flag, even for not forwarded errors). This allow
+    // optional resource free in `on_exit()`, when some are shared between state.
+    //
+    // Since only 2 target states possible, ensure both
+    // clear this flag in `on_enter()`.
+    port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
+
     if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
-        port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
         port.wakeup();
         return;
     }
