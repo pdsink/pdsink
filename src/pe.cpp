@@ -828,10 +828,8 @@ public:
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Wait_for_Capabilities;
         }
-        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_DISCARDED)) {
-            return PE_SNK_Hard_Reset;
-        }
-        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_DISCARDED) ||
+            port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
@@ -1382,6 +1380,10 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS {
         // Wait for GoodCRC
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             port.pe_flags.set(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
+            // NOTE: This timer can be disabled from RCH chunking. But the flag
+            // TRANSMIT_REQUEST_SUCCEEDED protect us from re-arming it. If
+            // RCH chunker is activated, then chunker timeout will be used
+            // instead to generate error.
             port.timers.start(PD_TIMEOUT::tSenderResponse);
             return PE_REQUEST_PROGRESS::FINISHED;
         }

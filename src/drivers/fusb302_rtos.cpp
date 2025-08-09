@@ -306,8 +306,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
     // Pick all pending packets from RX FIFO.
     //
-    // NOTE: This should not happen, but in theory we can get several packets
-    // per interrupt handler call. Use a loop to be sure all those are extracted.
+    // NOTE: We can get mixture of chunks and GoodCRC. That's why we read in
+    // cycle all available packets and skip GoodCRC.
     while (!status1.RX_EMPTY) {
         HAL_FAIL_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
 
@@ -315,7 +315,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
 
         if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
-            // Unchunked extended packets are not supported.
+            // Unchunked extended packets are not supported. This is an abnormal
+            // situation, and all we can do - wipe out RX FIFO.
             DRV_LOGE("Unchunked extended packet received, ignoring");
             fusb_flush_rx_fifo();
             return false;
@@ -328,7 +329,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
         HAL_FAIL_ON_ERROR(hal.read_block(FIFOs::addr, crc_junk, 4));
 
-        // Just silently ignore GoodCRC, coming after TX
+        // Process all but GoodCRC, coming after TX. Processing of TX was
+        // already scheduled, and here we just ignore GoodCRC as garbage.
         if (!pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
             DRV_LOGI("Message received: type = {}, extended = {}, data size = {}",
                 pkt.header.message_type, pkt.header.extended, pkt.data_size());

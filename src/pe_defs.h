@@ -17,9 +17,9 @@ enum class PE_FLAG {
     MSG_DISCARDED, // Outgoing message discarded by new incoming one
     MSG_RECEIVED,  // Got reply OR new message (which discarded outgoing transfer)
 
-    // By default PRL error usually causes soft reset. This flag can be set
-    // at state entry when custom handling needed. Then error will rise
-    // PROTOCOL_ERROR flag instead.
+    // By default PRL error usually causes soft reset (or return to ready state).
+    // This flag can be set at state entry when custom handling needed.
+    // Then control will continue in the current state.
     FORWARD_PRL_ERROR,
     PROTOCOL_ERROR,
 
@@ -29,7 +29,7 @@ enum class PE_FLAG {
     AMS_FIRST_MSG_SENT,
     EPR_AUTO_ENTER_DISABLED,
 
-    // Minor local flags to control states behaviour
+    // Minor flags to control local behaviour in states
     WAIT_DPM_TRANSIT_TO_DEFAULT,
     PRL_HARD_RESET_PENDING,
     IS_FROM_EVALUATE_CAPABILITY,
