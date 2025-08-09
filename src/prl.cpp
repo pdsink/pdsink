@@ -773,7 +773,7 @@ public:
         auto& prl = get_fsm_context().prl;
         auto& port = prl.port;
 
-        if (prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
+        if (!prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
         // For first AMS message need to wait SinkTxOK CC level
         if (!port.is_ams_active()) {
@@ -1280,9 +1280,7 @@ public:
         auto& prl = get_fsm_context().prl;
 
         // Wait for TCPC operation complete
-        if (prl.tcpc.is_rx_enable_done()) {
-            return No_State_Change;
-        }
+        if (!prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
         // Route state, depending on hard reset type requested
         if (prl.port.prl_hr_flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER)) {
@@ -1324,7 +1322,7 @@ public:
         // This means driver accepted request and commanded chip to send HR.
         // Final result is available via `port.tcpc_tx_status` (as for ordinary
         // transfer)
-        if (prl.tcpc.is_hr_send_done()) { return No_State_Change; }
+        if (!prl.tcpc.is_hr_send_done()) { return No_State_Change; }
 
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
     }

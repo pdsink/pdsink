@@ -1,9 +1,12 @@
 #pragma once
 
+#include <etl/endianness.h>
 #include <etl/message.h>
 #include <etl/vector.h>
-
 #include <stdint.h>
+
+static_assert(etl::endianness::value() == etl::endian::little,
+    "Only little-endian targets supported");
 
 namespace pd {
 

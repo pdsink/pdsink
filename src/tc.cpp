@@ -140,24 +140,16 @@ public:
 
 class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED, MsgSysUpdate> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& tc = get_fsm_context();
-        tc.log_state();
-
-        tc.port.is_attached = true;
-        return No_State_Change;
-    }
+    ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT;
 
     auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
         auto& tc = get_fsm_context();
         auto& port = tc.port;
 
+        // If just entered - wait polarity set complete and then set attached status.
         if (!port.is_attached) {
-            if (tc.tcpc.is_set_polarity_done()) {
-                port.is_attached = true;
-            }
+            if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
+            port.is_attached = true;
         }
 
         // TODO: Actually, we should check Safe0v. Check, if we should be more

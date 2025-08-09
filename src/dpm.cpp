@@ -131,9 +131,11 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 }
 
 void DPM::fill_rdo_flags(uint32_t &rdo) {
+    // Fill common RDO flags here
+    // This is default implementation. You can override it if required.
+
     RDO_ANY rdo_bits{rdo};
 
-    // Fill RDO flags here
     rdo_bits.epr_capable = 1;
     // Unchunked ext messages (long transfers) NOT supported (and not needed,
     // because chunking is enough).
