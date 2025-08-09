@@ -41,7 +41,6 @@ enum PE_State {
     PE_SNK_Send_EPR_Mode_Entry,
     PE_SNK_EPR_Mode_Entry_Wait_For_Response,
     // [rev3.2] 8.3.3.26.4 Sink EPR Mode Exit State Diagram
-    // PE_SNK_Send_EPR_Mode_Exit,
     PE_SNK_EPR_Mode_Exit_Received, // Manual exit not needed, only SRC-forced
 
     // [rev3.2] 8.3.3.27 BIST State Diagrams
@@ -410,7 +409,13 @@ public:
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
         auto& port = pe.port;
-        pe.log_state();
+
+        if (port.pe_flags.test_and_clear(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE)) {
+            // Log returning from EPR Keep-Alive at debug level to reduce noise
+            PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
+        } else {
+            pe.log_state();
+        }
 
         // Ensure flags from the previous send attempt are cleared.
         // If the sink returned to this state, everything starts from scratch.
@@ -676,7 +681,9 @@ public:
     auto on_enter_state() -> etl::fsm_state_id_t override {
         auto& pe = get_fsm_context();
         auto& port = pe.port;
-        pe.log_state();
+        // Manually log as debug level, to reduce noise
+        PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
+
 
         ECDB ecdb{};
         ecdb.type = PD_EXT_CTRL_MSGT::EPR_KeepAlive;
@@ -700,6 +707,7 @@ public:
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
             // If the message was discarded due to another activity => the connection
             // is OK, and a heartbeat is not needed. Consider it successful.
+            port.pe_flags.set(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE);
             return PE_SNK_Ready;
         }
 
@@ -711,6 +719,7 @@ public:
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
+                port.pe_flags.set(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE);
                 return PE_SNK_Ready;
             }
 
