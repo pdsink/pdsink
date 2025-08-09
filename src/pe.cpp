@@ -1472,7 +1472,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         return;
     }
 
-    receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
+    pe.receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
     port.wakeup();
 }
 

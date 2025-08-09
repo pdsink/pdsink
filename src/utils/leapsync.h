@@ -58,17 +58,18 @@ public:
     template<typename T = ParamType>
     typename etl::enable_if<!etl::is_void<T>::value, bool>::type
     get_job(T& params) {
-        // Empty or working => no new job to fetch
-        if (state.load() != STATE::ENQUIRED) { return false; }
-
-        T tmp = storage.value;
         auto expected = STATE::ENQUIRED;
-
-        if (state.compare_exchange_strong(expected, STATE::WORKING)) {
-            params = tmp;
-            return true;
+        if (!state.compare_exchange_strong(expected, STATE::WORKING)) {
+            return false; // No job to fetch
         }
-        return false;
+
+        // Fetch data
+        T tmp = storage.value;
+        // Ensure producer did not override data
+        if (state.load() != STATE::WORKING) { return false; }
+
+        params = tmp;
+        return true;
     }
 
     // job fetch for void
@@ -76,10 +77,7 @@ public:
     typename etl::enable_if<etl::is_void<T>::value, bool>::type
     get_job() {
         auto expected = STATE::ENQUIRED;
-        if (state.compare_exchange_strong(expected, STATE::WORKING)) {
-            return true;
-        }
-        return false;
+        return state.compare_exchange_strong(expected, STATE::WORKING);
     }
 
     // mark job finished
