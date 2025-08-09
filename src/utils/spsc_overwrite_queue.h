@@ -22,11 +22,11 @@ class spsc_overwrite_queue {
     static constexpr size_t MASK = CAP - 1;
 
     union head_fields_t {
+        uint32_t raw;
         struct {
             uint32_t writing : 1;
             uint32_t head : 31;
         };
-        uint32_t raw;
     };
 
     etl::array<T, CAP> buf;
@@ -62,7 +62,7 @@ public:
     template<typename U>
     void push(U&& v) noexcept {
         // make odd
-        head_fields_t hf{.raw = head_fields.fetch_add(1, etl::memory_order_release)};
+        head_fields_t hf{head_fields.fetch_add(1, etl::memory_order_release)};
         // update data
         buf[hf.head & MASK] = etl::forward<U>(v);
         // make even
@@ -73,7 +73,7 @@ public:
         while (true) {
             check_reset();
 
-            head_fields_t hf{.raw = head_fields.load(etl::memory_order_acquire)};
+            head_fields_t hf{head_fields.load(etl::memory_order_acquire)};
             auto t = get_adjusted_tail(hf);
 
             if (t == hf.head) { return false; }  // no data
@@ -94,21 +94,21 @@ public:
     }
 
     void clear_from_producer() {
-        head_fields_t hf{.raw = head_fields.load(etl::memory_order_relaxed)};
+        head_fields_t hf{head_fields.load(etl::memory_order_relaxed)};
 
         reset_pos.store(hf.head, etl::memory_order_relaxed);
         reset_ver.fetch_add(1, etl::memory_order_release);
     }
 
     void clear_from_consumer() {
-        head_fields_t hf{.raw = head_fields.load(etl::memory_order_acquire)};
+        head_fields_t hf{head_fields.load(etl::memory_order_acquire)};
         tail = hf.head;
     }
 
     bool empty() {
         check_reset();
 
-        head_fields_t hf{.raw = head_fields.load(etl::memory_order_acquire)};
+        head_fields_t hf{head_fields.load(etl::memory_order_acquire)};
         return hf.head == tail;
     }
 };

@@ -538,6 +538,7 @@ struct PD_MSG_TPL : public I_PD_MSG {
         // Bounds check is not needed, but it exists to suppress warnings from code checkers.
         auto available = _buffer.available();
 
+        if (end > src.data_size()) { end = src.data_size(); }
         if (start >= end) { return; }
         if (available == 0) { return; }
         if (end - start > available) { end = start + available; }

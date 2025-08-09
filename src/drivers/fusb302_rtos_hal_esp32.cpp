@@ -64,7 +64,7 @@ void Fusb302RtosHalEsp32::init_pins() {
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pin_bit_mask = (1ULL << int_io_pin);
 
-    gpio_config(&io_conf);
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
 
     auto handler = [](void* arg) -> void {
         auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);

@@ -67,8 +67,8 @@ public:
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};
 
-    // SNK RDOs cache, to build only once
-    PDO_LIST sink_rdo_list;
+    // SNK PDOs cache, to build only once
+    PDO_LIST sink_pdo_list;
 
 private:
     Port& port;

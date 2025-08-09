@@ -11,7 +11,7 @@ namespace pd {
 
 auto DPM::get_sink_pdo_list() -> PDO_LIST {
     // SNK demands are filled only once and MUST NOT be changed
-    if (sink_rdo_list.size() > 0) { return sink_rdo_list; }
+    if (sink_pdo_list.size() > 0) { return sink_pdo_list; }
 
     //
     // By default demand as much as possible. In other case SRC can
@@ -41,7 +41,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo1.voltage = 5000 / 50; // 5V
     pdo1.max_current = 3000 / 10; // 3A
 
-    sink_rdo_list.push_back(pdo1.raw_value);
+    sink_pdo_list.push_back(pdo1.raw_value);
 
     //
     // Fill the rest SRP PDOs, 2...7
@@ -51,28 +51,28 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo2.voltage = 9000 / 50; // 9V
     pdo2.max_current = 3000 / 10; // 3A
 
-    sink_rdo_list.push_back(pdo2.raw_value);
+    sink_pdo_list.push_back(pdo2.raw_value);
 
     SNK_PDO_FIXED pdo3{};
     pdo3.pdo_type = PDO_TYPE::FIXED;
     pdo3.voltage = 12000 / 50; // 12V
     pdo3.max_current = 3000 / 10; // 3A
 
-    sink_rdo_list.push_back(pdo3.raw_value);
+    sink_pdo_list.push_back(pdo3.raw_value);
 
     SNK_PDO_FIXED pdo4{};
     pdo4.pdo_type = PDO_TYPE::FIXED;
     pdo4.voltage = 15000 / 50; // 15V
     pdo4.max_current = 3000 / 10; // 3A
 
-    sink_rdo_list.push_back(pdo4.raw_value);
+    sink_pdo_list.push_back(pdo4.raw_value);
 
     SNK_PDO_FIXED pdo5{};
     pdo5.pdo_type = PDO_TYPE::FIXED;
     pdo5.voltage = 20000 / 50; // 20V
     pdo5.max_current = 5000 / 10; // 5A
 
-    sink_rdo_list.push_back(pdo5.raw_value);
+    sink_pdo_list.push_back(pdo5.raw_value);
 
     SNK_PDO_SPR_PPS pdo6{};
     pdo6.pdo_type = PDO_TYPE::AUGMENTED;
@@ -81,7 +81,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo6.max_voltage = 11000 / 100; // 11V
     pdo6.max_current = 3000 / 50; // 3A
 
-    sink_rdo_list.push_back(pdo6.raw_value);
+    sink_pdo_list.push_back(pdo6.raw_value);
 
     SNK_PDO_SPR_PPS pdo7{};
     pdo7.pdo_type = PDO_TYPE::AUGMENTED;
@@ -90,7 +90,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo7.max_voltage = 21000 / 100; // 21V
     pdo7.max_current = 5000 / 50; // 5A
 
-    sink_rdo_list.push_back(pdo7.raw_value);
+    sink_pdo_list.push_back(pdo7.raw_value);
 
     //
     // EPR PDOs. MUST start from 8. If SPR PDOs count < 7, the gap MUST be
@@ -102,21 +102,21 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo8.voltage = 28000 / 50; // 28V
     pdo8.max_current = 5000 / 10; // 5A
 
-    sink_rdo_list.push_back(pdo8.raw_value);
+    sink_pdo_list.push_back(pdo8.raw_value);
 
     SNK_PDO_FIXED pdo9{};
     pdo9.pdo_type = PDO_TYPE::FIXED;
     pdo9.voltage = 36000 / 50; // 36V
     pdo9.max_current = 5000 / 10; // 5A
 
-    sink_rdo_list.push_back(pdo9.raw_value);
+    sink_pdo_list.push_back(pdo9.raw_value);
 
     SNK_PDO_FIXED pdo10{};
     pdo10.pdo_type = PDO_TYPE::FIXED;
     pdo10.voltage = 48000 / 50; // 48V
     pdo10.max_current = 5000 / 10; // 5A
 
-    sink_rdo_list.push_back(pdo10.raw_value);
+    sink_pdo_list.push_back(pdo10.raw_value);
 
     SNK_PDO_EPR_AVS pdo11{};
     pdo11.pdo_type = PDO_TYPE::AUGMENTED;
@@ -125,9 +125,9 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo11.max_voltage = 50000 / 100; // 50V
     pdo11.pdp = 240 / 1; // 240W
 
-    sink_rdo_list.push_back(pdo11.raw_value);
+    sink_pdo_list.push_back(pdo11.raw_value);
 
-    return sink_rdo_list;
+    return sink_pdo_list;
 }
 
 void DPM::fill_rdo_flags(uint32_t &rdo) {

@@ -3,6 +3,8 @@
 #if defined(USE_FUSB302_RTOS)
 
 #include <etl/vector.h>
+
+#include "common_macros.h"
 #include "fusb302_rtos.h"
 #include "messages.h"
 #include "pd_log.h"
@@ -236,13 +238,12 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
         return true; // No change
     }
 
-    rx_enabled = enable;
-
     DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
     rx_queue.clear_from_producer();
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(enable));
+    rx_enabled = enable;
     return true;
 }
 
@@ -308,9 +309,9 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
 
 bool Fusb302Rtos::fusb_rx_pkt() {
     PD_CHUNK pkt{};
-    uint8_t sop;
+    __maybe_unused uint8_t sop;
     uint8_t hdr[2];
-    uint8_t crc_junk[4];
+    __maybe_unused uint8_t crc_junk[4];
 
     Status1 status1{};
     HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
@@ -453,14 +454,14 @@ void Fusb302Rtos::handle_interrupt() {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
             DRV_LOGI("IRQ: tx completed");
             // That's not necessary, but force GoodCRC peek to free FIFO faster.
-            fusb_rx_pkt();
+            DRV_RET_ON_ERROR(fusb_rx_pkt());
         }
         if (interruptb.I_GCRCSENT) {
             if (rx_enabled) {
                 DRV_LOGI("IRQ: GoodCRC sent");
-                fusb_rx_pkt();
+                DRV_RET_ON_ERROR(fusb_rx_pkt());
             } else {
-                fusb_flush_rx_fifo();
+                DRV_RET_ON_ERROR(fusb_flush_rx_fifo());
             }
         }
     }
