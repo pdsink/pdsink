@@ -1,4 +1,12 @@
-#pragma once
+/**
+ * LeapSync — single-frame synchronizer.
+ * Allows the producer to “leap over” unfinished consumer operations:
+ * new calls to enquire() overwrite previous parameters if they have not yet
+ * been accepted or processed. Intended for scenarios where only the most
+ * recent request matters.
+ */
+
+ #pragma once
 
 #include <etl/atomic.h>
 #include <etl/type_traits.h>
