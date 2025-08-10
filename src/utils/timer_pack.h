@@ -56,9 +56,7 @@ public:
     // A kind of gc - deactivates expired timers to reduce regular checks
     void cleanup() {
         for (size_t i = 0; i < TIMER_COUNT; i++) {
-            if (active.test(i) && is_expired(i)) {
-                deactivate(i);
-            }
+            if (active.test(i)) { is_expired(i); } // Deactivate
         }
     };
 
@@ -91,9 +89,11 @@ private:
     bool is_inactive(int timer_id) {
         return !active.test(timer_id) && !disabled.test(timer_id);
     }
+
     void deactivate(int timer_id) {
         active.clear(timer_id);
         disabled.clear(timer_id);
+        timers_changed.store(true);
     }
 
     // Timestamps compare with care about overflow
