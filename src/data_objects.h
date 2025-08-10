@@ -178,8 +178,9 @@ namespace PDO_TYPE {
 namespace PDO_AUGMENTED_SUBTYPE {
     enum {
         SPR_PPS = 0,
-        // Ones below are not supported in chargers yet (at the start of 2024)
+        // Supported from PD 3.1
         EPR_AVS = 1,
+        // Supported from PD 3.2
         SPR_AVS = 2
     };
 }; // namespace PDO_AUGMENTED_SUBTYPE
@@ -217,6 +218,19 @@ union PDO_SPR_PPS {
         uint32_t : 2;
         uint32_t pps_power_limited : 1;
         uint32_t apdo_subtype : 2; // 00b
+        uint32_t pdo_type : 2; // 11b
+    };
+};
+
+// [rev3.2] Table 6.14 SPR Adjustable Voltage Supply APDO
+union PDO_SPR_AVS {
+    uint32_t raw_value;
+    struct {
+        uint32_t max_current_20v: 10; // 15-20V range, 10ma step
+        uint32_t max_current_15v : 10; // 9-15V range, 10ma step
+        uint32_t : 6;
+        uint32_t peak_current : 2;
+        uint32_t apdo_subtype : 2; // 10b
         uint32_t pdo_type : 2; // 11b
     };
 };
@@ -265,6 +279,24 @@ union RDO_PPS {
         uint32_t operating_current : 7; // 50ma step
         uint32_t : 2;
         uint32_t output_voltage : 12; // 20mv step
+        uint32_t : 1;
+        uint32_t epr_capable : 1;
+        uint32_t unchunked_ext_msg_supported : 1;
+        uint32_t no_usb_suspend : 1;
+        uint32_t usb_comm_capable : 1;
+        uint32_t capability_mismatch : 1;
+        uint32_t : 1; // "giveback" flag deprecated
+        uint32_t obj_position : 4; // !!! numeration starts from 1 !!!
+    };
+};
+
+// [rev3.2] Table 6.26 AVS Request Data Object
+union RDO_AVS {
+    uint32_t raw_value;
+    struct {
+        uint32_t operating_current : 7; // 50ma step
+        uint32_t : 2;
+        uint32_t output_voltage : 12; // 25mv step, least 2 bits MUST be 00
         uint32_t : 1;
         uint32_t epr_capable : 1;
         uint32_t unchunked_ext_msg_supported : 1;
@@ -328,6 +360,19 @@ union SNK_PDO_SPR_PPS {
         uint32_t max_voltage : 8; // 100mv step
         uint32_t : 3;
         uint32_t apdo_subtype : 2; // 00b
+        uint32_t pdo_type : 2; // 11b
+    };
+};
+
+// [rev3.2] 6.4.1.3.4.2 SPR Adjustable Voltage Supply APDO
+// Table 6.21
+union SNK_PDO_SPR_AVS {
+    uint32_t raw_value;
+    struct {
+        uint32_t max_current_20v: 10; // 15-20V range, 10ma step
+        uint32_t max_current_15v : 10; // 9-15V range, 10ma step
+        uint32_t : 8;
+        uint32_t apdo_subtype : 2; // 10b
         uint32_t pdo_type : 2; // 11b
     };
 };
