@@ -59,12 +59,12 @@ void Task::loop() {
     } while (loop_flags.test_and_clear(LOOP_FLAGS::HAS_DEFERRED));
 }
 
-void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver){
+void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& drv){
     loop_flags.set(LOOP_FLAGS::IS_IN_LOOP);
 
-    port.timers.set_time_provider(driver.get_time_func());
+    port.timers.set_time_provider(drv.get_time_func());
     port.msgbus.subscribe(task_event_listener);
-    driver.setup();
+    drv.setup();
     prl.setup();
     pe.setup();
     dpm.setup();
