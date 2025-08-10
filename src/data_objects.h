@@ -330,7 +330,7 @@ union RDO_ANY {
 // SNK PDO objects, to describe Sink demands
 //
 
-// [rev3.2] 6.4.1.3.1 Sink Fixed Supply Power Data Objec
+// [rev3.2] 6.4.1.3.1 Sink Fixed Supply Power Data Object
 // Table 6.17
 union SNK_PDO_FIXED {
     uint32_t raw_value;
@@ -569,14 +569,12 @@ struct PD_MSG_TPL : public I_PD_MSG {
     }
 
     void append16(uint16_t value) override {
-        _buffer.push_back(value & 0xff);
-        _buffer.push_back((value >> 8) & 0xff);
+        if (_buffer.available() > 0) { _buffer.push_back(value & 0xff); }
+        if (_buffer.available() > 0) { _buffer.push_back((value >> 8) & 0xff); }
     }
     void append32(uint32_t value) override {
-        _buffer.push_back(value & 0xff);
-        _buffer.push_back((value >> 8) & 0xff);
-        _buffer.push_back((value >> 16) & 0xff);
-        _buffer.push_back((value >> 24) & 0xff);
+        append16(value & 0xffff);
+        append16((value >> 16) & 0xffff);
     }
 
     void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) override {

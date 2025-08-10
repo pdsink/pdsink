@@ -617,8 +617,9 @@ public:
             return PE_SNK_Select_Capability;
         }
 
+        // TODO: Consider remove. This causes unnecessary flood.
         // If the event caused no activity, emit Idle to the DPM
-        port.notify_dpm(MsgToDpm_Idle());
+        // port.notify_dpm(MsgToDpm_Idle());
 
         return No_State_Change;
     }

@@ -396,13 +396,13 @@ void Fusb302Rtos::handle_interrupt() {
         Interruptb interruptb;
 
         // TODO: Consider 5-bytes block read (0x3E-0x42) with single call.
-        DRV_RET_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
-        DRV_RET_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
-        DRV_RET_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
 
         if (interrupt.I_VBUSOK) {
             Status0 status0;
-            DRV_RET_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            DRV_LOG_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
             DRV_LOGI("IRQ: VBUS changed");
             has_deferred_wakeup = true;
@@ -410,14 +410,14 @@ void Fusb302Rtos::handle_interrupt() {
 
         if (interrupta.I_HARDRST) {
             DRV_LOGI("IRQ: hard reset received");
-            DRV_RET_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
-            DRV_RET_ON_ERROR(hr_cleanup());
+            DRV_LOG_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
+            DRV_LOG_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
         }
 
         if (interrupta.I_HARDSENT) {
             DRV_LOGI("IRQ: hard reset sent");
-            DRV_RET_ON_ERROR(hr_cleanup());
+            DRV_LOG_ON_ERROR(hr_cleanup());
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
         }
 
@@ -434,14 +434,14 @@ void Fusb302Rtos::handle_interrupt() {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
             DRV_LOGI("IRQ: tx completed");
             // That's not necessary, but force GoodCRC peek to free FIFO faster.
-            DRV_RET_ON_ERROR(fusb_rx_pkt());
+            DRV_LOG_ON_ERROR(fusb_rx_pkt());
         }
         if (interruptb.I_GCRCSENT) {
             if (rx_enabled) {
                 DRV_LOGI("IRQ: GoodCRC sent");
-                DRV_RET_ON_ERROR(fusb_rx_pkt());
+                DRV_LOG_ON_ERROR(fusb_rx_pkt());
             } else {
-                DRV_RET_ON_ERROR(fusb_flush_rx_fifo());
+                DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
             }
         }
     }
@@ -672,7 +672,12 @@ void Fusb302Rtos::setup() {
     auto result = xTaskCreate(
         [](void* params) {
             static_cast<Fusb302Rtos*>(params)->task();
-        }, "Fusb302Rtos", task_stack_size, this, task_priority, &xWaitingTaskHandle
+        },
+        "Fusb302Rtos",
+        task_stack_size_bytes / sizeof(StackType_t),
+        this,
+        task_priority,
+        &xWaitingTaskHandle
     );
 
     if (result != pdPASS) {
@@ -707,7 +712,7 @@ void Fusb302Rtos::req_transmit() {
     enquired_tx_chunk = port.tx_chunk;
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
     kick_task();
-};
+}
 
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
     if (event == HAL_EVENT_TYPE::Timer) { flags.set(DRV_FLAG::TIMER_EVENT); }

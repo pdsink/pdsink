@@ -194,7 +194,7 @@ protected:
     Switches0 meter_sw0_backup{0};
 
     // Overwrite in inherited class if needed.
-    uint32_t task_stack_size{1024*4}; // 4K
+    uint32_t task_stack_size_bytes{1024*4}; // 4K
     uint32_t task_priority{10};
 };
 

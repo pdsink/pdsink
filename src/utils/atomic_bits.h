@@ -43,9 +43,10 @@ public:
         if (bitIndex >= NumBits) return;
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
-        // relaxed: clearing is usually a local flag reset; no publication contract assumed
+        // release: clearing may signal completion; publish prior writes to
+        // readers that observe the flag with an acquire load
         storage[storageIndex].fetch_and(~(StorageType(1) << bitOffset),
-                                        etl::memory_order_relaxed);
+                                        etl::memory_order_release);
     }
 
     bool test(size_t bitIndex) const {

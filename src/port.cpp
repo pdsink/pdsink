@@ -45,6 +45,9 @@ bool Port::is_prl_running() {
     // to the message bus. That's an acceptable behavior.
     bool is_running = false, is_busy = false;
 
+    // NOTE: The message bus is strictly synchronous. MsgBus::receive()
+    // returns only after the receiver processes the message, so passing
+    // references to stack variables here is safe.
     msgbus.receive(ROUTER_ID::PRL, MsgToPrl_GetPrlStatus{is_running, is_busy});
     return is_running;
 }

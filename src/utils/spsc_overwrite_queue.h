@@ -96,7 +96,10 @@ public:
     void clear_from_producer() {
         head_fields_t hf{head_fields.load(etl::memory_order_relaxed)};
 
+        // Store reset position; publication to the consumer is ensured by the
+        // release on reset_ver below.
         reset_pos.store(hf.head, etl::memory_order_relaxed);
+        // release: makes reset_pos visible before the version bump is observed
         reset_ver.fetch_add(1, etl::memory_order_release);
     }
 

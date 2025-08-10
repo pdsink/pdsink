@@ -65,7 +65,7 @@ enum msg_dpm_id {
     MSG_TO_DPM__NEW_POWER_LEVEL,
     // Sugar
     MSG_TO_DPM__HANDSHAKE_DONE, // Contracted and upgraded to EPR if possible.
-    MSG_TO_DPM__IDLE, // PE_SNK_Ready with no activity.
+    //MSG_TO_DPM__IDLE, // PE_SNK_Ready with no activity.
 };
 
 DEFINE_SIMPLE_MSG(MsgToDpm_Startup, MSG_TO_DPM__STARTUP);
@@ -77,7 +77,7 @@ DEFINE_PARAM_MSG(MsgToDpm_Alert, MSG_TO_DPM__ALERT, uint32_t, value);
 DEFINE_PARAM_MSG(MsgToDpm_EPREntryFailed, MSG_TO_DPM__EPR_ENTRY_FAILED, uint32_t, reason);
 DEFINE_PARAM_MSG(MsgToDpm_NewPowerLevel, MSG_TO_DPM__NEW_POWER_LEVEL, bool, ok);
 DEFINE_SIMPLE_MSG(MsgToDpm_HandshakeDone, MSG_TO_DPM__HANDSHAKE_DONE);
-DEFINE_SIMPLE_MSG(MsgToDpm_Idle, MSG_TO_DPM__IDLE);
+//DEFINE_SIMPLE_MSG(MsgToDpm_Idle, MSG_TO_DPM__IDLE);
 
 //
 // PE incoming messates
