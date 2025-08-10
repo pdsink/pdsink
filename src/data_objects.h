@@ -533,7 +533,7 @@ struct PD_MSG_TPL : public I_PD_MSG {
         _buffer.clear();
     }
 
-    bool is_data_msg(uint8_t type) const override{
+    bool is_data_msg(uint8_t type) const override {
         return header.extended == 0 && header.data_obj_count > 0 &&
             header.message_type == type;
     }
@@ -579,7 +579,7 @@ struct PD_MSG_TPL : public I_PD_MSG {
         _buffer.push_back((value >> 24) & 0xff);
     }
 
-    void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) {
+    void append_from(const I_PD_MSG& src, uint32_t start, uint32_t end) override {
         // Bounds check is not needed, but it exists to suppress warnings from code checkers.
         auto available = _buffer.available();
 
@@ -591,15 +591,15 @@ struct PD_MSG_TPL : public I_PD_MSG {
         _buffer.insert(_buffer.end(), src.get_data().begin() + start, src.get_data().begin() + end);
     }
 
-    uint32_t data_size() const {
+    uint32_t data_size() const override {
         return _buffer.size();
     }
 
-    void resize_by_data_obj_count() {
+    void resize_by_data_obj_count() override {
         _buffer.resize(header.data_obj_count * 4);
     }
 
-    uint16_t size_to_pdo_count() const {
+    uint16_t size_to_pdo_count() const override {
         return static_cast<uint16_t>((_buffer.size() + 3) / 4); // 4 bytes per PDO
     }
 };

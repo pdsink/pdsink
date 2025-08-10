@@ -318,8 +318,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
             return false;
         }
 
-        // Chunks have only 7 bits for data objects count. Max 28 bytes in total.
-        // So, it's impossible to overflow chunk buffer.
+        // After extended unchunked messages are filtered out, the rest have
+        // size data_obj_count*4 bytes. data_obj_count has 3 bits - means
+        // max 28 bytes in total. That guarantees `pkt` has enough size.
         pkt.resize_by_data_obj_count();
         DRV_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, pkt.get_data().data(), pkt.data_size()));
 
@@ -624,7 +625,9 @@ void Fusb302Rtos::handle_tcpc_calls() {
 
         // Initiate hard reset sending. Then PRL should check
         // port.tcpc_tx_status to get result.
-        DRV_LOG_ON_ERROR(fusb_hr_send());
+        if (!fusb_hr_send()) {
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
+        }
         sync_hr_send.job_finish();
         has_deferred_wakeup = true;
     }
@@ -638,7 +641,9 @@ void Fusb302Rtos::handle_tcpc_calls() {
 
     auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
     if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
-        DRV_LOG_ON_ERROR(fusb_tx_pkt_begin(enquired_tx_chunk));
+        if (!fusb_tx_pkt_begin(enquired_tx_chunk)) {
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
+        }
     }
 }
 

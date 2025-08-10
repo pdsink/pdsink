@@ -242,6 +242,12 @@ public:
 
         auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
 
+        // This is not needed, but it exists to suppress warnings from code checkers.
+        if (!rdo_and_pdo.first) {
+            PE_LOGE("Bad RDO from DPM (zero)");
+            return PE_SNK_Hard_Reset;
+        }
+
         // Prepare & send request, depending on SPR/EPR mode
         port.tx_emsg.clear();
 

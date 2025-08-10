@@ -1,4 +1,5 @@
 #include "pd_conf.h"
+#include "pd_log.h"
 
 #if defined(USE_FUSB302_RTOS_HAL_ESP32)
 
@@ -117,6 +118,10 @@ bool Fusb302RtosHalEsp32::read_block(uint8_t reg, uint8_t *data, uint32_t size) 
     if (!size) { return true; } // nothing to read
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (cmd == nullptr) {
+        DRV_LOGE("Fusb302HalEsp32", "i2c_cmd_link_create failed");
+        return false;
+    }
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (i2c_address << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, reg, true);
@@ -134,6 +139,10 @@ bool Fusb302RtosHalEsp32::write_block(uint8_t reg, const uint8_t *data, uint32_t
     if (!size) { return true; } // nothing to write
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (cmd == nullptr) {
+        DRV_LOGE("Fusb302HalEsp32", "i2c_cmd_link_create failed");
+        return false;
+    }
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (i2c_address << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, reg, true);

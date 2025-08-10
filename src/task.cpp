@@ -10,8 +10,13 @@ namespace pd {
 
 void Task::loop() {
     do {
+        // `loop()` can be called again while it is already processing events
+        // (e.g. via `set_event`). The `IS_IN_LOOP` flag acts as a reentrancy
+        // guard: if it is set, we postpone the call by setting `HAS_DEFERRED`
+        // and return immediately. The outer loop at the end of the function
+        // checks `HAS_DEFERRED` and reruns `loop()` to handle the deferred
+        // events once the current iteration completes.
         if (loop_flags.test_and_set(LOOP_FLAGS::IS_IN_LOOP)) {
-            // If processing in progress - postpone call to avoid recursion.
             loop_flags.set(LOOP_FLAGS::HAS_DEFERRED);
             return;
         }
