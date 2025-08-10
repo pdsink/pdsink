@@ -155,8 +155,8 @@ protected:
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
     spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
-    etl::atomic<TCPC_CC_LEVEL::Type> cc1_cache{TCPC_CC_LEVEL::NONE};
-    etl::atomic<TCPC_CC_LEVEL::Type> cc2_cache{TCPC_CC_LEVEL::NONE};
+    etl::atomic<TCPC_CC_LEVEL::Type> cc1_value{TCPC_CC_LEVEL::NONE};
+    etl::atomic<TCPC_CC_LEVEL::Type> cc2_value{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY> polarity{TCPC_POLARITY::NONE};
     etl::atomic<bool> vbus_ok{false};
     bool rx_enabled{false};

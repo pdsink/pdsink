@@ -216,11 +216,12 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
     HAL_RET_FALSE_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
 
-    this->polarity.store(polarity);
-
     if (polarity == TCPC_POLARITY::NONE) {
         DRV_RET_FALSE_ON_ERROR(fusb_set_rx_enable(false));
     }
+
+    this->polarity.store(polarity);
+
     return true;
 }
 
@@ -331,6 +332,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         HAL_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, hdr, 2));
         pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
 
+        // Chunked extended messages have non-zero data_obj_count
         if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
             // Unchunked extended packets are not supported. This is an abnormal
             // situation, and all we can do - wipe out RX FIFO.
@@ -515,8 +517,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             {
                 const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
-                if (polarity.load() == TCPC_POLARITY::CC1) { cc1_cache.store(cc_new); }
-                else { cc2_cache.store(cc_new); }
+                if (polarity.load() == TCPC_POLARITY::CC1) { cc1_value.store(cc_new); }
+                else { cc2_value.store(cc_new); }
             }
 
             meter_state = MeterState::CC_ACTIVE_END;
@@ -557,7 +559,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
             HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-            cc1_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
+            cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Measure CC2
             HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
@@ -574,7 +576,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
             HAL_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-            cc2_cache.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
+            cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Restore previous state
             HAL_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
@@ -737,8 +739,8 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 
 bool Fusb302Rtos::try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) {
     if (!sync_scan_cc.is_idle()) { return false; }
-    cc1 = cc1_cache.load();
-    cc2 = cc2_cache.load();
+    cc1 = cc1_value.load();
+    cc2 = cc2_value.load();
     return true;
 }
 
@@ -748,11 +750,14 @@ bool Fusb302Rtos::try_active_cc_result(TCPC_CC_LEVEL::Type& cc) {
     auto _polarity = polarity.load();
 
     if (_polarity == TCPC_POLARITY::CC1) {
-        cc = cc1_cache.load();
+        cc = cc1_value.load();
     }
     else if (_polarity == TCPC_POLARITY::CC2) {
-        cc = cc2_cache.load();
+        cc = cc2_value.load();
     } else {
+        // Since this function is used only to wait SinkTxOK prior to first
+        // AMS packet transfer, result for unselected polarity does not matter.
+        // Any value not causing false positive is acceptable.
         DRV_LOGE("try_active_cc_result: Polarity not selected, returning TCPC_CC_LEVEL::NONE");
         cc = TCPC_CC_LEVEL::NONE;
     }
