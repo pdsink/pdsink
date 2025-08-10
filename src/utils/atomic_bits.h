@@ -34,21 +34,27 @@ public:
         if (bitIndex >= NumBits) return;
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
-        storage[storageIndex].fetch_or(StorageType(1) << bitOffset);
+        // release: publish preceding writes to readers that do 'test()' with acquire
+        storage[storageIndex].fetch_or(StorageType(1) << bitOffset,
+                                       etl::memory_order_release);
     }
 
     void clear(size_t bitIndex) {
         if (bitIndex >= NumBits) return;
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
-        storage[storageIndex].fetch_and(~(StorageType(1) << bitOffset));
+        // relaxed: clearing is usually a local flag reset; no publication contract assumed
+        storage[storageIndex].fetch_and(~(StorageType(1) << bitOffset),
+                                        etl::memory_order_relaxed);
     }
 
     bool test(size_t bitIndex) const {
         if (bitIndex >= NumBits) return false;
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
-        return (storage[storageIndex].load() & (StorageType(1) << bitOffset)) != 0;
+        // acquire: if paired with 'set()' release, ensures visibility of data published before 'set()'
+        return (storage[storageIndex].load(etl::memory_order_acquire) &
+                (StorageType(1) << bitOffset)) != 0;
     }
 
     bool test_and_set(size_t bitIndex) {
@@ -56,7 +62,9 @@ public:
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
         const StorageType mask = StorageType(1) << bitOffset;
-        StorageType old = storage[storageIndex].fetch_or(mask);
+        // acq_rel: read-modify-write that both observes prior state and publishes following writes
+        StorageType old = storage[storageIndex].fetch_or(mask,
+                                                         etl::memory_order_acq_rel);
         return (old & mask) != 0;
     }
 
@@ -65,20 +73,24 @@ public:
         const size_t storageIndex = bitIndex >> STORAGE_SHIFT;
         const size_t bitOffset = bitIndex & STORAGE_MASK;
         const StorageType mask = StorageType(1) << bitOffset;
-        StorageType old = storage[storageIndex].fetch_and(~mask);
+        // acq_rel: symmetrical to test_and_set for mixed readers/writers
+        StorageType old = storage[storageIndex].fetch_and(~mask,
+                                                          etl::memory_order_acq_rel);
         return (old & mask) != 0;
     }
 
     void set_all() {
         constexpr StorageType value = ~StorageType(0);
         for (size_t i = 0; i < STORAGE_SIZE; ++i) {
-            storage[i].store(value);
+            // relaxed: bulk init; no cross-thread publication contract here
+            storage[i].store(value, etl::memory_order_relaxed);
         }
     }
 
     void clear_all() {
         for (size_t i = 0; i < STORAGE_SIZE; ++i) {
-            storage[i].store(0);
+            // relaxed: bulk reset; no cross-thread publication contract here
+            storage[i].store(0, etl::memory_order_relaxed);
         }
     }
 
