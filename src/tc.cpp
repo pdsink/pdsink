@@ -27,28 +27,10 @@ namespace {
     }
 } // namespace
 
-//
-// Macros to quick-create common methods
-//
-#define ON_ENTER_STATE_DEFAULT \
-auto on_enter_state() -> etl::fsm_state_id_t override { \
-    get_fsm_context().log_state(); \
-    return No_State_Change; \
-}
 
-#define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(const etl::imessage&) -> etl::fsm_state_id_t { \
-    return No_State_Change; \
-}
-
-
-
-class TC_DETACHED_State : public etl::fsm_state<TC, TC_DETACHED_State, TC_DETACHED, MsgSysUpdate> {
+class TC_DETACHED_State : public etl_ext::tick_fsm_state<TC, TC_DETACHED_State, TC_DETACHED> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& tc = get_fsm_context();
+    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
         auto& port = tc.port;
         tc.log_state();
 
@@ -58,9 +40,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& tc = get_fsm_context();
-
+    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
         if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
@@ -81,18 +61,15 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        get_fsm_context().port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+    static void on_exit_state(TC& tc) {
+        tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
     }
 };
 
 
-class TC_DETECTING_State : public etl::fsm_state<TC, TC_DETECTING_State, TC_DETECTING, MsgSysUpdate> {
+class TC_DETECTING_State : public etl_ext::tick_fsm_state<TC, TC_DETECTING_State, TC_DETECTING> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& tc = get_fsm_context();
+    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
         tc.log_state();
 
         tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
@@ -102,10 +79,8 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& tc = get_fsm_context();
+    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
         auto& port = tc.port;
-
 
         if (!port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
             if (!port.timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) { return No_State_Change; }
@@ -131,19 +106,21 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
+    static void on_exit_state(TC& tc) {
+        auto& port = tc.port;
         port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
     }
 };
 
 
-class TC_SINK_ATTACHED_State : public etl::fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED, MsgSysUpdate> {
+class TC_SINK_ATTACHED_State : public etl_ext::tick_fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_ENTER_STATE_DEFAULT;
+    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
+        tc.log_state();
+        return No_State_Change;
+    }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& tc = get_fsm_context();
+    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
         auto& port = tc.port;
 
         // If just entered - wait polarity set complete and then set attached status.
@@ -162,17 +139,17 @@ public:
     }
 };
 
-etl_ext::fsm_state_pack<
+using TC_STATES = etl_ext::tick_fsm_state_pack<
     TC_DETACHED_State,
     TC_DETECTING_State,
     TC_SINK_ATTACHED_State
-> tc_state_list;
+>;
 
 TC::TC(Port& port, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, tcpc{tcpc}, tc_event_listener{*this}
+    : port{port}, tcpc{tcpc}, tc_event_listener{*this}
 {
-    set_states(tc_state_list.states, tc_state_list.size);
-};
+    set_states<TC_STATES>(TC::Uninitialized);
+}
 
 void TC::log_state() {
     TC_LOGI("TC state => {}", tc_state_to_desc(get_state_id()));
@@ -180,11 +157,11 @@ void TC::log_state() {
 
 void TC::setup() {
     port.msgbus.subscribe(tc_event_listener);
-    start();
+    change_state(TC_DETACHED, true);
 }
 
 void TC_EventListener::on_receive(const MsgSysUpdate& msg) {
-    tc.receive(msg);
+    tc.run();
 }
 
 void TC_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {

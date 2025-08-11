@@ -7,7 +7,6 @@
 #include "pd_log.h"
 #include "pe.h"
 #include "port.h"
-#include "utils/etl_state_pack.h"
 
 namespace pd {
 
@@ -87,36 +86,9 @@ namespace {
 } // namespace
 
 
-//
-// Macros to quickly create common methods
-//
-#define ON_ENTER_STATE_DEFAULT \
-auto on_enter_state() -> etl::fsm_state_id_t override { \
-    get_fsm_context().log_state(); \
-    return No_State_Change; \
-}
-
-#define ON_UNKNOWN_EVENT_DEFAULT \
-auto on_event_unknown(const etl::imessage&) -> etl::fsm_state_id_t { \
-    return No_State_Change; \
-}
-
-#define ON_EVENT_NOTHING \
-auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t { \
-    return No_State_Change; \
-}
-
-#define ON_TRANSIT_TO \
-auto on_event(const MsgTransitTo& event) -> etl::fsm_state_id_t { \
-    return event.state_id; \
-}
-
-class PE_SNK_Startup_State : public etl::fsm_state<PE, PE_SNK_Startup_State, PE_SNK_Startup, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Startup_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Startup_State, PE_SNK_Startup> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -125,41 +97,40 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (!port.is_prl_running()) { return No_State_Change; }
         return PE_SNK_Discovery;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_Discovery_State : public etl::fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Discovery_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
-
-    auto on_enter_state() -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
         // be stable at this moment, so there is no need to wait.
         return PE_SNK_Wait_for_Capabilities;
     }
+
+    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_Wait_for_Capabilities_State : public etl::fsm_state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Wait_for_Capabilities_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
 
         pe.port.timers.start(PD_TIMEOUT::tTypeCSinkWaitCap);
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -183,18 +154,15 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        get_fsm_context().port.timers.stop(PD_TIMEOUT::tTypeCSinkWaitCap);
+    static void on_exit_state(PE& pe) {
+        pe.port.timers.stop(PD_TIMEOUT::tTypeCSinkWaitCap);
     }
 };
 
 
-class PE_SNK_Evaluate_Capability_State : public etl::fsm_state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Evaluate_Capability_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -211,6 +179,9 @@ public:
         port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
+
+    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static void on_exit_state(PE&) {}
 };
 
 //
@@ -231,12 +202,9 @@ public:
 // device this is a good place to keep things simple.
 //
 
-class PE_SNK_Select_Capability_State : public etl::fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Select_Capability_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -271,8 +239,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         auto send_status = pe.check_request_progress_run();
 
@@ -351,8 +318,7 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& pe = get_fsm_context();
+    static void on_exit_state(PE& pe) {
         pe.port.pe_flags.clear(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
         pe.check_request_progress_exit();
@@ -360,12 +326,9 @@ public:
 };
 
 
-class PE_SNK_Transition_Sink_State : public etl::fsm_state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Transition_Sink_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -383,8 +346,8 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::PS_RDY)) {
@@ -400,20 +363,17 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
+    static void on_exit_state(PE& pe) {
+        auto& port = pe.port;
         port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
         port.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
     }
 };
 
 
-class PE_SNK_Ready_State : public etl::fsm_state<PE, PE_SNK_Ready_State, PE_SNK_Ready, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Ready_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Ready_State, PE_SNK_Ready> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE)) {
@@ -451,8 +411,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         bool sr_on_unsupported = port.pe_flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
@@ -624,8 +583,8 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
+    static void on_exit_state(PE& pe) {
+        auto& port = pe.port;
         port.timers.stop(PD_TIMEOUT::tSinkEPRKeepAlive);
         port.timers.stop(PD_TIMEOUT::tPPSRequest);
         port.pe_flags.clear(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
@@ -633,12 +592,9 @@ public:
 };
 
 
-class PE_SNK_Give_Sink_Cap_State : public etl::fsm_state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Give_Sink_Cap_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -668,8 +624,8 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
@@ -678,15 +634,14 @@ public:
         // No more checks - rely on standard error processing.
         return No_State_Change;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_EPR_Keep_Alive_State : public etl::fsm_state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_EPR_Keep_Alive_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         // Manually log as debug level, to reduce noise
         PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
@@ -705,8 +660,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
@@ -741,20 +695,16 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& pe = get_fsm_context();
+    static void on_exit_state(PE& pe) {
         pe.check_request_progress_exit();
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
     }
 };
 
 
-class PE_SNK_Hard_Reset_State : public etl::fsm_state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Hard_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -771,23 +721,20 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
-
-        if (port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        if (pe.port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
             return No_State_Change;
         }
         return PE_SNK_Transition_to_default;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_Transition_to_default_State : public etl::fsm_state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Transition_to_default_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -801,8 +748,8 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (!port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
             port.notify_prl(MsgToPrl_PEHardResetDone{});
@@ -810,16 +757,15 @@ public:
         }
         return No_State_Change;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
 // Come here when a Soft Reset is received from the SRC
-class PE_SNK_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Soft_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
 
         pe.send_ctrl_msg(PD_CTRL_MSGT::Accept);
@@ -828,8 +774,8 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Wait_for_Capabilities;
@@ -841,19 +787,15 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
-        port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
+    static void on_exit_state(PE& pe) {
+        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
     }
 };
 
 
-class PE_SNK_Send_Soft_Reset_State : public etl::fsm_state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Send_Soft_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -871,8 +813,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         // Wait until the PRL layer is ready
@@ -906,20 +847,16 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& pe = get_fsm_context();
+    static void on_exit_state(PE& pe) {
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
         pe.check_request_progress_exit();
     }
 };
 
 
-class PE_SNK_Send_Not_Supported_State : public etl::fsm_state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Send_Not_Supported_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
 
         // The reply depends on the PD revision. For PD 3.0+, use Not_Supported;
@@ -933,35 +870,35 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
         return No_State_Change;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_Source_Alert_Received_State : public etl::fsm_state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Source_Alert_Received_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
-
-    auto on_enter_state() -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
         port.notify_dpm(MsgToDpm_Alert(port.rx_emsg.read32(0)));
         return PE_SNK_Ready;
     }
+
+    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_SNK_Send_EPR_Mode_Entry_State : public etl::fsm_state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_Send_EPR_Mode_Entry_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -980,8 +917,7 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
@@ -1023,8 +959,7 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() {
-        auto& pe = get_fsm_context();
+    static void on_exit_state(PE& pe) {
         auto& port = pe.port;
 
         pe.check_request_progress_exit();
@@ -1038,12 +973,15 @@ public:
 };
 
 
-class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_ENTER_STATE_DEFAULT;
+    static etl::fsm_state_id_t on_enter_state(PE& pe) {
+        pe.log_state();
+        return No_State_Change;
+    }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
@@ -1068,19 +1006,15 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
-        port.timers.stop(PD_TIMEOUT::tEnterEPR);
+    static void on_exit_state(PE& pe) {
+        pe.port.timers.stop(PD_TIMEOUT::tEnterEPR);
     }
 };
 
 
-class PE_SNK_EPR_Mode_Exit_Received_State : public etl::fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received, MsgSysUpdate, MsgTransitTo> {
+class PE_SNK_EPR_Mode_Exit_Received_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO; ON_EVENT_NOTHING;
-
-    auto on_enter_state() -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         if (!pe.is_in_spr_contract()) {
@@ -1093,15 +1027,15 @@ public:
 
         return PE_SNK_Wait_for_Capabilities;
     }
+
+    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_BIST_Activate_State : public etl::fsm_state<PE, PE_BIST_Activate_State, PE_BIST_Activate, MsgSysUpdate, MsgTransitTo> {
+class PE_BIST_Activate_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Activate_State, PE_BIST_Activate> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -1127,8 +1061,7 @@ public:
         return PE_SNK_Ready;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         // Wait for the TCPC call to complete
@@ -1140,22 +1073,20 @@ public:
         if (bdo.mode == BIST_MODE::Carrier) { return PE_BIST_Carrier_Mode; }
         return PE_BIST_Test_Mode;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
-class PE_BIST_Carrier_Mode_State : public etl::fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode, MsgSysUpdate, MsgTransitTo> {
+class PE_BIST_Carrier_Mode_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
 
         pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& pe = get_fsm_context();
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
@@ -1172,33 +1103,33 @@ public:
         return No_State_Change;
     }
 
-    void on_exit_state() override {
-        auto& port = get_fsm_context().port;
-        port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+    static void on_exit_state(PE& pe) {
+        pe.port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
     }
 };
 
 
-class PE_BIST_Test_Mode_State : public etl::fsm_state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode, MsgSysUpdate, MsgTransitTo> {
+class PE_BIST_Test_Mode_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode> {
 public:
-    ON_ENTER_STATE_DEFAULT; ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
-        // Ignore everything.
-        // Exiting test data mode is only possible via a hard reset.
-        port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+    static etl::fsm_state_id_t on_enter_state(PE& pe) {
+        pe.log_state();
         return No_State_Change;
     }
+
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        // Ignore everything.
+        // Exiting test data mode is only possible via a hard reset.
+        pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+        return No_State_Change;
+    }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_Give_Revision_State : public etl::fsm_state<PE, PE_Give_Revision_State, PE_Give_Revision, MsgSysUpdate, MsgTransitTo> {
+class PE_Give_Revision_State : public etl_ext::tick_fsm_state<PE, PE_Give_Revision_State, PE_Give_Revision> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_TRANSIT_TO;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -1215,39 +1146,32 @@ public:
         return No_State_Change;
     }
 
-    auto on_event(const MsgSysUpdate&) -> etl::fsm_state_id_t {
-        auto& port = get_fsm_context().port;
-
-        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
         return No_State_Change;
     }
+
+    static void on_exit_state(PE&) {}
 };
 
 
-class PE_Src_Disabled_State : public etl::fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled, MsgSysUpdate, MsgTransitTo> {
+class PE_Src_Disabled_State : public etl_ext::tick_fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled> {
 public:
-    ON_UNKNOWN_EVENT_DEFAULT; ON_EVENT_NOTHING;
-
-    auto on_enter_state() -> etl::fsm_state_id_t override {
-        auto& pe = get_fsm_context();
+    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
 
         pe.port.notify_dpm(MsgToDpm_SrcDisabled());
         return No_State_Change;
     }
 
-    auto on_event(const MsgTransitTo& event) -> etl::fsm_state_id_t {
-        if (event.state_id == PE_SNK_Hard_Reset) {
-            return event.state_id;
-        }
-        return No_State_Change;
-    }
+    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static void on_exit_state(PE&) {}
 };
 
 
-etl_ext::fsm_state_pack<
+using PE_STATES = etl_ext::tick_fsm_state_pack<
     PE_SNK_Startup_State,
     PE_SNK_Discovery_State,
     PE_SNK_Wait_for_Capabilities_State,
@@ -1271,13 +1195,13 @@ etl_ext::fsm_state_pack<
     PE_BIST_Test_Mode_State,
     PE_Give_Revision_State,
     PE_Src_Disabled_State
-> pe_state_list;
+>;
 
 PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
-    : etl::fsm(0), port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
+    : port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
-    set_states(pe_state_list.states, pe_state_list.size);
-};
+    set_states<PE_STATES>(PE::Uninitialized);
+}
 
 void PE::log_state() {
     PE_LOGI("PE state => {}", pe_state_to_desc(get_state_id()));
@@ -1288,10 +1212,9 @@ void PE::setup() {
 }
 
 void PE::init() {
-    reset();
     port.pe_flags.clear_all();
     port.dpm_requests.clear_all();
-    start();
+    change_state(PE_SNK_Startup, true);
     port.timers.stop_range(PD_TIMERS_RANGE::PE);
 }
 
@@ -1412,10 +1335,10 @@ void PE_EventListener::on_receive(const MsgSysUpdate& msg) {
         case PE::LOCAL_STATE::WORKING:
             if (!pe.port.is_attached) {
                 pe.local_state = PE::LOCAL_STATE::DISABLED;
-                pe.reset();
+                pe.change_state(PE::Uninitialized);
                 break;
             }
-            pe.receive(msg);
+            pe.run();
             break;
     }
 }
@@ -1444,7 +1367,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto& port = pe.port;
     auto err = msg.error;
 
-    if (!pe.is_started()) { return; }
+    if (pe.get_state_id() == PE::Uninitialized) { return; }
 
     // Always arm this flag, even for not forwarded errors). This allow
     // optional resource free in `on_exit()`, when some are shared between state.
@@ -1461,7 +1384,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     if (err == PRL_ERROR::RCH_SEND_FAIL ||
         err == PRL_ERROR::TCH_SEND_FAIL)
     {
-        pe.receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
+        pe.change_state(PE_SNK_Send_Soft_Reset);
         port.wakeup();
         return;
     }
@@ -1474,12 +1397,12 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
             port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
-        pe.receive(MsgTransitTo(PE_SNK_Ready));
+        pe.change_state(PE_SNK_Ready);
         port.wakeup();
         return;
     }
 
-    pe.receive(MsgTransitTo(PE_SNK_Send_Soft_Reset));
+    pe.change_state(PE_SNK_Send_Soft_Reset);
     port.wakeup();
 }
 
@@ -1489,19 +1412,19 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
-    if (!pe.is_started()) { return; }
-    pe.receive(MsgTransitTo(PE_SNK_Soft_Reset));
+    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    pe.change_state(PE_SNK_Soft_Reset);
     pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
-    if (!pe.is_started()) { return; }
-    pe.receive(MsgTransitTo(PE_SNK_Transition_to_default));
+    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    pe.change_state(PE_SNK_Transition_to_default);
     pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
-    if (!pe.is_started()) { return; }
+    if (pe.get_state_id() == PE::Uninitialized) { return; }
     pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
     pe.port.wakeup();
 }

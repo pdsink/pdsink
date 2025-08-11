@@ -6,9 +6,10 @@
 //
 #pragma once
 
-#include <etl/fsm.h>
+#include <etl/message_router.h>
 
 #include "messages.h"
+#include "utils/tick_fsm.h"
 
 namespace pd {
 
@@ -23,7 +24,7 @@ private:
     TC& tc;
 };
 
-class TC : public etl::fsm {
+class TC : public etl_ext::tick_fsm<TC> {
 public:
     TC(class Port& port, class ITCPC& tcpc);
 
