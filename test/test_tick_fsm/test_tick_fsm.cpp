@@ -129,6 +129,116 @@ TEST(TickFsm, EnumOverloadChangeState) {
   EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
 }
 
+TEST(TickFsm, StartUninitialized_NoEnter_NoRun) {
+  TestFSM fsm;
+  fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
+
+  EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+
+  int sum = 0;
+  for (auto v : fsm.enter_cnt) sum += v;
+  EXPECT_EQ(sum, 0);
+
+  fsm.run(); // no-op
+
+  sum = 0;
+  for (auto v : fsm.run_cnt) sum += v;
+  EXPECT_EQ(sum, 0);
+}
+
+TEST(TickFsm, ResetToUninitialized_ExitOnly_ThenEnterOnNextState) {
+  TestFSM fsm;
+  fsm.set_states<Pack>(); // enters S0 once
+  EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
+  EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
+  EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
+
+  // reset sugar
+  fsm.change_state(tick_fsm<TestFSM>::Uninitialized);
+  EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+  EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 1); // exit S0 happened once
+
+  int sum = 0;
+  for (auto v : fsm.enter_cnt) sum += v;
+  EXPECT_EQ(sum, 1); // only S0 entered once total
+
+  fsm.run(); // no-op
+  sum = 0;
+  for (auto v : fsm.run_cnt) sum += v;
+  EXPECT_EQ(sum, 0);
+
+  // next valid state: should call only its enter (no extra exit)
+  fsm.change_state(S1::STATE_ID);
+  EXPECT_EQ(fsm.get_state_id(), S1::STATE_ID);
+  EXPECT_EQ(fsm.enter_cnt[S1::STATE_ID], 1);
+  EXPECT_EQ(fsm.exit_cnt[S1::STATE_ID], 0);
+}
+
+TEST(TickFsm, ResetWhenAlreadyUninitialized_IsIdempotent) {
+  TestFSM fsm;
+  fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
+
+  fsm.change_state(tick_fsm<TestFSM>::Uninitialized); // no-op
+
+  EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+
+  int esum = 0, rsum = 0, xsum = 0;
+  for (auto v : fsm.enter_cnt) esum += v;
+  for (auto v : fsm.run_cnt)   rsum += v;
+  for (auto v : fsm.exit_cnt)  xsum += v;
+
+  EXPECT_EQ(esum, 0);
+  EXPECT_EQ(rsum, 0);
+  EXPECT_EQ(xsum, 0);
+
+  fsm.run(); // still no-op
+
+  esum = rsum = xsum = 0;
+  for (auto v : fsm.enter_cnt) esum += v;
+  for (auto v : fsm.run_cnt)   rsum += v;
+  for (auto v : fsm.exit_cnt)  xsum += v;
+
+  EXPECT_EQ(esum, 0);
+  EXPECT_EQ(rsum, 0);
+  EXPECT_EQ(xsum, 0);
+}
+
+TEST(TickFsm, ChangeStateSame_NoReenter_NoOps) {
+  TestFSM fsm;
+  fsm.set_states<Pack>();
+  EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
+  EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
+  EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
+
+  // same state, default (reenter=false) => no-op
+  fsm.change_state(S0::STATE_ID);
+  EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
+  EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
+  EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
+}
+
+TEST(TickFsm, ChangeStateSame_WithReenter_DoesExitEnter) {
+  TestFSM fsm;
+  fsm.set_states<Pack>();
+  EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
+
+  fsm.change_state(S0::STATE_ID, true); // force reenter
+  EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
+  EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 1);
+  EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 2);
+}
+
+TEST(TickFsm, ReenterFromUninitialized_HasNoExtraExit) {
+  TestFSM fsm;
+  fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
+  EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+
+  fsm.change_state(S1::STATE_ID, true); // reenter=true ok, but no prior exit
+  EXPECT_EQ(fsm.get_state_id(), S1::STATE_ID);
+  EXPECT_EQ(fsm.exit_cnt[S1::STATE_ID], 0);
+  EXPECT_EQ(fsm.enter_cnt[S1::STATE_ID], 1);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

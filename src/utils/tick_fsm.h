@@ -85,7 +85,7 @@ struct tick_fsm_state_pack {
                   "All states must have the same FSMType");
     static_assert(tfsm_details::check_state_ids<0, States...>::value,
                   "State IDs must be sequential starting from 0");
-    static_assert((sizeof...(States) - 1) <= etl::integral_limits<etl::fsm_state_id_t>::max,
+    static_assert((sizeof...(States) - 1) < etl::integral_limits<etl::fsm_state_id_t>::max,
                   "last state id overflow");
     static_assert(!etl::integral_limits<etl::fsm_state_id_t>::is_signed,
                   "fsm_state_id_t must be unsigned");
@@ -123,18 +123,21 @@ public:
     using on_run_fn = etl::fsm_state_id_t(*)(FSMImpl&);
     using on_exit_fn = void(*)(FSMImpl&);
 
+    static constexpr etl::fsm_state_id_t Uninitialized =
+        etl::integral_limits<etl::fsm_state_id_t>::max;
+
 private:
     const on_enter_fn* enter_table = nullptr;
     const on_run_fn* run_table = nullptr;
     const on_exit_fn* exit_table = nullptr;
     size_t state_count = 0;
-    etl::fsm_state_id_t current_state_id = 0;
+    etl::fsm_state_id_t current_state_id = Uninitialized;
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
 public:
     template<typename StatePack>
-    void set_states() {
+    void set_states(etl::fsm_state_id_t initial = 0) {
         static_assert(etl::is_same<FSMImpl, typename StatePack::FSMType>::value,
                       "StatePack FSMType must match tick_fsm FSMImpl type");
 
@@ -143,9 +146,9 @@ public:
         exit_table = StatePack::get_exit_table();
         state_count = StatePack::get_state_count();
 
-        current_state_id = 0;
-        if (enter_table && state_count > 0) {
-            etl::fsm_state_id_t result = enter_table[0](impl());
+        current_state_id = initial;
+        if (current_state_id < state_count) {
+            etl::fsm_state_id_t result = enter_table[current_state_id](impl());
             if (result < state_count && result != current_state_id) {
                 change_state(result);
             }
@@ -172,23 +175,38 @@ public:
         }
     }
 
-    void change_state(etl::fsm_state_id_t new_state_id) {
+    void change_state(etl::fsm_state_id_t new_state_id, bool reenter = false) {
+        // Allow "reset to uninitialized" sugar.
+        if (new_state_id == Uninitialized) {
+            if (current_state_id < state_count) {
+                exit_table[current_state_id](impl());
+            }
+            current_state_id = Uninitialized;
+            return;
+        }
+
         if (new_state_id >= state_count) return;
 
+        const bool same = (current_state_id < state_count) && (new_state_id == current_state_id);
+        if (same && !reenter) return;
+
         etl::fsm_state_id_t next_state_id = new_state_id;
+        bool have_current = (current_state_id < state_count);
 
         do {
-            exit_table[current_state_id](impl());
+            if (have_current) {
+                exit_table[current_state_id](impl());
+            }
             current_state_id = next_state_id;
 
             etl::fsm_state_id_t result = enter_table[current_state_id](impl());
             next_state_id = (result < state_count) ? result : current_state_id;
-
+            have_current = true;
         } while (next_state_id != current_state_id);
     }
 
     template<typename E, typename = typename etl::enable_if<!etl::is_same<E, etl::fsm_state_id_t>::value>::type>
-    void change_state(E e) { change_state(static_cast<etl::fsm_state_id_t>(e)); }
+    void change_state(E e, bool reenter = false) { change_state(static_cast<etl::fsm_state_id_t>(e), reenter); }
 };
 
 } // namespace etl_ext
