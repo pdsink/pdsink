@@ -1401,7 +1401,7 @@ PRL::PRL(Port& port, IDriver& tcpc)
 {}
 
 void PRL::setup() {
-    port.msgbus.subscribe(prl_event_listener);
+    port.prl_rtr = &prl_event_listener;
 }
 
 void PRL::init(bool from_hr_fsm) {

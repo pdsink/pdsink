@@ -26,7 +26,6 @@ public:
     DPM& operator=(const DPM&) = delete;
 
     // You can override this method in inherited class, to listen events
-    // Router id should be `ROUTER_ID::DPM` (see port.h)
     virtual void setup() override {
         //port.msgbus.subscribe(dpm_event_listener);
     }

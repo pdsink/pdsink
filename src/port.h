@@ -1,6 +1,6 @@
 #pragma once
 
-#include <etl/message_bus.h>
+#include <etl/message_router.h>
 #include <etl/cyclic_value.h>
 
 #include "data_objects.h"
@@ -72,7 +72,11 @@ public:
     // Communication
     //
 
-    etl::message_bus<ROUTER_ID::ROUTERS_COUNT> msgbus{};
+    etl::imessage_router* task_rtr{nullptr};
+    etl::imessage_router* tc_rtr{nullptr};
+    etl::imessage_router* pe_rtr{nullptr};
+    etl::imessage_router* prl_rtr{nullptr};
+    etl::imessage_router* dpm_rtr{nullptr};
 
     void notify_task(const etl::imessage& msg);
     void notify_tc(const etl::imessage& msg);

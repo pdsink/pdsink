@@ -156,7 +156,7 @@ void TC::log_state() {
 }
 
 void TC::setup() {
-    port.msgbus.subscribe(tc_event_listener);
+    port.tc_rtr = &tc_event_listener;
     change_state(TC_DETACHED, true);
 }
 

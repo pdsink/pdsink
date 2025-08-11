@@ -58,7 +58,7 @@ using PRL_EventListener_Base = etl::message_router<class PRL_EventListener,
 
 class PRL_EventListener : public PRL_EventListener_Base {
 public:
-    PRL_EventListener(PRL& prl) : PRL_EventListener_Base(ROUTER_ID::PRL), prl(prl) {}
+    PRL_EventListener(PRL& prl) : prl(prl) {}
     void on_receive(const MsgSysUpdate& msg);
     void on_receive(const MsgToPrl_SoftResetFromPe& msg);
     void on_receive(const MsgToPrl_HardResetFromPe& msg);

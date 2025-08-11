@@ -4,27 +4,27 @@
 namespace pd {
 
 void Port::notify_task(const etl::imessage& msg) {
-    msgbus.receive(ROUTER_ID::TASK, msg);
+    if (task_rtr) { task_rtr->receive(msg); }
 }
 
 void Port::notify_tc(const etl::imessage& msg) {
-    msgbus.receive(ROUTER_ID::TC, msg);
+    if (tc_rtr) { tc_rtr->receive(msg); }
 }
 
 void Port::notify_pe(const etl::imessage& msg) {
-    msgbus.receive(ROUTER_ID::PE, msg);
+    if (pe_rtr) { pe_rtr->receive(msg); }
 }
 
 void Port::notify_prl(const etl::imessage& msg) {
-    msgbus.receive(ROUTER_ID::PRL, msg);
+    if (prl_rtr) { prl_rtr->receive(msg); }
 }
 
 void Port::notify_dpm(const etl::imessage& msg) {
-    msgbus.receive(ROUTER_ID::DPM, msg);
+    if (dpm_rtr) { dpm_rtr->receive(msg); }
 }
 
 void Port::wakeup() {
-    msgbus.receive(ROUTER_ID::TASK, MsgTask_Wakeup{});
+    notify_task(MsgTask_Wakeup{});
 }
 
 bool Port::is_ams_active() {
@@ -48,14 +48,14 @@ bool Port::is_prl_running() {
     // NOTE: The message bus is strictly synchronous. MsgBus::receive()
     // returns only after the receiver processes the message, so passing
     // references to stack variables here is safe.
-    msgbus.receive(ROUTER_ID::PRL, MsgToPrl_GetPrlStatus{is_running, is_busy});
+    notify_prl(MsgToPrl_GetPrlStatus{is_running, is_busy});
     return is_running;
 }
 
 bool Port::is_prl_busy() {
     bool is_running = false, is_busy = false;
 
-    msgbus.receive(ROUTER_ID::PRL, MsgToPrl_GetPrlStatus{is_running, is_busy});
+    notify_prl(MsgToPrl_GetPrlStatus{is_running, is_busy});
     return is_busy;
 }
 

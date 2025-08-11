@@ -17,7 +17,7 @@ using TC_EventListener_Base = etl::message_router<class TC_EventListener, MsgSys
 
 class TC_EventListener : public TC_EventListener_Base {
 public:
-    TC_EventListener(class TC& tc) : TC_EventListener_Base(ROUTER_ID::TC), tc(tc) {}
+    TC_EventListener(class TC& tc) : tc(tc) {}
     void on_receive(const MsgSysUpdate& msg);
     void on_receive_unknown(const etl::imessage& msg);
 private:

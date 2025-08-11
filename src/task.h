@@ -17,7 +17,7 @@ using Task_EventListener_Base = etl::message_router<class Task_EventListener,
 
 class Task_EventListener : public Task_EventListener_Base {
 public:
-    Task_EventListener(Task& task) : Task_EventListener_Base(ROUTER_ID::TASK), task(task) {}
+    Task_EventListener(Task& task) : task(task) {}
     void on_receive(const MsgTask_Wakeup& msg);
     void on_receive(const MsgTask_Timer& msg);
     void on_receive_unknown(const etl::imessage&) {};

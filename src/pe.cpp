@@ -1208,7 +1208,7 @@ void PE::log_state() {
 }
 
 void PE::setup() {
-    port.msgbus.subscribe(pe_event_listener);
+    port.pe_rtr = &pe_event_listener;
 }
 
 void PE::init() {

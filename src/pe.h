@@ -31,7 +31,7 @@ using PE_EventListener_Base = etl::message_router<class PE_EventListener,
 
     class PE_EventListener : public PE_EventListener_Base {
 public:
-    PE_EventListener(PE& pe) : PE_EventListener_Base(ROUTER_ID::PE), pe(pe) {}
+    PE_EventListener(PE& pe) : pe(pe) {}
     void on_receive(const MsgSysUpdate& msg);
     void on_receive(const MsgToPe_PrlMessageReceived& msg);
     void on_receive(const MsgToPe_PrlMessageSent& msg);

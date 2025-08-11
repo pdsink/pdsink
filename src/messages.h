@@ -18,17 +18,6 @@ namespace pd {
         const ParamType ParamName; \
     }
 
-namespace ROUTER_ID {
-    enum {
-        TASK = 1,
-        TC = 2,
-        PE = 3,
-        PRL = 4,
-        DPM = 5,
-        ROUTERS_COUNT = 5
-    };
-} // namespace ROUTER_ID
-
 //
 // Generic messages
 //
