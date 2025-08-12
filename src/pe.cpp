@@ -110,7 +110,7 @@ public:
 
 class PE_SNK_Discovery_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE&) -> etl::fsm_state_id_t {
         // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
         // be stable at this moment, so there is no need to wait.
         return PE_SNK_Wait_for_Capabilities;
@@ -1321,7 +1321,7 @@ auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS {
     return PE_REQUEST_PROGRESS::FINISHED;
 }
 
-void PE_EventListener::on_receive(const MsgSysUpdate& msg) {
+void PE_EventListener::on_receive(const MsgSysUpdate&) {
     switch (pe.local_state) {
         case PE::LOCAL_STATE::DISABLED:
             if (!pe.port.is_attached) { break; }

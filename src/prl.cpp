@@ -1556,7 +1556,7 @@ void PRL_HR::log_state() {
 }
 
 
-void PRL_EventListener::on_receive(const MsgSysUpdate& msg) {
+void PRL_EventListener::on_receive(const MsgSysUpdate&) {
     switch (prl.local_state) {
         case PRL::LOCAL_STATE::DISABLED:
             if (!prl.port.is_attached) { break; }

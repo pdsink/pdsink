@@ -160,7 +160,7 @@ void TC::setup() {
     change_state(TC_DETACHED, true);
 }
 
-void TC_EventListener::on_receive(const MsgSysUpdate& msg) {
+void TC_EventListener::on_receive(const MsgSysUpdate&) {
     tc.run();
 }
 
