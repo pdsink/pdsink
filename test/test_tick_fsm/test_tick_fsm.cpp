@@ -22,7 +22,8 @@ struct S0 : tick_fsm_state<TestFSM, S0, SID0> {
   static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
   static etl::fsm_state_id_t on_run_state  (FSMType& f) {
     f.run_cnt[STATE_ID]++;
-    return (f.run_cnt[STATE_ID] == 2) ? ID(SID1) : No_State_Change;
+    if (f.run_cnt[STATE_ID] == 2) return SID1;
+    return No_State_Change;
   }
   static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
 };
@@ -66,7 +67,7 @@ using Pack = tick_fsm_state_pack<S0, S1, S2, S3, S4>;
 
 TEST(TickFsm, InitAndBasicTransition) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
   EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
 
@@ -80,7 +81,7 @@ TEST(TickFsm, InitAndBasicTransition) {
 
 TEST(TickFsm, SelfTransitionReenterFromRun) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   fsm.run(); // S0 #1
   fsm.run(); // S0 #2 -> S1
 
@@ -92,7 +93,7 @@ TEST(TickFsm, SelfTransitionReenterFromRun) {
 
 TEST(TickFsm, EnterChainingWorks) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   fsm.run(); // S0 #1
   fsm.run(); // S0 #2 -> S1
   fsm.run(); // S1 self
@@ -106,7 +107,7 @@ TEST(TickFsm, EnterChainingWorks) {
 
 TEST(TickFsm, InvalidIdAndSelfFromEnterAreIgnored) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   fsm.change_state(S3::STATE_ID);
   EXPECT_EQ(fsm.get_state_id(), S3::STATE_ID);
 
@@ -122,7 +123,7 @@ TEST(TickFsm, InvalidIdAndSelfFromEnterAreIgnored) {
 
 TEST(TickFsm, EnumOverloadChangeState) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   fsm.change_state(S4::STATE_ID);
   EXPECT_EQ(fsm.get_state_id(), S4::STATE_ID);
   fsm.change_state(S0::STATE_ID);
@@ -148,7 +149,7 @@ TEST(TickFsm, StartUninitialized_NoEnter_NoRun) {
 
 TEST(TickFsm, ResetToUninitialized_ExitOnly_ThenEnterOnNextState) {
   TestFSM fsm;
-  fsm.set_states<Pack>(); // enters S0 once
+  fsm.set_states<Pack>(0); // enters S0 once
   EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
   EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
   EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
@@ -205,7 +206,7 @@ TEST(TickFsm, ResetWhenAlreadyUninitialized_IsIdempotent) {
 
 TEST(TickFsm, ChangeStateSame_NoReenter_NoOps) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
   EXPECT_EQ(fsm.enter_cnt[S0::STATE_ID], 1);
   EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
@@ -219,7 +220,7 @@ TEST(TickFsm, ChangeStateSame_NoReenter_NoOps) {
 
 TEST(TickFsm, ChangeStateSame_WithReenter_DoesExitEnter) {
   TestFSM fsm;
-  fsm.set_states<Pack>();
+  fsm.set_states<Pack>(0);
   EXPECT_EQ(fsm.get_state_id(), S0::STATE_ID);
 
   fsm.change_state(S0::STATE_ID, true); // force reenter

@@ -1200,7 +1200,7 @@ using PE_STATES = etl_ext::tick_fsm_state_pack<
 PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
     : port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
 {
-    set_states<PE_STATES>(PE::Uninitialized);
+    set_states<PE_STATES>();
 }
 
 void PE::log_state() {
@@ -1367,7 +1367,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto& port = pe.port;
     auto err = msg.error;
 
-    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    if (pe.is_uninitialized()) { return; }
 
     // Always arm this flag, even for not forwarded errors). This allow
     // optional resource free in `on_exit()`, when some are shared between state.
@@ -1412,19 +1412,19 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
-    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    if (pe.is_uninitialized()) { return; }
     pe.change_state(PE_SNK_Soft_Reset);
     pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
-    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    if (pe.is_uninitialized()) { return; }
     pe.change_state(PE_SNK_Transition_to_default);
     pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
-    if (pe.get_state_id() == PE::Uninitialized) { return; }
+    if (pe.is_uninitialized()) { return; }
     pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
     pe.port.wakeup();
 }

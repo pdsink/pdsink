@@ -57,9 +57,6 @@ public:
 
     static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
     static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
-    static constexpr etl::fsm_state_id_t ID(etl::fsm_state_id_t e){
-        return static_cast<etl::fsm_state_id_t>(e);
-    }
 
     static etl::fsm_state_id_t on_enter_state(FSMType& fsm) {
         return Derived::on_enter_state(fsm);
@@ -137,7 +134,7 @@ private:
 
 public:
     template<typename StatePack>
-    void set_states(etl::fsm_state_id_t initial = 0) {
+    void set_states(etl::fsm_state_id_t initial = Uninitialized) {
         static_assert(etl::is_same<FSMImpl, typename StatePack::FSMType>::value,
                       "StatePack FSMType must match tick_fsm FSMImpl type");
 
@@ -154,6 +151,8 @@ public:
             }
         }
     }
+
+    bool is_uninitialized() const { return current_state_id == Uninitialized; }
 
     etl::fsm_state_id_t get_state_id() const {
         return current_state_id;

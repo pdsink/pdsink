@@ -148,7 +148,7 @@ using TC_STATES = etl_ext::tick_fsm_state_pack<
 TC::TC(Port& port, ITCPC& tcpc)
     : port{port}, tcpc{tcpc}, tc_event_listener{*this}
 {
-    set_states<TC_STATES>(TC::Uninitialized);
+    set_states<TC_STATES>();
 }
 
 void TC::log_state() {

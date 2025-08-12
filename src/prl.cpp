@@ -1469,7 +1469,7 @@ using RCH_STATES = etl_ext::tick_fsm_state_pack<
 >;
 
 PRL_RCH::PRL_RCH(PRL& prl) : prl{prl} {
-    set_states<RCH_STATES>(PRL_RCH::Uninitialized);
+    set_states<RCH_STATES>();
 };
 
 void PRL_RCH::log_state() {
@@ -1490,7 +1490,7 @@ using TCH_STATES = etl_ext::tick_fsm_state_pack<
 >;
 
 PRL_TCH::PRL_TCH(PRL& prl) : prl{prl} {
-    set_states<TCH_STATES>(PRL_TCH::Uninitialized);
+    set_states<TCH_STATES>();
 }
 
 void PRL_TCH::log_state() {
@@ -1513,7 +1513,7 @@ using PRL_TX_STATES = etl_ext::tick_fsm_state_pack<
 >;
 
 PRL_Tx::PRL_Tx(PRL& prl) : prl{prl} {
-    set_states<PRL_TX_STATES>(PRL_Tx::Uninitialized);
+    set_states<PRL_TX_STATES>();
 }
 
 void PRL_Tx::log_state() {
@@ -1529,7 +1529,7 @@ using PRL_RX_STATES = etl_ext::tick_fsm_state_pack<
 >;
 
 PRL_Rx::PRL_Rx(PRL& prl) : prl{prl} {
-    set_states<PRL_RX_STATES>(PRL_Rx::Uninitialized);
+    set_states<PRL_RX_STATES>();
 }
 
 void PRL_Rx::log_state() {
@@ -1548,7 +1548,7 @@ using PRL_HR_STATES = etl_ext::tick_fsm_state_pack<
 >;
 
 PRL_HR::PRL_HR(PRL& prl) : prl{prl} {
-    set_states<PRL_HR_STATES>(PRL_HR::Uninitialized);
+    set_states<PRL_HR_STATES>();
 }
 
 void PRL_HR::log_state() {
