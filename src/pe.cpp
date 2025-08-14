@@ -175,7 +175,6 @@ public:
             port.source_caps.push_back(port.rx_emsg.read32(i*4));
         }
 
-        port.pe_flags.set(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
         port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
@@ -249,7 +248,7 @@ public:
         // - If we came from Evaluate_Capability and the AMS was interrupted after
         //   the first message => perform a Soft Reset.
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
-            if (port.pe_flags.test(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY)) {
+            if (pe.get_previous_state_id() == PE_SNK_Evaluate_Capability) {
                 return PE_SNK_Send_Soft_Reset;
             }
             return PE_SNK_Ready;
@@ -319,7 +318,6 @@ public:
     }
 
     static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.clear(PE_FLAG::IS_FROM_EVALUATE_CAPABILITY);
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
         pe.check_request_progress_exit();
     }
@@ -376,7 +374,7 @@ public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
 
-        if (port.pe_flags.test_and_clear(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE)) {
+        if (pe.get_previous_state_id() == PE_SNK_EPR_Keep_Alive) {
             // Log returning from EPR Keep-Alive at debug level to reduce noise
             PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
         } else {
@@ -668,7 +666,6 @@ public:
         if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
             // If the message was discarded due to another activity => the connection
             // is OK, and a heartbeat is not needed. Consider it successful.
-            port.pe_flags.set(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE);
             return PE_SNK_Ready;
         }
 
@@ -680,7 +677,6 @@ public:
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
-                port.pe_flags.set(PE_FLAG::IS_FROM_EPR_KEEP_ALIVE);
                 return PE_SNK_Ready;
             }
 

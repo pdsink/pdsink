@@ -714,12 +714,10 @@ public:
 class PRL_Tx_PHY_Layer_Reset_State : public etl_ext::tick_fsm_state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset> {
 public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
-        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
         // Technically, we should call set_rx_enable(true). But since call is
         // async - postpone it for next state, to have vars init coordinated.
-        port.prl_tx_flags.set(PRL_TX_FLAG::IS_FROM_LAYER_RESET);
         return PRL_Tx_Wait_for_Message_Request;
     }
 
@@ -738,7 +736,7 @@ public:
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
         port.tx_retry_counter = 0;
 
-        if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::IS_FROM_LAYER_RESET)) {
+        if (prl_tx.get_previous_state_id() == PRL_Tx_PHY_Layer_Reset) {
             // This also resets fusb302 FIFO
             prl_tx.prl.tcpc.req_rx_enable(true);
         }

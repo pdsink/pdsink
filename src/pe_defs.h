@@ -32,8 +32,6 @@ enum class PE_FLAG {
     // Minor flags to control local behaviour in states
     WAIT_DPM_TRANSIT_TO_DEFAULT,
     PRL_HARD_RESET_PENDING,
-    IS_FROM_EVALUATE_CAPABILITY,
-    IS_FROM_EPR_KEEP_ALIVE,
     HR_BY_CAPS_TIMEOUT,
     DO_SOFT_RESET_ON_UNSUPPORTED,
     CAN_SEND_SOFT_RESET,
