@@ -129,6 +129,7 @@ private:
     const on_exit_fn* exit_table = nullptr;
     size_t state_count = 0;
     etl::fsm_state_id_t current_state_id = Uninitialized;
+    etl::fsm_state_id_t previous_state_id = Uninitialized;
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
@@ -144,6 +145,8 @@ public:
         state_count = StatePack::get_state_count();
 
         current_state_id = initial;
+        previous_state_id = Uninitialized; // No previous state during initialization
+
         if (current_state_id < state_count) {
             etl::fsm_state_id_t result = enter_table[current_state_id](impl());
             if (result < state_count && result != current_state_id) {
@@ -158,12 +161,17 @@ public:
         return current_state_id;
     }
 
+    etl::fsm_state_id_t get_previous_state_id() const {
+        return previous_state_id;
+    }
+
     void run() {
         if (current_state_id >= state_count) return;
 
         etl::fsm_state_id_t result = run_table[current_state_id](impl());
 
         if (result == etl::ifsm_state::Self_Transition) {
+            // Self transition doesn't change the previous state
             exit_table[current_state_id](impl());
             etl::fsm_state_id_t enter_result = enter_table[current_state_id](impl());
             if (enter_result < state_count && enter_result != current_state_id) {
@@ -178,6 +186,7 @@ public:
         // Allow "reset to uninitialized" sugar.
         if (new_state_id == Uninitialized) {
             if (current_state_id < state_count) {
+                previous_state_id = current_state_id;
                 exit_table[current_state_id](impl());
             }
             current_state_id = Uninitialized;
@@ -191,6 +200,11 @@ public:
 
         etl::fsm_state_id_t next_state_id = new_state_id;
         bool have_current = (current_state_id < state_count);
+
+        // Save the original state as previous (before any transitions)
+        if (have_current || reenter) {
+            previous_state_id = current_state_id;
+        }
 
         do {
             if (have_current) {

@@ -240,6 +240,41 @@ TEST(TickFsm, ReenterFromUninitialized_HasNoExtraExit) {
   EXPECT_EQ(fsm.enter_cnt[S1::STATE_ID], 1);
 }
 
+// New tests for is_uninitialized() and previous state functionality
+
+TEST(TickFsm, IsUninitializedTest) {
+  TestFSM fsm;
+
+  EXPECT_TRUE(fsm.is_uninitialized());
+
+  fsm.set_states<Pack>(0);
+  EXPECT_FALSE(fsm.is_uninitialized());
+
+  fsm.change_state(tick_fsm<TestFSM>::Uninitialized);
+  EXPECT_TRUE(fsm.is_uninitialized());
+}
+
+TEST(TickFsm, PreviousStateTracking) {
+  TestFSM fsm;
+  fsm.set_states<Pack>(0);
+
+  // Initially previous is Uninitialized
+  EXPECT_EQ(fsm.get_previous_state_id(), tick_fsm<TestFSM>::Uninitialized);
+
+  // S0 -> S1 via run()
+  fsm.run(); fsm.run(); // S0 tick 2 -> S1
+  EXPECT_EQ(fsm.get_state_id(), S1::STATE_ID);
+  EXPECT_EQ(fsm.get_previous_state_id(), S0::STATE_ID);
+
+  // Self transition shouldn't change previous
+  fsm.run(); // S1 Self_Transition
+  EXPECT_EQ(fsm.get_previous_state_id(), S0::STATE_ID);
+
+  // Manual change_state
+  fsm.change_state(S3::STATE_ID);
+  EXPECT_EQ(fsm.get_previous_state_id(), S1::STATE_ID);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
