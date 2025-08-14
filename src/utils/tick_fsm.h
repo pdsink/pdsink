@@ -16,7 +16,6 @@ namespace tfsm_details {
         using type = First;
     };
 
-    // Check all states have same FSMType
     template<typename ExpectedFSM, typename... States>
     struct check_fsm_types;
 
@@ -32,7 +31,6 @@ namespace tfsm_details {
             check_fsm_types<ExpectedFSM, Rest...>::value;
     };
 
-    // Check state IDs are sequential from 0
     template<size_t Expected, typename... States>
     struct check_state_ids;
 
@@ -47,13 +45,19 @@ namespace tfsm_details {
             (First::STATE_ID == Expected) &&
             check_state_ids<Expected + 1, Rest...>::value;
     };
+
+    struct interceptor_pack_interface {
+        const void* enter_table;
+        const void* run_table;
+        const void* exit_table;
+        size_t element_count;
+    };
 }
 
-template<typename FSM, typename Derived, etl::fsm_state_id_t StateID>
-class tick_fsm_state {
+template<typename FSM, typename Derived>
+class tick_fsm_state_base {
 public:
     using FSMType = FSM;
-    static constexpr etl::fsm_state_id_t STATE_ID = StateID;
 
     static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
     static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
@@ -71,15 +75,70 @@ public:
     }
 };
 
-template<typename... States>
-struct tick_fsm_state_pack {
-    using FirstState = typename tfsm_details::first_type<States...>::type;
-    using FSMType = typename FirstState::FSMType;
+template<typename FSM, typename Derived>
+using tick_fsm_interceptor = tick_fsm_state_base<FSM, Derived>;
 
-    // Compile-time checks
-    static_assert(sizeof...(States) > 0, "State pack cannot be empty");
-    static_assert(tfsm_details::check_fsm_types<FSMType, States...>::value,
-                  "All states must have the same FSMType");
+template<typename FSM, typename Derived, etl::fsm_state_id_t StateID>
+class tick_fsm_state : public tick_fsm_state_base<FSM, Derived> {
+public:
+    static constexpr etl::fsm_state_id_t STATE_ID = StateID;
+};
+
+template<typename... Elements>
+class tick_fsm_pack_base {
+public:
+    using FirstElement = typename tfsm_details::first_type<Elements...>::type;
+    using FSMType = typename FirstElement::FSMType;
+
+    using on_enter_fn = etl::fsm_state_id_t(*)(FSMType&);
+    using on_run_fn = etl::fsm_state_id_t(*)(FSMType&);
+    using on_exit_fn = void(*)(FSMType&);
+
+    static constexpr size_t element_count = sizeof...(Elements);
+
+    static_assert(sizeof...(Elements) > 0, "Pack cannot be empty");
+    static_assert(tfsm_details::check_fsm_types<FSMType, Elements...>::value,
+                  "All elements must have the same FSMType");
+
+    static const on_enter_fn* get_enter_table() {
+        static const on_enter_fn table[element_count] = { &Elements::on_enter_state... };
+        return table;
+    }
+
+    static const on_run_fn* get_run_table() {
+        static const on_run_fn table[element_count] = { &Elements::on_run_state... };
+        return table;
+    }
+
+    static const on_exit_fn* get_exit_table() {
+        static const on_exit_fn table[element_count] = { &Elements::on_exit_state... };
+        return table;
+    }
+
+    static constexpr size_t get_element_count() {
+        return element_count;
+    }
+};
+
+template<typename... Interceptors>
+class tick_fsm_interceptor_pack : public tick_fsm_pack_base<Interceptors...> {
+public:
+    using interceptor_pack_type = tick_fsm_interceptor_pack<Interceptors...>;
+
+    static const tfsm_details::interceptor_pack_interface* get_interface() {
+        static const tfsm_details::interceptor_pack_interface interface = {
+            tick_fsm_pack_base<Interceptors...>::get_enter_table(),
+            tick_fsm_pack_base<Interceptors...>::get_run_table(),
+            tick_fsm_pack_base<Interceptors...>::get_exit_table(),
+            tick_fsm_pack_base<Interceptors...>::element_count
+        };
+        return &interface;
+    }
+};
+
+template<typename... States>
+class tick_fsm_state_pack : public tick_fsm_pack_base<States...> {
+public:
     static_assert(tfsm_details::check_state_ids<0, States...>::value,
                   "State IDs must be sequential starting from 0");
     static_assert((sizeof...(States) - 1) < etl::integral_limits<etl::fsm_state_id_t>::max,
@@ -87,24 +146,43 @@ struct tick_fsm_state_pack {
     static_assert(!etl::integral_limits<etl::fsm_state_id_t>::is_signed,
                   "fsm_state_id_t must be unsigned");
 
-    using on_enter_fn = etl::fsm_state_id_t(*)(FSMType&);
-    using on_run_fn = etl::fsm_state_id_t(*)(FSMType&);
-    using on_exit_fn = void(*)(FSMType&);
+    using interceptor_pack_ptr = const tfsm_details::interceptor_pack_interface*;
 
-    static constexpr size_t state_count = sizeof...(States);
+    static constexpr size_t state_count = tick_fsm_pack_base<States...>::element_count;
 
-    static const on_enter_fn* get_enter_table() {
-        static const on_enter_fn table[state_count] = { &States::on_enter_state... };
-        return table;
+    template<typename State>
+    struct has_interceptors {
+        template<typename T>
+        static auto test(int) -> decltype(typename T::interceptor_pack_type{}, etl::true_type{});
+        template<typename>
+        static etl::false_type test(...);
+
+        static constexpr bool value = decltype(test<State>(0))::value;
+    };
+
+    template<typename State, bool HasInterceptors>
+    struct interceptor_pack_extractor {
+        static constexpr interceptor_pack_ptr extract() {
+            return nullptr;
+        }
+    };
+
+    template<typename State>
+    struct interceptor_pack_extractor<State, true> {
+        static constexpr interceptor_pack_ptr extract() {
+            return State::interceptor_pack_type::get_interface();
+        }
+    };
+
+    template<typename State>
+    static constexpr interceptor_pack_ptr extract_interceptor_pack() {
+        return interceptor_pack_extractor<State, has_interceptors<State>::value>::extract();
     }
 
-    static const on_run_fn* get_run_table() {
-        static const on_run_fn table[state_count] = { &States::on_run_state... };
-        return table;
-    }
-
-    static const on_exit_fn* get_exit_table() {
-        static const on_exit_fn table[state_count] = { &States::on_exit_state... };
+    static const interceptor_pack_ptr* get_interceptor_table() {
+        static const interceptor_pack_ptr table[state_count] = {
+            extract_interceptor_pack<States>()...
+        };
         return table;
     }
 
@@ -127,28 +205,73 @@ private:
     const on_enter_fn* enter_table = nullptr;
     const on_run_fn* run_table = nullptr;
     const on_exit_fn* exit_table = nullptr;
+    const tfsm_details::interceptor_pack_interface* const* interceptor_table = nullptr;
+
     size_t state_count = 0;
     etl::fsm_state_id_t current_state_id = Uninitialized;
     etl::fsm_state_id_t previous_state_id = Uninitialized;
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
+    etl::fsm_state_id_t execute_enter(etl::fsm_state_id_t state_id) {
+        if (interceptor_table[state_id]) {
+            const auto& pack = *interceptor_table[state_id];
+            auto enter_table_interceptors = static_cast<const on_enter_fn*>(pack.enter_table);
+
+            for (size_t i = 0; i < pack.element_count; ++i) {
+                auto result = enter_table_interceptors[i](impl());
+                if (result != etl::ifsm_state::No_State_Change) {
+                    return result;
+                }
+            }
+        }
+        return enter_table[state_id](impl());
+    }
+
+    etl::fsm_state_id_t execute_run(etl::fsm_state_id_t state_id) {
+        if (interceptor_table[state_id]) {
+            const auto& pack = *interceptor_table[state_id];
+            auto run_table_interceptors = static_cast<const on_run_fn*>(pack.run_table);
+
+            for (size_t i = 0; i < pack.element_count; ++i) {
+                auto result = run_table_interceptors[i](impl());
+                if (result != etl::ifsm_state::No_State_Change) {
+                    return result;
+                }
+            }
+        }
+        return run_table[state_id](impl());
+    }
+
+    void execute_exit(etl::fsm_state_id_t state_id) {
+        exit_table[state_id](impl());
+        if (interceptor_table[state_id]) {
+            const auto& pack = *interceptor_table[state_id];
+            auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
+
+            for (size_t i = pack.element_count; i > 0; --i) {
+                exit_table_interceptors[i-1](impl());
+            }
+        }
+    }
+
 public:
     template<typename StatePack>
     void set_states(etl::fsm_state_id_t initial = Uninitialized) {
         static_assert(etl::is_same<FSMImpl, typename StatePack::FSMType>::value,
-                      "StatePack FSMType must match tick_fsm FSMImpl type");
+                    "StatePack FSMType must match tick_fsm FSMImpl type");
 
         enter_table = StatePack::get_enter_table();
         run_table = StatePack::get_run_table();
         exit_table = StatePack::get_exit_table();
+        interceptor_table = StatePack::get_interceptor_table();
         state_count = StatePack::get_state_count();
 
         current_state_id = initial;
-        previous_state_id = Uninitialized; // No previous state during initialization
+        previous_state_id = Uninitialized;
 
         if (current_state_id < state_count) {
-            etl::fsm_state_id_t result = enter_table[current_state_id](impl());
+            etl::fsm_state_id_t result = execute_enter(current_state_id);
             if (result < state_count && result != current_state_id) {
                 change_state(result);
             }
@@ -168,12 +291,11 @@ public:
     void run() {
         if (current_state_id >= state_count) return;
 
-        etl::fsm_state_id_t result = run_table[current_state_id](impl());
+        etl::fsm_state_id_t result = execute_run(current_state_id);
 
         if (result == etl::ifsm_state::Self_Transition) {
-            // Self transition doesn't change the previous state
-            exit_table[current_state_id](impl());
-            etl::fsm_state_id_t enter_result = enter_table[current_state_id](impl());
+            execute_exit(current_state_id);
+            etl::fsm_state_id_t enter_result = execute_enter(current_state_id);
             if (enter_result < state_count && enter_result != current_state_id) {
                 change_state(enter_result);
             }
@@ -183,11 +305,10 @@ public:
     }
 
     void change_state(etl::fsm_state_id_t new_state_id, bool reenter = false) {
-        // Allow "reset to uninitialized" sugar.
         if (new_state_id == Uninitialized) {
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
-                exit_table[current_state_id](impl());
+                execute_exit(current_state_id);
             }
             current_state_id = Uninitialized;
             return;
@@ -201,19 +322,27 @@ public:
         etl::fsm_state_id_t next_state_id = new_state_id;
         bool have_current = (current_state_id < state_count);
 
-        // Save the original state as previous (before any transitions)
         if (have_current || reenter) {
             previous_state_id = current_state_id;
         }
 
         do {
             if (have_current) {
-                exit_table[current_state_id](impl());
+                execute_exit(current_state_id);
             }
             current_state_id = next_state_id;
 
-            etl::fsm_state_id_t result = enter_table[current_state_id](impl());
-            next_state_id = (result < state_count) ? result : current_state_id;
+            etl::fsm_state_id_t result = execute_enter(current_state_id);
+            if (result == etl::ifsm_state::No_State_Change) {
+                next_state_id = current_state_id;
+            } else if (result == Uninitialized) {
+                current_state_id = Uninitialized;
+                return;
+            } else if (result < state_count) {
+                next_state_id = result;
+            } else {
+                next_state_id = current_state_id;
+            }
             have_current = true;
         } while (next_state_id != current_state_id);
     }
