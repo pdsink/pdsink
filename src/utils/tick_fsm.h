@@ -52,6 +52,10 @@ namespace tfsm_details {
         const void* exit_table;
         size_t element_count;
     };
+
+    static constexpr etl::fsm_state_id_t Uninitialized =
+        etl::integral_limits<etl::fsm_state_id_t>::max;
+
 }
 
 template<typename FSM, typename Derived>
@@ -61,6 +65,7 @@ public:
 
     static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
     static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
+    static constexpr auto Uninitialized = tfsm_details::Uninitialized;
 
     static etl::fsm_state_id_t on_enter_state(FSMType& fsm) {
         return Derived::on_enter_state(fsm);
@@ -198,8 +203,9 @@ public:
     using on_run_fn = etl::fsm_state_id_t(*)(FSMImpl&);
     using on_exit_fn = void(*)(FSMImpl&);
 
-    static constexpr etl::fsm_state_id_t Uninitialized =
-        etl::integral_limits<etl::fsm_state_id_t>::max;
+    static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
+    static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
+    static constexpr auto Uninitialized = tfsm_details::Uninitialized;
 
 private:
     const on_enter_fn* enter_table = nullptr;
@@ -220,7 +226,7 @@ private:
 
             for (size_t i = 0; i < pack.element_count; ++i) {
                 auto result = enter_table_interceptors[i](impl());
-                if (result != etl::ifsm_state::No_State_Change) {
+                if (result != No_State_Change) {
                     return result;
                 }
             }
@@ -235,7 +241,7 @@ private:
 
             for (size_t i = 0; i < pack.element_count; ++i) {
                 auto result = run_table_interceptors[i](impl());
-                if (result != etl::ifsm_state::No_State_Change) {
+                if (result != No_State_Change) {
                     return result;
                 }
             }
@@ -271,7 +277,7 @@ public:
         previous_state_id = Uninitialized;
 
         if (current_state_id < state_count) {
-            etl::fsm_state_id_t result = execute_enter(current_state_id);
+            auto result = execute_enter(current_state_id);
             if (result < state_count && result != current_state_id) {
                 change_state(result);
             }
@@ -291,11 +297,11 @@ public:
     void run() {
         if (current_state_id >= state_count) return;
 
-        etl::fsm_state_id_t result = execute_run(current_state_id);
+        auto result = execute_run(current_state_id);
 
-        if (result == etl::ifsm_state::Self_Transition) {
+        if (result == Self_Transition) {
             execute_exit(current_state_id);
-            etl::fsm_state_id_t enter_result = execute_enter(current_state_id);
+            auto enter_result = execute_enter(current_state_id);
             if (enter_result < state_count && enter_result != current_state_id) {
                 change_state(enter_result);
             }
@@ -319,7 +325,7 @@ public:
         const bool same = (current_state_id < state_count) && (new_state_id == current_state_id);
         if (same && !reenter) return;
 
-        etl::fsm_state_id_t next_state_id = new_state_id;
+        auto next_state_id = new_state_id;
         bool have_current = (current_state_id < state_count);
 
         if (have_current || reenter) {
@@ -332,8 +338,8 @@ public:
             }
             current_state_id = next_state_id;
 
-            etl::fsm_state_id_t result = execute_enter(current_state_id);
-            if (result == etl::ifsm_state::No_State_Change) {
+            auto result = execute_enter(current_state_id);
+            if (result == No_State_Change) {
                 next_state_id = current_state_id;
             } else if (result == Uninitialized) {
                 current_state_id = Uninitialized;
