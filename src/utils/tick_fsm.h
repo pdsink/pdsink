@@ -273,14 +273,11 @@ public:
         interceptor_table = StatePack::get_interceptor_table();
         state_count = StatePack::get_state_count();
 
-        current_state_id = initial;
+        current_state_id = Uninitialized;
         previous_state_id = Uninitialized;
 
-        if (current_state_id < state_count) {
-            auto result = execute_enter(current_state_id);
-            if (result < state_count && result != current_state_id) {
-                change_state(result);
-            }
+        if (initial < state_count) {
+            change_state(initial);
         }
     }
 
@@ -300,11 +297,7 @@ public:
         auto result = execute_run(current_state_id);
 
         if (result == Self_Transition) {
-            execute_exit(current_state_id);
-            auto enter_result = execute_enter(current_state_id);
-            if (enter_result < state_count && enter_result != current_state_id) {
-                change_state(enter_result);
-            }
+            change_state(current_state_id, true);
         } else if (result < state_count && result != current_state_id) {
             change_state(result);
         }

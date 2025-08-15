@@ -310,9 +310,9 @@ TEST(TickFsm, PreviousStateTracking) {
     EXPECT_EQ(fsm.get_state_id(), S1::STATE_ID);
     EXPECT_EQ(fsm.get_previous_state_id(), S0::STATE_ID);
 
-    // Self transition shouldn't change previous
+    // Self transition updates previous to current state
     fsm.run(); // S1 Self_Transition
-    EXPECT_EQ(fsm.get_previous_state_id(), S0::STATE_ID);
+    EXPECT_EQ(fsm.get_previous_state_id(), S1::STATE_ID);
 
     // Manual change_state
     fsm.change_state(S3::STATE_ID);
