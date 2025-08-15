@@ -53,10 +53,16 @@ namespace tfsm_details {
         size_t element_count;
     };
 
+    struct enter_result {
+        etl::fsm_state_id_t next_state;
+        size_t interceptors_executed;
+        bool main_state_executed;
+    };
+
     static constexpr etl::fsm_state_id_t Uninitialized =
         etl::integral_limits<etl::fsm_state_id_t>::max;
 
-}
+} // namespace tfsm_details
 
 template<typename FSM, typename Derived>
 class tick_fsm_state_base {
@@ -219,19 +225,28 @@ private:
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
-    etl::fsm_state_id_t execute_enter(etl::fsm_state_id_t state_id) {
+    tfsm_details::enter_result execute_enter(etl::fsm_state_id_t state_id) {
+        tfsm_details::enter_result result = {state_id, 0, false};
+
         if (interceptor_table[state_id]) {
             const auto& pack = *interceptor_table[state_id];
             auto enter_table_interceptors = static_cast<const on_enter_fn*>(pack.enter_table);
 
             for (size_t i = 0; i < pack.element_count; ++i) {
-                auto result = enter_table_interceptors[i](impl());
-                if (result != No_State_Change) {
+                auto transition_result = enter_table_interceptors[i](impl());
+                if (transition_result != No_State_Change) {
+                    result.next_state = transition_result;
+                    result.interceptors_executed = i + 1;
                     return result;
                 }
             }
+            result.interceptors_executed = pack.element_count;
         }
-        return enter_table[state_id](impl());
+
+        result.next_state = enter_table[state_id](impl());
+        result.main_state_executed = true;
+
+        return result;
     }
 
     etl::fsm_state_id_t execute_run(etl::fsm_state_id_t state_id) {
@@ -249,14 +264,30 @@ private:
         return run_table[state_id](impl());
     }
 
-    void execute_exit(etl::fsm_state_id_t state_id) {
-        exit_table[state_id](impl());
-        if (interceptor_table[state_id]) {
-            const auto& pack = *interceptor_table[state_id];
-            auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
+    void execute_exit(etl::fsm_state_id_t state_id, const tfsm_details::enter_result* rollback_info = nullptr) {
+        if (rollback_info) {
+            // If enter "transaction" was incomplete, do symmetric rollback
+            if (rollback_info->main_state_executed) {
+                exit_table[state_id](impl());
+            }
 
-            for (size_t i = pack.element_count; i > 0; --i) {
-                exit_table_interceptors[i-1](impl());
+            if (interceptor_table[state_id] && rollback_info->interceptors_executed > 0) {
+                const auto& pack = *interceptor_table[state_id];
+                auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
+
+                for (size_t i = rollback_info->interceptors_executed; i > 0; --i) {
+                    exit_table_interceptors[i-1](impl());
+                }
+            }
+        } else {
+            exit_table[state_id](impl());
+            if (interceptor_table[state_id]) {
+                const auto& pack = *interceptor_table[state_id];
+                auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
+
+                for (size_t i = pack.element_count; i > 0; --i) {
+                    exit_table_interceptors[i-1](impl());
+                }
             }
         }
     }
@@ -292,7 +323,7 @@ public:
     }
 
     void run() {
-        if (current_state_id >= state_count) return;
+        if (current_state_id >= state_count) { return; }
 
         auto result = execute_run(current_state_id);
 
@@ -313,36 +344,34 @@ public:
             return;
         }
 
-        if (new_state_id >= state_count) return;
+        if (new_state_id >= state_count) { return; }
 
         const bool same = (current_state_id < state_count) && (new_state_id == current_state_id);
-        if (same && !reenter) return;
+        if (same && !reenter) { return; }
 
         auto next_state_id = new_state_id;
         bool have_current = (current_state_id < state_count);
 
-        if (have_current || reenter) {
-            previous_state_id = current_state_id;
-        }
+        if (have_current || reenter) { previous_state_id = current_state_id; }
+        if (have_current) { execute_exit(current_state_id); }
 
         do {
-            if (have_current) {
-                execute_exit(current_state_id);
-            }
             current_state_id = next_state_id;
 
-            auto result = execute_enter(current_state_id);
-            if (result == No_State_Change) {
+            auto enter_result = execute_enter(current_state_id);
+
+            if (enter_result.next_state == No_State_Change) {
                 next_state_id = current_state_id;
-            } else if (result == Uninitialized) {
+            } else if (enter_result.next_state == Uninitialized) {
+                execute_exit(current_state_id, &enter_result);
                 current_state_id = Uninitialized;
                 return;
-            } else if (result < state_count) {
-                next_state_id = result;
+            } else if (enter_result.next_state < state_count) {
+                execute_exit(current_state_id, &enter_result);
+                next_state_id = enter_result.next_state;
             } else {
                 next_state_id = current_state_id;
             }
-            have_current = true;
         } while (next_state_id != current_state_id);
     }
 
