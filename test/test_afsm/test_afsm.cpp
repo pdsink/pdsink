@@ -361,8 +361,7 @@ TEST(TickFsm, InterceptorUsingApproach) {
 
 TEST(TickFsm, InterceptorCanChangeState) {
     TestFSM fsm;
-    using PackMixed = state_pack<S0_Mixin, S1>;
-    fsm.set_states<PackMixed>(0);
+    fsm.set_states<state_pack<S0_Mixin, S1>>(0);
 
     fsm.force_invalid = true;  // ControlInterceptor will return SID1
     fsm.change_state(SID0, true); // Re-enter S0, but interceptor redirects to S1
@@ -386,14 +385,12 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
     class TestState : public state<TestFSM, TestState, SID0>,
                       public interceptor_pack<LogInterceptor, EarlyExitInterceptor> {
     public:
-        using FSMType = TestFSM;
-        static etl::fsm_state_id_t on_enter_state(FSMType&) { return No_State_Change; }
-        static etl::fsm_state_id_t on_run_state(FSMType&) { return No_State_Change; }
-        static void on_exit_state(FSMType&) {}
+        static etl::fsm_state_id_t on_enter_state(TestFSM&) { return No_State_Change; }
+        static etl::fsm_state_id_t on_run_state(TestFSM&) { return No_State_Change; }
+        static void on_exit_state(TestFSM&) {}
     };
 
-    using PackEarlyExit = state_pack<TestState, S1>;
-    fsm.set_states<PackEarlyExit>(0);
+    fsm.set_states<state_pack<TestState, S1>>(0);
 
     EXPECT_EQ(fsm.get_state_id(), SID1);
     EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor entered
@@ -403,8 +400,7 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
 
 TEST(TickFsm, InterceptorSelfTransition) {
     TestFSM fsm;
-    using PackWithInterceptor = state_pack<S0_Mixin>;
-    fsm.set_states<PackWithInterceptor>(0);
+    fsm.set_states<state_pack<S0_Mixin>>(0);
 
     fsm.self_used = true;  // ControlInterceptor will return Self_Transition
     fsm.run();
