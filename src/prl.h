@@ -4,41 +4,41 @@
 #include "messages.h"
 #include "prl_defs.h"
 #include "utils/atomic_bits.h"
-#include "utils/tick_fsm.h"
+#include "utils/afsm.h"
 
 namespace pd {
 
 class Port; class IDriver; class PRL;
 
-class PRL_Tx: public etl_ext::tick_fsm<PRL_Tx> {
+class PRL_Tx: public afsm::fsm<PRL_Tx> {
 public:
     PRL_Tx(PRL& prl);
     void log_state();
     PRL& prl;
 };
 
-class PRL_Rx: public etl_ext::tick_fsm<PRL_Rx> {
+class PRL_Rx: public afsm::fsm<PRL_Rx> {
 public:
     PRL_Rx(PRL& prl);
     void log_state();
     PRL& prl;
 };
 
-class PRL_HR: public etl_ext::tick_fsm<PRL_HR> {
+class PRL_HR: public afsm::fsm<PRL_HR> {
 public:
     PRL_HR(PRL& prl);
     void log_state();
     PRL& prl;
 };
 
-class PRL_RCH: public etl_ext::tick_fsm<PRL_RCH> {
+class PRL_RCH: public afsm::fsm<PRL_RCH> {
 public:
     PRL_RCH(PRL& prl);
     void log_state();
     PRL& prl;
 };
 
-class PRL_TCH: public etl_ext::tick_fsm<PRL_TCH> {
+class PRL_TCH: public afsm::fsm<PRL_TCH> {
 public:
     PRL_TCH(PRL& prl);
     void log_state();

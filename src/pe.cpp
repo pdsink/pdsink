@@ -86,7 +86,7 @@ namespace {
 } // namespace
 
 
-class PE_SNK_Startup_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Startup_State, PE_SNK_Startup> {
+class PE_SNK_Startup_State : public afsm::state<PE, PE_SNK_Startup_State, PE_SNK_Startup> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -108,7 +108,7 @@ public:
 };
 
 
-class PE_SNK_Discovery_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
+class PE_SNK_Discovery_State : public afsm::state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
     static auto on_enter_state(PE&) -> etl::fsm_state_id_t {
         // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
@@ -121,7 +121,7 @@ public:
 };
 
 
-class PE_SNK_Wait_for_Capabilities_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities> {
+class PE_SNK_Wait_for_Capabilities_State : public afsm::state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
@@ -160,7 +160,7 @@ public:
 };
 
 
-class PE_SNK_Evaluate_Capability_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability> {
+class PE_SNK_Evaluate_Capability_State : public afsm::state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -201,7 +201,7 @@ public:
 // device this is a good place to keep things simple.
 //
 
-class PE_SNK_Select_Capability_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability> {
+class PE_SNK_Select_Capability_State : public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -324,7 +324,7 @@ public:
 };
 
 
-class PE_SNK_Transition_Sink_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink> {
+class PE_SNK_Transition_Sink_State : public afsm::state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -369,7 +369,7 @@ public:
 };
 
 
-class PE_SNK_Ready_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Ready_State, PE_SNK_Ready> {
+class PE_SNK_Ready_State : public afsm::state<PE, PE_SNK_Ready_State, PE_SNK_Ready> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -590,7 +590,7 @@ public:
 };
 
 
-class PE_SNK_Give_Sink_Cap_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap> {
+class PE_SNK_Give_Sink_Cap_State : public afsm::state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -637,7 +637,7 @@ public:
 };
 
 
-class PE_SNK_EPR_Keep_Alive_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive> {
+class PE_SNK_EPR_Keep_Alive_State : public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -698,7 +698,7 @@ public:
 };
 
 
-class PE_SNK_Hard_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset> {
+class PE_SNK_Hard_Reset_State : public afsm::state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -728,7 +728,7 @@ public:
 };
 
 
-class PE_SNK_Transition_to_default_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default> {
+class PE_SNK_Transition_to_default_State : public afsm::state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -759,7 +759,7 @@ public:
 
 
 // Come here when a Soft Reset is received from the SRC
-class PE_SNK_Soft_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset> {
+class PE_SNK_Soft_Reset_State : public afsm::state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
@@ -789,7 +789,7 @@ public:
 };
 
 
-class PE_SNK_Send_Soft_Reset_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset> {
+class PE_SNK_Send_Soft_Reset_State : public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -850,7 +850,7 @@ public:
 };
 
 
-class PE_SNK_Send_Not_Supported_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported> {
+class PE_SNK_Send_Not_Supported_State : public afsm::state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
@@ -879,7 +879,7 @@ public:
 };
 
 
-class PE_SNK_Source_Alert_Received_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received> {
+class PE_SNK_Source_Alert_Received_State : public afsm::state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -892,7 +892,7 @@ public:
 };
 
 
-class PE_SNK_Send_EPR_Mode_Entry_State : public etl_ext::tick_fsm_state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry> {
+class PE_SNK_Send_EPR_Mode_Entry_State : public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -969,7 +969,7 @@ public:
 };
 
 
-class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response> {
+class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public afsm::state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response> {
 public:
     static etl::fsm_state_id_t on_enter_state(PE& pe) {
         pe.log_state();
@@ -1008,7 +1008,7 @@ public:
 };
 
 
-class PE_SNK_EPR_Mode_Exit_Received_State : public etl_ext::tick_fsm_state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received> {
+class PE_SNK_EPR_Mode_Exit_Received_State : public afsm::state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -1029,7 +1029,7 @@ public:
 };
 
 
-class PE_BIST_Activate_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Activate_State, PE_BIST_Activate> {
+class PE_BIST_Activate_State : public afsm::state<PE, PE_BIST_Activate_State, PE_BIST_Activate> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -1073,7 +1073,7 @@ public:
     static void on_exit_state(PE&) {}
 };
 
-class PE_BIST_Carrier_Mode_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode> {
+class PE_BIST_Carrier_Mode_State : public afsm::state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
@@ -1105,7 +1105,7 @@ public:
 };
 
 
-class PE_BIST_Test_Mode_State : public etl_ext::tick_fsm_state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode> {
+class PE_BIST_Test_Mode_State : public afsm::state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode> {
 public:
     static etl::fsm_state_id_t on_enter_state(PE& pe) {
         pe.log_state();
@@ -1123,7 +1123,7 @@ public:
 };
 
 
-class PE_Give_Revision_State : public etl_ext::tick_fsm_state<PE, PE_Give_Revision_State, PE_Give_Revision> {
+class PE_Give_Revision_State : public afsm::state<PE, PE_Give_Revision_State, PE_Give_Revision> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         auto& port = pe.port;
@@ -1153,7 +1153,7 @@ public:
 };
 
 
-class PE_Src_Disabled_State : public etl_ext::tick_fsm_state<PE, PE_Src_Disabled_State, PE_Src_Disabled> {
+class PE_Src_Disabled_State : public afsm::state<PE, PE_Src_Disabled_State, PE_Src_Disabled> {
 public:
     static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
         pe.log_state();
@@ -1167,7 +1167,7 @@ public:
 };
 
 
-using PE_STATES = etl_ext::tick_fsm_state_pack<
+using PE_STATES = afsm::state_pack<
     PE_SNK_Startup_State,
     PE_SNK_Discovery_State,
     PE_SNK_Wait_for_Capabilities_State,
@@ -1331,7 +1331,7 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
         case PE::LOCAL_STATE::WORKING:
             if (!pe.port.is_attached) {
                 pe.local_state = PE::LOCAL_STATE::DISABLED;
-                pe.change_state(PE::Uninitialized);
+                pe.change_state(afsm::Uninitialized);
                 break;
             }
             pe.run();

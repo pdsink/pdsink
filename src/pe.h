@@ -6,7 +6,7 @@
 #include "messages.h"
 #include "pe_defs.h"
 #include "utils/atomic_bits.h"
-#include "utils/tick_fsm.h"
+#include "utils/afsm.h"
 
 namespace pd {
 
@@ -46,7 +46,7 @@ private:
 };
 
 
-class PE : public etl_ext::tick_fsm<PE> {
+class PE : public afsm::fsm<PE> {
 public:
     PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc);
 

@@ -28,7 +28,7 @@ namespace {
 } // namespace
 
 
-class TC_DETACHED_State : public etl_ext::tick_fsm_state<TC, TC_DETACHED_State, TC_DETACHED> {
+class TC_DETACHED_State : public afsm::state<TC, TC_DETACHED_State, TC_DETACHED> {
 public:
     static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
         auto& port = tc.port;
@@ -67,7 +67,7 @@ public:
 };
 
 
-class TC_DETECTING_State : public etl_ext::tick_fsm_state<TC, TC_DETECTING_State, TC_DETECTING> {
+class TC_DETECTING_State : public afsm::state<TC, TC_DETECTING_State, TC_DETECTING> {
 public:
     static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
         tc.log_state();
@@ -113,7 +113,7 @@ public:
 };
 
 
-class TC_SINK_ATTACHED_State : public etl_ext::tick_fsm_state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED> {
+class TC_SINK_ATTACHED_State : public afsm::state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED> {
 public:
     static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
         tc.log_state();
@@ -139,7 +139,7 @@ public:
     }
 };
 
-using TC_STATES = etl_ext::tick_fsm_state_pack<
+using TC_STATES = afsm::state_pack<
     TC_DETACHED_State,
     TC_DETECTING_State,
     TC_SINK_ATTACHED_State

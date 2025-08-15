@@ -5,9 +5,14 @@
 #include <etl/integral_limits.h>
 #include <stddef.h>
 
-namespace etl_ext {
+namespace afsm {
 
-namespace tfsm_details {
+using state_id_t = etl::fsm_state_id_t;
+static constexpr state_id_t No_State_Change = etl::ifsm_state::No_State_Change;
+static constexpr state_id_t Self_Transition = etl::ifsm_state::Self_Transition;
+static constexpr state_id_t Uninitialized = etl::integral_limits<etl::fsm_state_id_t>::max;
+
+namespace details {
     template<typename...>
     struct first_type;
 
@@ -54,30 +59,27 @@ namespace tfsm_details {
     };
 
     struct enter_result {
-        etl::fsm_state_id_t next_state;
+        state_id_t next_state;
         size_t interceptors_executed;
         bool main_state_executed;
     };
 
-    static constexpr etl::fsm_state_id_t Uninitialized =
-        etl::integral_limits<etl::fsm_state_id_t>::max;
-
-} // namespace tfsm_details
+} // namespace details
 
 template<typename FSM, typename Derived>
-class tick_fsm_state_base {
+class state_base {
 public:
     using FSMType = FSM;
 
-    static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
-    static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
-    static constexpr auto Uninitialized = tfsm_details::Uninitialized;
+    static constexpr auto No_State_Change = afsm::No_State_Change;
+    static constexpr auto Self_Transition = afsm::Self_Transition;
+    static constexpr auto Uninitialized = afsm::Uninitialized;
 
-    static etl::fsm_state_id_t on_enter_state(FSMType& fsm) {
+    static state_id_t on_enter_state(FSMType& fsm) {
         return Derived::on_enter_state(fsm);
     }
 
-    static etl::fsm_state_id_t on_run_state(FSMType& fsm) {
+    static state_id_t on_run_state(FSMType& fsm) {
         return Derived::on_run_state(fsm);
     }
 
@@ -87,28 +89,28 @@ public:
 };
 
 template<typename FSM, typename Derived>
-using tick_fsm_interceptor = tick_fsm_state_base<FSM, Derived>;
+using interceptor = state_base<FSM, Derived>;
 
-template<typename FSM, typename Derived, etl::fsm_state_id_t StateID>
-class tick_fsm_state : public tick_fsm_state_base<FSM, Derived> {
+template<typename FSM, typename Derived, state_id_t StateID>
+class state : public state_base<FSM, Derived> {
 public:
-    static constexpr etl::fsm_state_id_t STATE_ID = StateID;
+    static constexpr state_id_t STATE_ID = StateID;
 };
 
 template<typename... Elements>
-class tick_fsm_pack_base {
+class pack_base {
 public:
-    using FirstElement = typename tfsm_details::first_type<Elements...>::type;
+    using FirstElement = typename details::first_type<Elements...>::type;
     using FSMType = typename FirstElement::FSMType;
 
-    using on_enter_fn = etl::fsm_state_id_t(*)(FSMType&);
-    using on_run_fn = etl::fsm_state_id_t(*)(FSMType&);
+    using on_enter_fn = state_id_t(*)(FSMType&);
+    using on_run_fn = state_id_t(*)(FSMType&);
     using on_exit_fn = void(*)(FSMType&);
 
     static constexpr size_t element_count = sizeof...(Elements);
 
     static_assert(sizeof...(Elements) > 0, "Pack cannot be empty");
-    static_assert(tfsm_details::check_fsm_types<FSMType, Elements...>::value,
+    static_assert(details::check_fsm_types<FSMType, Elements...>::value,
                   "All elements must have the same FSMType");
 
     static const on_enter_fn* get_enter_table() {
@@ -132,34 +134,34 @@ public:
 };
 
 template<typename... Interceptors>
-class tick_fsm_interceptor_pack : public tick_fsm_pack_base<Interceptors...> {
+class interceptor_pack : public pack_base<Interceptors...> {
 public:
-    using interceptor_pack_type = tick_fsm_interceptor_pack<Interceptors...>;
+    using interceptor_pack_type = interceptor_pack<Interceptors...>;
 
-    static const tfsm_details::interceptor_pack_interface* get_interface() {
-        static const tfsm_details::interceptor_pack_interface interface = {
-            tick_fsm_pack_base<Interceptors...>::get_enter_table(),
-            tick_fsm_pack_base<Interceptors...>::get_run_table(),
-            tick_fsm_pack_base<Interceptors...>::get_exit_table(),
-            tick_fsm_pack_base<Interceptors...>::element_count
+    static const details::interceptor_pack_interface* get_interface() {
+        static const details::interceptor_pack_interface interface = {
+            pack_base<Interceptors...>::get_enter_table(),
+            pack_base<Interceptors...>::get_run_table(),
+            pack_base<Interceptors...>::get_exit_table(),
+            pack_base<Interceptors...>::element_count
         };
         return &interface;
     }
 };
 
 template<typename... States>
-class tick_fsm_state_pack : public tick_fsm_pack_base<States...> {
+class state_pack : public pack_base<States...> {
 public:
-    static_assert(tfsm_details::check_state_ids<0, States...>::value,
+    static_assert(details::check_state_ids<0, States...>::value,
                   "State IDs must be sequential starting from 0");
     static_assert((sizeof...(States) - 1) < etl::integral_limits<etl::fsm_state_id_t>::max,
                   "last state id overflow");
     static_assert(!etl::integral_limits<etl::fsm_state_id_t>::is_signed,
                   "fsm_state_id_t must be unsigned");
 
-    using interceptor_pack_ptr = const tfsm_details::interceptor_pack_interface*;
+    using interceptor_pack_ptr = const details::interceptor_pack_interface*;
 
-    static constexpr size_t state_count = tick_fsm_pack_base<States...>::element_count;
+    static constexpr size_t state_count = pack_base<States...>::element_count;
 
     template<typename State>
     struct has_interceptors {
@@ -203,30 +205,26 @@ public:
 };
 
 template<typename FSMImpl>
-class tick_fsm {
+class fsm {
 public:
-    using on_enter_fn = etl::fsm_state_id_t(*)(FSMImpl&);
-    using on_run_fn = etl::fsm_state_id_t(*)(FSMImpl&);
+    using on_enter_fn = state_id_t(*)(FSMImpl&);
+    using on_run_fn = state_id_t(*)(FSMImpl&);
     using on_exit_fn = void(*)(FSMImpl&);
-
-    static constexpr auto No_State_Change = etl::ifsm_state::No_State_Change;
-    static constexpr auto Self_Transition = etl::ifsm_state::Self_Transition;
-    static constexpr auto Uninitialized = tfsm_details::Uninitialized;
 
 private:
     const on_enter_fn* enter_table = nullptr;
     const on_run_fn* run_table = nullptr;
     const on_exit_fn* exit_table = nullptr;
-    const tfsm_details::interceptor_pack_interface* const* interceptor_table = nullptr;
+    const details::interceptor_pack_interface* const* interceptor_table = nullptr;
 
     size_t state_count = 0;
-    etl::fsm_state_id_t current_state_id = Uninitialized;
-    etl::fsm_state_id_t previous_state_id = Uninitialized;
+    state_id_t current_state_id = Uninitialized;
+    state_id_t previous_state_id = Uninitialized;
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
-    tfsm_details::enter_result execute_enter(etl::fsm_state_id_t state_id) {
-        tfsm_details::enter_result result = {state_id, 0, false};
+    details::enter_result execute_enter(state_id_t state_id) {
+        details::enter_result result = {state_id, 0, false};
 
         if (interceptor_table[state_id]) {
             const auto& pack = *interceptor_table[state_id];
@@ -249,7 +247,7 @@ private:
         return result;
     }
 
-    etl::fsm_state_id_t execute_run(etl::fsm_state_id_t state_id) {
+    state_id_t execute_run(state_id_t state_id) {
         if (interceptor_table[state_id]) {
             const auto& pack = *interceptor_table[state_id];
             auto run_table_interceptors = static_cast<const on_run_fn*>(pack.run_table);
@@ -264,7 +262,7 @@ private:
         return run_table[state_id](impl());
     }
 
-    void execute_exit(etl::fsm_state_id_t state_id, const tfsm_details::enter_result* rollback_info = nullptr) {
+    void execute_exit(state_id_t state_id, const details::enter_result* rollback_info = nullptr) {
         if (rollback_info) {
             // If enter "transaction" was incomplete, do symmetric rollback
             if (rollback_info->main_state_executed) {
@@ -294,9 +292,9 @@ private:
 
 public:
     template<typename StatePack>
-    void set_states(etl::fsm_state_id_t initial = Uninitialized) {
+    void set_states(state_id_t initial = Uninitialized) {
         static_assert(etl::is_same<FSMImpl, typename StatePack::FSMType>::value,
-                    "StatePack FSMType must match tick_fsm FSMImpl type");
+                    "StatePack FSMType must match fsm FSMImpl type");
 
         enter_table = StatePack::get_enter_table();
         run_table = StatePack::get_run_table();
@@ -314,11 +312,11 @@ public:
 
     bool is_uninitialized() const { return current_state_id == Uninitialized; }
 
-    etl::fsm_state_id_t get_state_id() const {
+    state_id_t get_state_id() const {
         return current_state_id;
     }
 
-    etl::fsm_state_id_t get_previous_state_id() const {
+    state_id_t get_previous_state_id() const {
         return previous_state_id;
     }
 
@@ -334,7 +332,7 @@ public:
         }
     }
 
-    void change_state(etl::fsm_state_id_t new_state_id, bool reenter = false) {
+    void change_state(state_id_t new_state_id, bool reenter = false) {
         if (new_state_id == Uninitialized) {
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
@@ -375,8 +373,8 @@ public:
         } while (next_state_id != current_state_id);
     }
 
-    template<typename E, typename = typename etl::enable_if<!etl::is_same<E, etl::fsm_state_id_t>::value>::type>
-    void change_state(E e, bool reenter = false) { change_state(static_cast<etl::fsm_state_id_t>(e), reenter); }
+    template<typename E, typename = typename etl::enable_if<!etl::is_same<E, state_id_t>::value>::type>
+    void change_state(E e, bool reenter = false) { change_state(static_cast<state_id_t>(e), reenter); }
 };
 
-} // namespace etl_ext
+} // namespace afsm

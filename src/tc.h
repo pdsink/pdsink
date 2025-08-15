@@ -9,7 +9,7 @@
 #include <etl/message_router.h>
 
 #include "messages.h"
-#include "utils/tick_fsm.h"
+#include "utils/afsm.h"
 
 namespace pd {
 
@@ -24,7 +24,7 @@ private:
     TC& tc;
 };
 
-class TC : public etl_ext::tick_fsm<TC> {
+class TC : public afsm::fsm<TC> {
 public:
     TC(class Port& port, class ITCPC& tcpc);
 

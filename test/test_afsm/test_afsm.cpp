@@ -1,17 +1,17 @@
 #include <gtest/gtest.h>
 #include <array>
-#include "utils/tick_fsm.h"
+#include "utils/afsm.h"
 
-using etl_ext::tick_fsm;
-using etl_ext::tick_fsm_state;
-using etl_ext::tick_fsm_state_pack;
-using etl_ext::tick_fsm_interceptor;
-using etl_ext::tick_fsm_interceptor_pack;
+using afsm::fsm;
+using afsm::state;
+using afsm::state_pack;
+using afsm::interceptor;
+using afsm::interceptor_pack;
 
 enum StateID : etl::fsm_state_id_t { SID0 = 0, SID1, SID2, SID3, SID4, SID_Count };
 static constexpr etl::fsm_state_id_t InvalidID = SID_Count;
 
-class TestFSM : public tick_fsm<TestFSM> {
+class TestFSM : public fsm<TestFSM> {
 public:
     std::array<int, SID_Count> enter_cnt{};
     std::array<int, SID_Count> exit_cnt{};
@@ -24,14 +24,14 @@ public:
 };
 
 // Test interceptors
-class LogInterceptor : public tick_fsm_interceptor<TestFSM, LogInterceptor> {
+class LogInterceptor : public interceptor<TestFSM, LogInterceptor> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.interceptor_enter_cnt[0]++; return No_State_Change; }
     static etl::fsm_state_id_t on_run_state(FSMType& f) { f.interceptor_run_cnt[0]++; return No_State_Change; }
     static void on_exit_state(FSMType& f) { f.interceptor_exit_cnt[0]++; }
 };
 
-class ControlInterceptor : public tick_fsm_interceptor<TestFSM, ControlInterceptor> {
+class ControlInterceptor : public interceptor<TestFSM, ControlInterceptor> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) {
         f.interceptor_enter_cnt[1]++;
@@ -45,7 +45,7 @@ public:
 };
 
 // S0: after 2 ticks -> S1
-class S0 : public tick_fsm_state<TestFSM, S0, SID0> {
+class S0 : public state<TestFSM, S0, SID0> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
     static etl::fsm_state_id_t on_run_state  (FSMType& f) {
@@ -57,7 +57,7 @@ public:
 };
 
 // S1: first tick -> Self_Transition (re-enter), next tick -> S2
-class S1 : public tick_fsm_state<TestFSM, S1, SID1> {
+class S1 : public state<TestFSM, S1, SID1> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
     static etl::fsm_state_id_t on_run_state  (FSMType& f) {
@@ -69,7 +69,7 @@ public:
 };
 
 // S2: enter() chains to S3
-class S2 : public tick_fsm_state<TestFSM, S2, SID2> {
+class S2 : public state<TestFSM, S2, SID2> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return SID3; }
     static etl::fsm_state_id_t on_run_state  (FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
@@ -77,7 +77,7 @@ public:
 };
 
 // S3: run() may return invalid id
-class S3 : public tick_fsm_state<TestFSM, S3, SID3> {
+class S3 : public state<TestFSM, S3, SID3> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
     static etl::fsm_state_id_t on_run_state  (FSMType& f) {
@@ -88,19 +88,19 @@ public:
 };
 
 // S4: enter() returns Self_Transition (must be ignored)
-class S4 : public tick_fsm_state<TestFSM, S4, SID4> {
+class S4 : public state<TestFSM, S4, SID4> {
 public:
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return Self_Transition; }
     static etl::fsm_state_id_t on_run_state  (FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
     static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
 };
 
-using Pack = tick_fsm_state_pack<S0, S1, S2, S3, S4>;
+using Pack = state_pack<S0, S1, S2, S3, S4>;
 
 // State with interceptors - reuse SID0
 class S0_WithInterceptors :
-    public tick_fsm_state<TestFSM, S0_WithInterceptors, SID0>,
-    public tick_fsm_interceptor_pack<LogInterceptor, ControlInterceptor>
+    public state<TestFSM, S0_WithInterceptors, SID0>,
+    public interceptor_pack<LogInterceptor, ControlInterceptor>
 {
 public:
     using FSMType = TestFSM;
@@ -176,9 +176,9 @@ TEST(TickFsm, EnumOverloadChangeState) {
 
 TEST(TickFsm, StartUninitialized_NoEnter_NoRun) {
     TestFSM fsm;
-    fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
+    fsm.set_states<Pack>(afsm::Uninitialized);
 
-    EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+    EXPECT_EQ(fsm.get_state_id(), afsm::Uninitialized);
 
     int sum = 0;
     for (auto v : fsm.enter_cnt) sum += v;
@@ -199,8 +199,8 @@ TEST(TickFsm, ResetToUninitialized_ExitOnly_ThenEnterOnNextState) {
     EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 0);
 
     // reset sugar
-    fsm.change_state(tick_fsm<TestFSM>::Uninitialized);
-    EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+    fsm.change_state(afsm::Uninitialized);
+    EXPECT_EQ(fsm.get_state_id(), afsm::Uninitialized);
     EXPECT_EQ(fsm.exit_cnt[S0::STATE_ID], 1); // exit S0 happened once
 
     int sum = 0;
@@ -221,11 +221,11 @@ TEST(TickFsm, ResetToUninitialized_ExitOnly_ThenEnterOnNextState) {
 
 TEST(TickFsm, ResetWhenAlreadyUninitialized_IsIdempotent) {
     TestFSM fsm;
-    fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
+    fsm.set_states<Pack>(afsm::Uninitialized);
 
-    fsm.change_state(tick_fsm<TestFSM>::Uninitialized); // no-op
+    fsm.change_state(afsm::Uninitialized); // no-op
 
-    EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+    EXPECT_EQ(fsm.get_state_id(), afsm::Uninitialized);
 
     int esum = 0, rsum = 0, xsum = 0;
     for (auto v : fsm.enter_cnt) esum += v;
@@ -275,8 +275,8 @@ TEST(TickFsm, ChangeStateSame_WithReenter_DoesExitEnter) {
 
 TEST(TickFsm, ReenterFromUninitialized_HasNoExtraExit) {
     TestFSM fsm;
-    fsm.set_states<Pack>(tick_fsm<TestFSM>::Uninitialized);
-    EXPECT_EQ(fsm.get_state_id(), tick_fsm<TestFSM>::Uninitialized);
+    fsm.set_states<Pack>(afsm::Uninitialized);
+    EXPECT_EQ(fsm.get_state_id(), afsm::Uninitialized);
 
     fsm.change_state(S1::STATE_ID, true); // reenter=true ok, but no prior exit
     EXPECT_EQ(fsm.get_state_id(), S1::STATE_ID);
@@ -294,7 +294,7 @@ TEST(TickFsm, IsUninitializedTest) {
     fsm.set_states<Pack>(0);
     EXPECT_FALSE(fsm.is_uninitialized());
 
-    fsm.change_state(tick_fsm<TestFSM>::Uninitialized);
+    fsm.change_state(afsm::Uninitialized);
     EXPECT_TRUE(fsm.is_uninitialized());
 }
 
@@ -303,7 +303,7 @@ TEST(TickFsm, PreviousStateTracking) {
     fsm.set_states<Pack>(0);
 
     // Initially previous is Uninitialized
-    EXPECT_EQ(fsm.get_previous_state_id(), tick_fsm<TestFSM>::Uninitialized);
+    EXPECT_EQ(fsm.get_previous_state_id(), afsm::Uninitialized);
 
     // S0 -> S1 via run()
     fsm.run(); fsm.run(); // S0 tick 2 -> S1
@@ -321,7 +321,7 @@ TEST(TickFsm, PreviousStateTracking) {
 
 TEST(TickFsm, InterceptorsCallOrder) {
     TestFSM fsm;
-    using PackWithInterceptor = tick_fsm_state_pack<S0_WithInterceptors>;
+    using PackWithInterceptor = state_pack<S0_WithInterceptors>;
     fsm.set_states<PackWithInterceptor>(0);
 
     EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor
@@ -331,7 +331,7 @@ TEST(TickFsm, InterceptorsCallOrder) {
 
 TEST(TickFsm, InterceptorCanChangeState) {
     TestFSM fsm;
-    using PackMixed = tick_fsm_state_pack<S0_WithInterceptors, S1>;
+    using PackMixed = state_pack<S0_WithInterceptors, S1>;
     fsm.set_states<PackMixed>(0);
 
     fsm.force_invalid = true;  // ControlInterceptor will return SID1
@@ -343,7 +343,7 @@ TEST(TickFsm, InterceptorCanChangeState) {
 
 TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
     TestFSM fsm;
-    class EarlyExitInterceptor : public tick_fsm_interceptor<TestFSM, EarlyExitInterceptor> {
+    class EarlyExitInterceptor : public interceptor<TestFSM, EarlyExitInterceptor> {
     public:
         static etl::fsm_state_id_t on_enter_state(FSMType& f) {
             f.interceptor_enter_cnt[2]++;
@@ -353,8 +353,8 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
         static void on_exit_state(FSMType& f) { f.interceptor_exit_cnt[2]++; }
     };
 
-    class TestState : public tick_fsm_state<TestFSM, TestState, SID0>,
-                      public tick_fsm_interceptor_pack<LogInterceptor, EarlyExitInterceptor> {
+    class TestState : public state<TestFSM, TestState, SID0>,
+                      public interceptor_pack<LogInterceptor, EarlyExitInterceptor> {
     public:
         using FSMType = TestFSM;
         static etl::fsm_state_id_t on_enter_state(FSMType&) { return No_State_Change; }
@@ -362,7 +362,7 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
         static void on_exit_state(FSMType&) {}
     };
 
-    using PackEarlyExit = tick_fsm_state_pack<TestState, S1>;
+    using PackEarlyExit = state_pack<TestState, S1>;
     fsm.set_states<PackEarlyExit>(0);
 
     EXPECT_EQ(fsm.get_state_id(), SID1);
@@ -373,7 +373,7 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
 
 TEST(TickFsm, InterceptorSelfTransition) {
     TestFSM fsm;
-    using PackWithInterceptor = tick_fsm_state_pack<S0_WithInterceptors>;
+    using PackWithInterceptor = state_pack<S0_WithInterceptors>;
     fsm.set_states<PackWithInterceptor>(0);
 
     fsm.self_used = true;  // ControlInterceptor will return Self_Transition
