@@ -101,16 +101,15 @@ template<typename... Elements>
 class pack_base {
 public:
     using FirstElement = typename details::first_type<Elements...>::type;
-    using FSMType = typename FirstElement::FSMType;
 
-    using on_enter_fn = state_id_t(*)(FSMType&);
-    using on_run_fn = state_id_t(*)(FSMType&);
-    using on_exit_fn = void(*)(FSMType&);
+    using on_enter_fn = state_id_t(*)(typename FirstElement::FSMType&);
+    using on_run_fn = state_id_t(*)(typename FirstElement::FSMType&);
+    using on_exit_fn = void(*)(typename FirstElement::FSMType&);
 
     static constexpr size_t element_count = sizeof...(Elements);
 
     static_assert(sizeof...(Elements) > 0, "Pack cannot be empty");
-    static_assert(details::check_fsm_types<FSMType, Elements...>::value,
+    static_assert(details::check_fsm_types<typename FirstElement::FSMType, Elements...>::value,
                   "All elements must have the same FSMType");
 
     static const on_enter_fn* get_enter_table() {
@@ -293,7 +292,7 @@ private:
 public:
     template<typename StatePack>
     void set_states(state_id_t initial = Uninitialized) {
-        static_assert(etl::is_same<FSMImpl, typename StatePack::FSMType>::value,
+        static_assert(etl::is_same<FSMImpl, typename StatePack::FirstElement::FSMType>::value,
                     "StatePack FSMType must match fsm FSMImpl type");
 
         enter_table = StatePack::get_enter_table();

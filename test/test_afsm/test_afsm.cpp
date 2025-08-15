@@ -97,17 +97,41 @@ public:
 
 using Pack = state_pack<S0, S1, S2, S3, S4>;
 
-// State with interceptors - reuse SID0
-class S0_WithInterceptors :
-    public state<TestFSM, S0_WithInterceptors, SID0>,
+// State with interceptors using mixin approach
+class S0_Mixin :
+    public state<TestFSM, S0_Mixin, SID0>,
     public interceptor_pack<LogInterceptor, ControlInterceptor>
 {
 public:
-    using FSMType = TestFSM;
     static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
     static etl::fsm_state_id_t on_run_state(FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
     static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
 };
+
+// Interceptor pack for reuse
+class TestInterceptorPack : public interceptor_pack<LogInterceptor, ControlInterceptor> {};
+
+// MIXIN approach: state inherits from interceptor pack directly
+class StateMixin : public state<TestFSM, StateMixin, 0>,
+                   public TestInterceptorPack {
+public:
+    static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
+    static etl::fsm_state_id_t on_run_state(FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
+    static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
+};
+
+// USING approach: state imports interceptor_pack_type through using declaration
+class StateUsing : public state<TestFSM, StateUsing, 1>,
+                   private TestInterceptorPack {
+public:
+    using TestInterceptorPack::interceptor_pack_type;
+    static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
+    static etl::fsm_state_id_t on_run_state(FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
+    static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
+};
+
+// State pack inheriting from afsm::state_pack
+class TestStatePack : public state_pack<StateMixin, StateUsing> {};
 
 TEST(TickFsm, InitAndBasicTransition) {
     TestFSM fsm;
@@ -284,8 +308,6 @@ TEST(TickFsm, ReenterFromUninitialized_HasNoExtraExit) {
     EXPECT_EQ(fsm.enter_cnt[S1::STATE_ID], 1);
 }
 
-// New tests for is_uninitialized() and previous state functionality
-
 TEST(TickFsm, IsUninitializedTest) {
     TestFSM fsm;
 
@@ -319,19 +341,27 @@ TEST(TickFsm, PreviousStateTracking) {
     EXPECT_EQ(fsm.get_previous_state_id(), S1::STATE_ID);
 }
 
-TEST(TickFsm, InterceptorsCallOrder) {
+TEST(TickFsm, InterceptorMixinApproach) {
     TestFSM fsm;
-    using PackWithInterceptor = state_pack<S0_WithInterceptors>;
-    fsm.set_states<PackWithInterceptor>(0);
+    fsm.set_states<TestStatePack>(0);
 
     EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor
     EXPECT_EQ(fsm.interceptor_enter_cnt[1], 1);  // ControlInterceptor
-    EXPECT_EQ(fsm.enter_cnt[SID0], 1);           // S0_WithInterceptors itself
+    EXPECT_EQ(fsm.enter_cnt[0], 1);              // StateMixin itself
+}
+
+TEST(TickFsm, InterceptorUsingApproach) {
+    TestFSM fsm;
+    fsm.set_states<TestStatePack>(1);
+
+    EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor
+    EXPECT_EQ(fsm.interceptor_enter_cnt[1], 1);  // ControlInterceptor
+    EXPECT_EQ(fsm.enter_cnt[1], 1);              // StateUsing itself
 }
 
 TEST(TickFsm, InterceptorCanChangeState) {
     TestFSM fsm;
-    using PackMixed = state_pack<S0_WithInterceptors, S1>;
+    using PackMixed = state_pack<S0_Mixin, S1>;
     fsm.set_states<PackMixed>(0);
 
     fsm.force_invalid = true;  // ControlInterceptor will return SID1
@@ -373,7 +403,7 @@ TEST(TickFsm, InterceptorRollbackOnEarlyExit) {
 
 TEST(TickFsm, InterceptorSelfTransition) {
     TestFSM fsm;
-    using PackWithInterceptor = state_pack<S0_WithInterceptors>;
+    using PackWithInterceptor = state_pack<S0_Mixin>;
     fsm.set_states<PackWithInterceptor>(0);
 
     fsm.self_used = true;  // ControlInterceptor will return Self_Transition
