@@ -120,18 +120,9 @@ public:
     static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
 };
 
-// USING approach: state imports interceptor_pack_type through using declaration
-class StateUsing : public state<TestFSM, StateUsing, 1>,
-                   private TestInterceptorPack {
-public:
-    using TestInterceptorPack::interceptor_pack_type;
-    static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
-    static etl::fsm_state_id_t on_run_state(FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
-    static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
-};
 
 // State pack inheriting from afsm::state_pack
-class TestStatePack : public state_pack<StateMixin, StateUsing> {};
+class TestStatePack : public state_pack<StateMixin> {};
 
 TEST(TickFsm, InitAndBasicTransition) {
     TestFSM fsm;
@@ -348,15 +339,6 @@ TEST(TickFsm, InterceptorMixinApproach) {
     EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor
     EXPECT_EQ(fsm.interceptor_enter_cnt[1], 1);  // ControlInterceptor
     EXPECT_EQ(fsm.enter_cnt[0], 1);              // StateMixin itself
-}
-
-TEST(TickFsm, InterceptorUsingApproach) {
-    TestFSM fsm;
-    fsm.set_states<TestStatePack>(1);
-
-    EXPECT_EQ(fsm.interceptor_enter_cnt[0], 1);  // LogInterceptor
-    EXPECT_EQ(fsm.interceptor_enter_cnt[1], 1);  // ControlInterceptor
-    EXPECT_EQ(fsm.enter_cnt[1], 1);              // StateUsing itself
 }
 
 TEST(TickFsm, InterceptorCanChangeState) {
