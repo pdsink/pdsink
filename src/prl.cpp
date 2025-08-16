@@ -9,6 +9,8 @@
 
 namespace pd {
 
+using afsm::state_id_t;
+
 // [rev3.2] 6.12.3 List of Protocol Layer States
 // Table 6.75 Protocol Layer States
 
@@ -162,12 +164,12 @@ class RCH_Wait_For_Message_From_Protocol_Layer_State : public afsm::state<PRL_RC
 public:
     // Spec requires to clear extended message buffer (rx_emsg) on enter,
     // but we do that on first chunk instead. Because buffer is shared with PE.
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         rch.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
@@ -204,20 +206,20 @@ public:
 
 class RCH_Pass_Up_Message_State : public afsm::state<PRL_RCH, RCH_Pass_Up_Message_State, RCH_Pass_Up_Message> {
 public:
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         rch.log_state();
 
         rch.prl.port.notify_pe(MsgToPe_PrlMessageReceived{});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
-    static auto on_run_state(PRL_RCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_RCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_RCH&) {}
 };
 
 class RCH_Processing_Extended_Message_State : public afsm::state<PRL_RCH, RCH_Processing_Extended_Message_State, RCH_Processing_Extended_Message> {
 public:
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
         rch.log_state();
 
@@ -247,7 +249,7 @@ public:
         return RCH_Requesting_Chunk;
     }
 
-    static auto on_run_state(PRL_RCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_RCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_RCH&) {}
 };
 
@@ -255,7 +257,7 @@ class RCH_Requesting_Chunk_State : public afsm::state<PRL_RCH, RCH_Requesting_Ch
 public:
 
 
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
         rch.log_state();
 
@@ -283,7 +285,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
@@ -310,7 +312,7 @@ class RCH_Waiting_Chunk_State : public afsm::state<PRL_RCH, RCH_Waiting_Chunk_St
 public:
 
 
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
         rch.log_state();
 
@@ -319,7 +321,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
@@ -356,7 +358,7 @@ public:
 
 class RCH_Report_Error_State : public afsm::state<PRL_RCH, RCH_Report_Error_State, RCH_Report_Error> {
 public:
-    static auto on_enter_state(PRL_RCH& rch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
@@ -369,7 +371,7 @@ public:
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
-    static auto on_run_state(PRL_RCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_RCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_RCH&) {}
 };
 
@@ -378,12 +380,12 @@ public:
 
 class TCH_Wait_For_Message_Request_From_Policy_Engine_State : public afsm::state<PRL_TCH, TCH_Wait_For_Message_Request_From_Policy_Engine_State, TCH_Wait_For_Message_Request_From_Policy_Engine> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         tch.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
 
         // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
@@ -423,7 +425,7 @@ public:
 
 class TCH_Pass_Down_Message_State : public afsm::state<PRL_TCH, TCH_Pass_Down_Message_State, TCH_Pass_Down_Message> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -435,18 +437,18 @@ public:
         return TCH_Wait_For_Transmision_Complete;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Wait_For_Transmision_Complete_State : public afsm::state<PRL_TCH, TCH_Wait_For_Transmision_Complete_State, TCH_Wait_For_Transmision_Complete> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         tch.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_COMPLETED)) {
@@ -484,7 +486,7 @@ public:
 
 class TCH_Message_Sent_State : public afsm::state<PRL_TCH, TCH_Message_Sent_State, TCH_Message_Sent> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -498,13 +500,13 @@ public:
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Prepare_To_Send_Chunked_Message_State : public afsm::state<PRL_TCH, TCH_Prepare_To_Send_Chunked_Message_State, TCH_Prepare_To_Send_Chunked_Message> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -512,13 +514,13 @@ public:
         return TCH_Construct_Chunked_Message;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Construct_Chunked_Message_State : public afsm::state<PRL_TCH, TCH_Construct_Chunked_Message_State, TCH_Construct_Chunked_Message> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -543,18 +545,18 @@ public:
         return TCH_Sending_Chunked_Message;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Sending_Chunked_Message_State : public afsm::state<PRL_TCH, TCH_Sending_Chunked_Message_State, TCH_Sending_Chunked_Message> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         tch.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_ERROR)) {
@@ -604,7 +606,7 @@ public:
 
 class TCH_Wait_Chunk_Request_State : public afsm::state<PRL_TCH, TCH_Wait_Chunk_Request_State, TCH_Wait_Chunk_Request> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -619,7 +621,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
@@ -663,7 +665,7 @@ public:
 
 class TCH_Message_Received_State : public afsm::state<PRL_TCH, TCH_Message_Received_State, TCH_Message_Received> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -679,13 +681,13 @@ public:
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Report_Error_State : public afsm::state<PRL_TCH, TCH_Report_Error_State, TCH_Report_Error> {
 public:
-    static auto on_enter_state(PRL_TCH& tch) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
         tch.log_state();
 
@@ -697,7 +699,7 @@ public:
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
     }
 
-    static auto on_run_state(PRL_TCH&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
@@ -713,7 +715,7 @@ public:
 
 class PRL_Tx_PHY_Layer_Reset_State : public afsm::state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
         // Technically, we should call set_rx_enable(true). But since call is
@@ -721,7 +723,7 @@ public:
         return PRL_Tx_Wait_for_Message_Request;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
@@ -729,7 +731,7 @@ class PRL_Tx_Wait_for_Message_Request_State : public afsm::state<PRL_Tx, PRL_Tx_
 public:
 
 
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -744,7 +746,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
 
         if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
@@ -775,7 +777,7 @@ public:
 
 class PRL_Tx_Layer_Reset_for_Transmit_State : public afsm::state<PRL_Tx, PRL_Tx_Layer_Reset_for_Transmit_State, PRL_Tx_Layer_Reset_for_Transmit> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& prl = prl_tx.prl;
         prl_tx.log_state();
 
@@ -792,13 +794,13 @@ public:
         return PRL_Tx_Construct_Message;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 class PRL_Tx_Construct_Message_State : public afsm::state<PRL_Tx, PRL_Tx_Construct_Message_State, PRL_Tx_Construct_Message> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -825,14 +827,14 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 // Here we wait for "GoodCRC" or failure.
 class PRL_Tx_Wait_for_PHY_Response_State : public afsm::state<PRL_Tx, PRL_Tx_Wait_for_PHY_Response_State, PRL_Tx_Wait_for_PHY_Response> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
         // Timer should be used ONLY when hardware confirmation not supported
@@ -842,7 +844,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
 
         auto status = port.tcpc_tx_status.load();
@@ -871,7 +873,7 @@ public:
 
 class PRL_Tx_Match_MessageID_State : public afsm::state<PRL_Tx, PRL_Tx_Match_MessageID_State, PRL_Tx_Match_MessageID> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
         // Since message id match is currently embedded in
@@ -879,13 +881,13 @@ public:
         return PRL_Tx_Message_Sent;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 class PRL_Tx_Message_Sent_State : public afsm::state<PRL_Tx, PRL_Tx_Message_Sent_State, PRL_Tx_Message_Sent> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -899,13 +901,13 @@ public:
         return PRL_Tx_Wait_for_Message_Request;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 class PRL_Tx_Check_RetryCounter_State : public afsm::state<PRL_Tx, PRL_Tx_Check_RetryCounter_State, PRL_Tx_Check_RetryCounter> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -935,13 +937,13 @@ public:
         return PRL_Tx_Construct_Message;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 class PRL_Tx_Transmission_Error_State : public afsm::state<PRL_Tx, PRL_Tx_Transmission_Error_State, PRL_Tx_Transmission_Error> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -956,18 +958,18 @@ public:
         return PRL_Tx_Wait_for_Message_Request;
     }
 
-    static auto on_run_state(PRL_Tx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
 class PRL_Tx_Discard_Message_State : public afsm::state<PRL_Tx, PRL_Tx_Discard_Message_State, PRL_Tx_Discard_Message> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
 
         // Do discard, if any TX chunk processing:
@@ -987,7 +989,7 @@ public:
 
 class PRL_Tx_Snk_Start_of_AMS_State : public afsm::state<PRL_Tx, PRL_Tx_Snk_Start_of_AMS_State, PRL_Tx_Snk_Start_of_AMS> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -998,7 +1000,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         if (prl_tx.prl.port.prl_tx_flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED)) {
             return PRL_Tx_Snk_Pending;
         }
@@ -1010,7 +1012,7 @@ public:
 
 class PRL_Tx_Snk_Pending_State : public afsm::state<PRL_Tx, PRL_Tx_Snk_Pending_State, PRL_Tx_Snk_Pending> {
 public:
-    static auto on_enter_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
@@ -1024,7 +1026,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Tx& prl_tx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& prl = prl_tx.prl;
         auto& port = prl.port;
         auto& tcpc = prl.tcpc;
@@ -1062,12 +1064,12 @@ public:
 
 class PRL_Rx_Wait_for_PHY_Message_State : public afsm::state<PRL_Rx, PRL_Rx_Wait_for_PHY_Message_State, PRL_Rx_Wait_for_PHY_Message> {
 public:
-    static auto on_enter_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         prl_rx.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_Rx& prl_rx) -> state_id_t {
         auto& prl = prl_rx.prl;
         auto& port = prl.port;
 
@@ -1096,7 +1098,7 @@ public:
 
 class PRL_Rx_Layer_Reset_for_Receive_State : public afsm::state<PRL_Rx, PRL_Rx_Layer_Reset_for_Receive_State, PRL_Rx_Layer_Reset_for_Receive> {
 public:
-    static auto on_enter_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         auto& prl = prl_rx.prl;
         auto& port = prl.port;
         prl_rx.log_state();
@@ -1116,7 +1118,7 @@ public:
         return PRL_Rx_Send_GoodCRC;
     }
 
-    static auto on_run_state(PRL_Rx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Rx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Rx&) {}
 };
 
@@ -1124,18 +1126,18 @@ class PRL_Rx_Send_GoodCRC_State : public afsm::state<PRL_Rx, PRL_Rx_Send_GoodCRC
 public:
     // All modern hardware sends CRC automatically. This state exists
     // to match spec and for potential extensions.
-    static auto on_enter_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         prl_rx.log_state();
         return PRL_Rx_Check_MessageID;
     }
 
-    static auto on_run_state(PRL_Rx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Rx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Rx&) {}
 };
 
 class PRL_Rx_Check_MessageID_State : public afsm::state<PRL_Rx, PRL_Rx_Check_MessageID_State, PRL_Rx_Check_MessageID> {
 public:
-    static auto on_enter_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         auto& port = prl_rx.prl.port;
         prl_rx.log_state();
 
@@ -1146,13 +1148,13 @@ public:
         return PRL_Rx_Store_MessageID;
     }
 
-    static auto on_run_state(PRL_Rx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Rx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Rx&) {}
 };
 
 class PRL_Rx_Store_MessageID_State : public afsm::state<PRL_Rx, PRL_Rx_Store_MessageID_State, PRL_Rx_Store_MessageID> {
 public:
-    static auto on_enter_state(PRL_Rx& prl_rx) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         auto& port = prl_rx.prl.port;
         auto& prl = prl_rx.prl;
         prl_rx.log_state();
@@ -1204,7 +1206,7 @@ public:
 
     }
 
-    static auto on_run_state(PRL_Rx&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_Rx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Rx&) {}
 };
 
@@ -1214,12 +1216,12 @@ public:
 
 class PRL_HR_IDLE_State : public afsm::state<PRL_HR, PRL_HR_IDLE_State, PRL_HR_IDLE> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& port = hr.prl.port;
 
         if (port.prl_hr_flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER) ||
@@ -1237,7 +1239,7 @@ class PRL_HR_Reset_Layer_State : public afsm::state<PRL_HR, PRL_HR_Reset_Layer_S
 public:
 
 
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
         // First, we don't "reset" anything in this state, because PRL_TX fsm
@@ -1250,7 +1252,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& prl = hr.prl;
 
         // Wait for TCPC operation complete
@@ -1268,27 +1270,27 @@ public:
 
 class PRL_HR_Indicate_Hard_Reset_State : public afsm::state<PRL_HR, PRL_HR_Indicate_Hard_Reset_State, PRL_HR_Indicate_Hard_Reset> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
         hr.prl.port.notify_pe(MsgToPe_PrlHardResetFromPartner{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
-    static auto on_run_state(PRL_HR&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_HR&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_HR&) {}
 };
 
 class PRL_HR_Request_Hard_Reset_State : public afsm::state<PRL_HR, PRL_HR_Request_Hard_Reset_State, PRL_HR_Request_Hard_Reset> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
         hr.prl.tcpc.req_hr_send();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& prl = hr.prl;
 
         // Wait for TCPC call to complete. This does NOT mean transfer ended.
@@ -1305,7 +1307,7 @@ public:
 
 class PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State : public afsm::state<PRL_HR, PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State, PRL_HR_Wait_for_PHY_Hard_Reset_Complete> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         auto& port = hr.prl.port;
         hr.log_state();
 
@@ -1313,7 +1315,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& port = hr.prl.port;
         if ((port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
             port.timers.is_expired(PD_TIMEOUT::tHardResetComplete))
@@ -1330,7 +1332,7 @@ public:
 
 class PRL_HR_PHY_Hard_Reset_Requested_State : public afsm::state<PRL_HR, PRL_HR_PHY_Hard_Reset_Requested_State, PRL_HR_PHY_Hard_Reset_Requested> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         auto& port = hr.prl.port;
         hr.log_state();
 
@@ -1338,18 +1340,18 @@ public:
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
-    static auto on_run_state(PRL_HR&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_HR&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_HR&) {}
 };
 
 class PRL_HR_Wait_for_PE_Hard_Reset_Complete_State : public afsm::state<PRL_HR, PRL_HR_Wait_for_PE_Hard_Reset_Complete_State, PRL_HR_Wait_for_PE_Hard_Reset_Complete> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_run_state(PRL_HR& hr) -> state_id_t {
         //
         // 6.12.2.4.7 PRL_HR_PE_Hard_Reset_Complete
         // If Hard Reset Signaling is still pending due to a non-Idle channel
@@ -1371,7 +1373,7 @@ public:
 
 class PRL_HR_PE_Hard_Reset_Complete_State : public afsm::state<PRL_HR, PRL_HR_PE_Hard_Reset_Complete_State, PRL_HR_PE_Hard_Reset_Complete> {
 public:
-    static auto on_enter_state(PRL_HR& hr) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
         hr.prl.init(true);
@@ -1379,7 +1381,7 @@ public:
         return PRL_HR_IDLE;
     }
 
-    static auto on_run_state(PRL_HR&) -> etl::fsm_state_id_t { return No_State_Change; }
+    static auto on_run_state(PRL_HR&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_HR&) {}
 };
 

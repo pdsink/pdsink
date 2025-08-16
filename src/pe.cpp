@@ -10,6 +10,8 @@
 
 namespace pd {
 
+using afsm::state_id_t;
+
 enum PE_State {
     // 8.3.3.3 Policy Engine Sink Port State Diagram
     PE_SNK_Startup,
@@ -88,7 +90,7 @@ namespace {
 
 class PE_SNK_Startup_State : public afsm::state<PE, PE_SNK_Startup_State, PE_SNK_Startup> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -97,7 +99,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (!port.is_prl_running()) { return No_State_Change; }
@@ -110,27 +112,27 @@ public:
 
 class PE_SNK_Discovery_State : public afsm::state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
-    static auto on_enter_state(PE&) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE&) -> state_id_t {
         // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
         // be stable at this moment, so there is no need to wait.
         return PE_SNK_Wait_for_Capabilities;
     }
 
-    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE&) {}
 };
 
 
 class PE_SNK_Wait_for_Capabilities_State : public afsm::state<PE, PE_SNK_Wait_for_Capabilities_State, PE_SNK_Wait_for_Capabilities> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         pe.port.timers.start(PD_TIMEOUT::tTypeCSinkWaitCap);
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -162,7 +164,7 @@ public:
 
 class PE_SNK_Evaluate_Capability_State : public afsm::state<PE, PE_SNK_Evaluate_Capability_State, PE_SNK_Evaluate_Capability> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -179,7 +181,7 @@ public:
         return PE_SNK_Select_Capability;
     }
 
-    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE&) {}
 };
 
@@ -203,7 +205,7 @@ public:
 
 class PE_SNK_Select_Capability_State : public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -238,7 +240,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         auto send_status = pe.check_request_progress_run();
 
@@ -326,7 +328,7 @@ public:
 
 class PE_SNK_Transition_Sink_State : public afsm::state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -344,7 +346,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -371,7 +373,7 @@ public:
 
 class PE_SNK_Ready_State : public afsm::state<PE, PE_SNK_Ready_State, PE_SNK_Ready> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (pe.get_previous_state_id() == PE_SNK_EPR_Keep_Alive) {
@@ -409,7 +411,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         bool sr_on_unsupported = port.pe_flags.test(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
 
@@ -592,7 +594,7 @@ public:
 
 class PE_SNK_Give_Sink_Cap_State : public afsm::state<PE, PE_SNK_Give_Sink_Cap_State, PE_SNK_Give_Sink_Cap> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -622,7 +624,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -639,7 +641,7 @@ public:
 
 class PE_SNK_EPR_Keep_Alive_State : public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         // Manually log as debug level, to reduce noise
         PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
@@ -658,7 +660,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
@@ -700,7 +702,7 @@ public:
 
 class PE_SNK_Hard_Reset_State : public afsm::state<PE, PE_SNK_Hard_Reset_State, PE_SNK_Hard_Reset> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -717,7 +719,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         if (pe.port.pe_flags.test(PE_FLAG::PRL_HARD_RESET_PENDING)) {
             return No_State_Change;
         }
@@ -730,7 +732,7 @@ public:
 
 class PE_SNK_Transition_to_default_State : public afsm::state<PE, PE_SNK_Transition_to_default_State, PE_SNK_Transition_to_default> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -744,7 +746,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (!port.pe_flags.test(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT)) {
@@ -761,7 +763,7 @@ public:
 // Come here when a Soft Reset is received from the SRC
 class PE_SNK_Soft_Reset_State : public afsm::state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         pe.send_ctrl_msg(PD_CTRL_MSGT::Accept);
@@ -770,7 +772,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -791,7 +793,7 @@ public:
 
 class PE_SNK_Send_Soft_Reset_State : public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -809,7 +811,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         // Wait until the PRL layer is ready
@@ -852,7 +854,7 @@ public:
 
 class PE_SNK_Send_Not_Supported_State : public afsm::state<PE, PE_SNK_Send_Not_Supported_State, PE_SNK_Send_Not_Supported> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         // The reply depends on the PD revision. For PD 3.0+, use Not_Supported;
@@ -866,7 +868,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
@@ -881,20 +883,20 @@ public:
 
 class PE_SNK_Source_Alert_Received_State : public afsm::state<PE, PE_SNK_Source_Alert_Received_State, PE_SNK_Source_Alert_Received> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         port.notify_dpm(MsgToDpm_Alert(port.rx_emsg.read32(0)));
         return PE_SNK_Ready;
     }
 
-    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE&) {}
 };
 
 
 class PE_SNK_Send_EPR_Mode_Entry_State : public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -913,7 +915,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         auto send_status = pe.check_request_progress_run();
@@ -971,12 +973,12 @@ public:
 
 class PE_SNK_EPR_Mode_Entry_Wait_For_Response_State : public afsm::state<PE, PE_SNK_EPR_Mode_Entry_Wait_For_Response_State, PE_SNK_EPR_Mode_Entry_Wait_For_Response> {
 public:
-    static etl::fsm_state_id_t on_enter_state(PE& pe) {
+    static state_id_t on_enter_state(PE& pe) {
         pe.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
@@ -1010,7 +1012,7 @@ public:
 
 class PE_SNK_EPR_Mode_Exit_Received_State : public afsm::state<PE, PE_SNK_EPR_Mode_Exit_Received_State, PE_SNK_EPR_Mode_Exit_Received> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (!pe.is_in_spr_contract()) {
@@ -1024,14 +1026,14 @@ public:
         return PE_SNK_Wait_for_Capabilities;
     }
 
-    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE&) {}
 };
 
 
 class PE_BIST_Activate_State : public afsm::state<PE, PE_BIST_Activate_State, PE_BIST_Activate> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -1057,7 +1059,7 @@ public:
         return PE_SNK_Ready;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         // Wait for the TCPC call to complete
@@ -1075,14 +1077,14 @@ public:
 
 class PE_BIST_Carrier_Mode_State : public afsm::state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
@@ -1107,12 +1109,12 @@ public:
 
 class PE_BIST_Test_Mode_State : public afsm::state<PE, PE_BIST_Test_Mode_State, PE_BIST_Test_Mode> {
 public:
-    static etl::fsm_state_id_t on_enter_state(PE& pe) {
+    static state_id_t on_enter_state(PE& pe) {
         pe.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         // Ignore everything.
         // Exiting test data mode is only possible via a hard reset.
         pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
@@ -1125,7 +1127,7 @@ public:
 
 class PE_Give_Revision_State : public afsm::state<PE, PE_Give_Revision_State, PE_Give_Revision> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
 
@@ -1142,7 +1144,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_run_state(PE& pe) -> state_id_t {
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
         }
@@ -1155,14 +1157,14 @@ public:
 
 class PE_Src_Disabled_State : public afsm::state<PE, PE_Src_Disabled_State, PE_Src_Disabled> {
 public:
-    static auto on_enter_state(PE& pe) -> etl::fsm_state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         pe.port.notify_dpm(MsgToDpm_SrcDisabled());
         return No_State_Change;
     }
 
-    static etl::fsm_state_id_t on_run_state(PE&) { return No_State_Change; }
+    static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE&) {}
 };
 

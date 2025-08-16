@@ -9,6 +9,8 @@
 
 namespace pd {
 
+using afsm::state_id_t;
+
 enum TC_State {
     TC_DETACHED,
     TC_DETECTING,
@@ -30,7 +32,7 @@ namespace {
 
 class TC_DETACHED_State : public afsm::state<TC, TC_DETACHED_State, TC_DETACHED> {
 public:
-    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_enter_state(TC& tc) -> state_id_t {
         auto& port = tc.port;
         tc.log_state();
 
@@ -40,7 +42,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_run_state(TC& tc) -> state_id_t {
         if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
@@ -69,7 +71,7 @@ public:
 
 class TC_DETECTING_State : public afsm::state<TC, TC_DETECTING_State, TC_DETECTING> {
 public:
-    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
 
         tc.prev_cc1 = TCPC_CC_LEVEL::NONE;
@@ -79,7 +81,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_run_state(TC& tc) -> state_id_t {
         auto& port = tc.port;
 
         if (!port.timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
@@ -115,12 +117,12 @@ public:
 
 class TC_SINK_ATTACHED_State : public afsm::state<TC, TC_SINK_ATTACHED_State, TC_SINK_ATTACHED> {
 public:
-    static auto on_enter_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
         return No_State_Change;
     }
 
-    static auto on_run_state(TC& tc) -> etl::fsm_state_id_t {
+    static auto on_run_state(TC& tc) -> state_id_t {
         auto& port = tc.port;
 
         // If just entered - wait polarity set complete and then set attached status.
