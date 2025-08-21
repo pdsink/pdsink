@@ -23,33 +23,37 @@ void Task::loop() {
 
         auto e_group = event_group.exchange(0);
 
-        if (e_group & Task::EVENT_TIMER_MSK) { port.timers.cleanup(); }
+        // Proceed only if any event available. This check may be useful
+        // for manual loop polling.
+        if (e_group) {
+            if (e_group & Task::EVENT_TIMER_MSK) { port.timers.cleanup(); }
 
-        port.notify_tc(MsgSysUpdate{});
+            port.notify_tc(MsgSysUpdate{});
 
-        port.notify_pe(MsgSysUpdate{});
-        port.notify_prl(MsgSysUpdate{});
+            port.notify_pe(MsgSysUpdate{});
+            port.notify_prl(MsgSysUpdate{});
 
-        // Let's rearm timer if needed. 2 cases are possible:
-        //
-        // 1. start/stop invoked  (in PRL/PE/TC/DPM)
-        // 2. Timeout event due timer expire
-        //
-        // This is NOT needed for periodic 1ms timer without rearm support.
+            // Let's rearm timer if needed. 2 cases are possible:
+            //
+            // 1. start/stop invoked  (in PRL/PE/TC/DPM)
+            // 2. Timeout event due timer expire
+            //
+            // This is NOT needed for periodic 1ms timer without rearm support.
 
-        if (driver.is_rearm_supported()) {
-            if (port.timers.timers_changed.exchange(false) ||
-                (e_group & Task::EVENT_TIMER_MSK))
-            {
-                auto next_exp{port.timers.get_next_expiration()};
-                if (next_exp != Timers::NO_EXPIRE)
+            if (driver.is_rearm_supported()) {
+                if (port.timers.timers_changed.exchange(false) ||
+                    (e_group & Task::EVENT_TIMER_MSK))
                 {
-                    if (next_exp == 0) {
-                        // Rearm timer event and add deferred call
-                        event_group.fetch_or(Task::EVENT_TIMER_MSK);
-                        loop_flags.set(LOOP_FLAGS::HAS_DEFERRED);
-                    } else {
-                        driver.rearm(next_exp);
+                    auto next_exp{port.timers.get_next_expiration()};
+                    if (next_exp != Timers::NO_EXPIRE)
+                    {
+                        if (next_exp == 0) {
+                            // Rearm timer event and add deferred call
+                            event_group.fetch_or(Task::EVENT_TIMER_MSK);
+                            loop_flags.set(LOOP_FLAGS::HAS_DEFERRED);
+                        } else {
+                            driver.rearm(next_exp);
+                        }
                     }
                 }
             }

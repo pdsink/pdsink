@@ -2,7 +2,7 @@
 
 > USB PD Sink library for embedded devices.
 
-<img src="./docs/images/intro1.jpg" width="30%"> <img src="./docs/images/intro2.jpg" width="30%">
+<img src="./docs/images/intro1.jpg" width="40%">
 
 This library focuses on the most common needs of PD‑powered projects and on ease of use.
 
@@ -16,6 +16,10 @@ What is not supported:
 
 - Source role (SRC).
 - DRP / DFP / FRS / Alt Modes.
+
+## Usage
+
+See [docs](./docs) and [examples](./examples)
 
 ## References
 
