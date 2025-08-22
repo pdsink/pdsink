@@ -8,6 +8,7 @@
 #include "idriver.h"
 #include "pe.h"
 #include "port.h"
+#include "pd_log.h"
 #include "prl.h"
 #include "task.h"
 #include "tc.h"
