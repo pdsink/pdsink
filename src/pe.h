@@ -29,7 +29,7 @@ using PE_EventListener_Base = etl::message_router<class PE_EventListener,
     MsgToPe_PrlHardResetFromPartner,
     MsgToPe_PrlHardResetSent>;
 
-    class PE_EventListener : public PE_EventListener_Base {
+class PE_EventListener : public PE_EventListener_Base {
 public:
     PE_EventListener(PE& pe) : pe(pe) {}
     void on_receive(const MsgSysUpdate& msg);

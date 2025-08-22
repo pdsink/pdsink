@@ -47,7 +47,7 @@ public:
 
 using PRL_EventListener_Base = etl::message_router<class PRL_EventListener,
     MsgSysUpdate,
-    MsgToPrl_SoftResetFromPe,
+    MsgToPrl_Restart,
     MsgToPrl_HardResetFromPe,
     MsgToPrl_PEHardResetDone,
     MsgToPrl_TcpcHardReset,
@@ -60,7 +60,7 @@ class PRL_EventListener : public PRL_EventListener_Base {
 public:
     PRL_EventListener(PRL& prl) : prl(prl) {}
     void on_receive(const MsgSysUpdate& msg);
-    void on_receive(const MsgToPrl_SoftResetFromPe& msg);
+    void on_receive(const MsgToPrl_Restart& msg);
     void on_receive(const MsgToPrl_HardResetFromPe& msg);
     void on_receive(const MsgToPrl_PEHardResetDone& msg);
     void on_receive(const MsgToPrl_TcpcHardReset& msg);

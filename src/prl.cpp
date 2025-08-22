@@ -1617,7 +1617,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
     }
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_SoftResetFromPe&) {
+void PRL_EventListener::on_receive(const MsgToPrl_Restart&) {
     prl.local_state = PRL::LOCAL_STATE::INIT;
 }
 
