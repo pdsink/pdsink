@@ -11,6 +11,6 @@ using Logger = jetlog::Writer<128>;
 extern Logger logger;
 
 // We do not use tags in this example, so we pass empty string.
-#define LOG_INFO(...) logger.push("DEMO_APP", jetlog::level::info, __VA_ARGS__)
+#define APP_LOGI(...) logger.push("APP", jetlog::level::info, __VA_ARGS__)
 
 void logger_start();
