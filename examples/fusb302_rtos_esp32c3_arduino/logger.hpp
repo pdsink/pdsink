@@ -6,7 +6,7 @@
 // Here we create simple jetlog wrappers to use in project.
 //
 
-using Logger = jetlog::Writer<128>;
+using Logger = jetlog::Writer<512>;
 
 extern Logger logger;
 

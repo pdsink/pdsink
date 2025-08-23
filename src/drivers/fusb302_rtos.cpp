@@ -54,9 +54,12 @@ namespace TX_TKN {
 bool Fusb302Rtos::fusb_setup() {
     if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { return false; }
 
+    DRV_LOGI("FUSB302 setup starting...");
     flags.set(DRV_FLAG::FUSB_SETUP_FAILED);
 
     // Reset chip
+
+    DRV_LOGI("SW (full) reset");
     Reset rst{0};
     rst.SW_RES = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
@@ -64,20 +67,27 @@ bool Fusb302Rtos::fusb_setup() {
     // Read ID to check connection
     DeviceID id;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
-    DRV_LOGI("FUSB302 ID: VER={}, PROD={}, REV={}",
-        id.VERSION_ID, id.PRODUCT_ID, id.REVISION_ID);
+    DRV_LOGI("FUSB302 ID: PROD={}, VER={}, REV={}",
+        id.PRODUCT_ID, id.VERSION_ID, id.REVISION_ID);
 
     // Power up all blocks
+    DRV_LOGI("Power up all blocks");
     Power pwr{0};
     pwr.PWR = 0xF;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
 
     // By default disable all interrupts except VBUSOK.
+    DRV_LOGI("Disable all interrupts except VBUSOK");
     Mask1 mask{0xFF};
     mask.M_VBUSOK = 0;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maska::addr, 0xFF));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
+    // ...and remove global interrupt mask
+    Control0 ctl0;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctl0.raw_value));
+    ctl0.INT_MASK = 0;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctl0.raw_value));
 
     // Sync VBUSOK
     auto delay = pdMS_TO_TICKS(2);
@@ -85,6 +95,7 @@ bool Fusb302Rtos::fusb_setup() {
     Status0 status0;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
+    DRV_LOGI("Read initial VBUSOK: {}", vbus_ok.load());
 
     // TODO: Retries are in PRL now, consider use here.
     DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(0));
@@ -98,10 +109,12 @@ bool Fusb302Rtos::fusb_setup() {
     // NOTE: we don't touch data/power role bits.
     // - defaults are ok for sink/ufp
     // - driver API has no appropriate methods.
+    DRV_LOGI("Setup done.");
     return true;
 }
 
 bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
+    DRV_LOGI("Set RX/TX interrupts {}", enable ? "ON" : "OFF");
     //
     // NOTE: I_BC_LVL interrupts usage should be restricted, due lot of false
     // positives on BMC exchange. Usually, in all scenarios better alternatives
@@ -129,6 +142,7 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
 }
 
 bool Fusb302Rtos::fusb_set_auto_goodcrc(bool enable) {
+    DRV_LOGI("Set auto good crc {}", enable ? "ON" : "OFF");
     Switches1 sw1;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
     sw1.AUTO_CRC = enable ? 1 : 0;
@@ -137,6 +151,7 @@ bool Fusb302Rtos::fusb_set_auto_goodcrc(bool enable) {
 }
 
 bool Fusb302Rtos::fusb_set_tx_auto_retries(uint8_t count) {
+    DRV_LOGI("Set TX auto retries  to {}", count);
     Control3 ctl3;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctl3.raw_value));
     ctl3.N_RETRIES = count & 3; // 0-3 retries
@@ -162,13 +177,17 @@ bool Fusb302Rtos::fusb_flush_tx_fifo() {
 }
 
 bool Fusb302Rtos::fusb_pd_reset() {
+    DRV_LOGI("PD reset");
     Reset rst{0};
     rst.PD_RESET = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
-    return fusb_setup();
+    return true;
 }
 
 bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
+    DRV_LOGI("Set polarity to {}",
+        polarity == TCPC_POLARITY::CC1 ? "CC1" :
+        (polarity == TCPC_POLARITY::CC2 ? "CC2" : "NONE"));
     //
     // Attach comparator
     //
@@ -210,6 +229,8 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     // - Seems clearing everything is safe
     //
 
+    DRV_LOGI("Set RX enable {}", enable ? "ON" : "OFF");
+
     if (rx_enabled == enable) {
         // If no state change - only drop TX FIFO.
         DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
@@ -230,12 +251,15 @@ void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
     // and should be discarded.
     auto expected = TCPC_TRANSMIT_STATUS::SENDING;
     if (port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
+        DRV_LOGI("TX end, status: {}", static_cast<int>(status));
         has_deferred_wakeup = true;
     }
 }
 
 bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
+
+    DRV_LOGI("TX begin");
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
@@ -341,6 +365,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 }
 
 bool Fusb302Rtos::fusb_hr_send() {
+    DRV_LOGI("Send hard reset");
+
     Control3 ctrl3;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
@@ -357,6 +383,11 @@ bool Fusb302Rtos::hr_cleanup() {
 }
 
 bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
+    DRV_LOGI("Set BIST mode to {}",
+        mode == TCPC_BIST_MODE::Off ? "Off" :
+        (mode == TCPC_BIST_MODE::Carrier ? "Carrier" :
+        (mode == TCPC_BIST_MODE::TestData ? "TestData" : "Unknown")));
+
     Control1 ctrl1;
     Control3 ctrl3;
 
@@ -464,11 +495,13 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
     switch (meter_state) {
         case MeterState::IDLE:
             if (sync_active_cc.get_job()) {
+                DRV_LOGV("Active CC measurement begin");
                 meter_state = MeterState::CC_ACTIVE_BEGIN;
                 repeat = true;
                 return true;
             }
             if (sync_scan_cc.get_job()) {
+                DRV_LOGV("Scan CC1/CC2 start");
                 meter_state = MeterState::SCAN_CC_BEGIN;
                 repeat = true;
                 return true;
@@ -510,6 +543,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::CC_ACTIVE_END:
+            DRV_LOGV("Active CC measurement end");
             sync_active_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
@@ -562,6 +596,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
+            DRV_LOGV("Scan CC2/CC1 end");
             sync_scan_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
@@ -648,7 +683,10 @@ void Fusb302Rtos::handle_tcpc_calls() {
 }
 
 void Fusb302Rtos::task() {
-    if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) { fusb_setup(); }
+    if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
+        hal.setup();
+        fusb_setup();
+    }
 
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -669,6 +707,10 @@ void Fusb302Rtos::task() {
 void Fusb302Rtos::setup() {
     if (started) { return; }
 
+    hal.set_event_handler(
+        hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
+    );
+
     auto result = xTaskCreate(
         [](void* params) {
             static_cast<Fusb302Rtos*>(params)->task();
@@ -686,12 +728,6 @@ void Fusb302Rtos::setup() {
     }
 
     started = true;
-
-    hal.set_event_handler(
-        hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
-    );
-
-    hal.setup();
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {

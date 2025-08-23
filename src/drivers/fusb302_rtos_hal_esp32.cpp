@@ -84,11 +84,14 @@ void Fusb302RtosHalEsp32::init_pins() {
 }
 
 void Fusb302RtosHalEsp32::setup() {
+    DRV_LOGI("Fusb302HalEsp32: Starting HAL");
     if (started) { return; }
     started = true;
 
     init_timer();
     init_pins();
+
+    DRV_LOGI("Fusb302HalEsp32: HAL started");
 }
 
 // This will not be actually used, object expected to be static.
@@ -119,7 +122,7 @@ bool Fusb302RtosHalEsp32::read_block(uint8_t reg, uint8_t *data, uint32_t size) 
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     if (cmd == nullptr) {
-        DRV_LOGE("Fusb302HalEsp32", "i2c_cmd_link_create failed");
+        DRV_LOGE("Fusb302HalEsp32: i2c_cmd_link_create failed");
         return false;
     }
     i2c_master_start(cmd);
@@ -140,7 +143,7 @@ bool Fusb302RtosHalEsp32::write_block(uint8_t reg, const uint8_t *data, uint32_t
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     if (cmd == nullptr) {
-        DRV_LOGE("Fusb302HalEsp32", "i2c_cmd_link_create failed");
+        DRV_LOGE("Fusb302HalEsp32: i2c_cmd_link_create failed");
         return false;
     }
     i2c_master_start(cmd);

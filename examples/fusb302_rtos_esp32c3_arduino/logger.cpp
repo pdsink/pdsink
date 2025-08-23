@@ -5,7 +5,7 @@
 #include "hal/usb_serial_jtag_ll.h"
 #include "rom/ets_sys.h"
 
-static jetlog::RingBuffer<1024*10> ringBuffer;
+static jetlog::RingBuffer<1024*20> ringBuffer;
 
 Logger logger(ringBuffer);
 jetlog::Reader<> logReader(ringBuffer);
