@@ -26,7 +26,18 @@ void Task::loop() {
         // Proceed only if any event available. This check may be useful
         // for manual loop polling.
         if (e_group) {
-            if (e_group & Task::EVENT_TIMER_MSK) { port.timers.cleanup(); }
+            if (e_group & Task::EVENT_TIMER_MSK) {
+                // Timers don't interract with system directly. We update
+                // internal timestamp value in 2 cases:
+                //
+                // - when timer event comes
+                // - when `.start()` invoked
+                //
+                // The rest operations can use "old" value safe.
+                port.timers.set_time(port.timers.get_time());
+
+                port.timers.cleanup();
+            }
 
             port.notify_tc(MsgSysUpdate{});
 

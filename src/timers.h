@@ -87,6 +87,7 @@ struct PD_TIMEOUT {
 };
 
 class Timers : public TimerPack<PD_TIMER::PD_TIMER_COUNT> {
+public:
     using Base = TimerPack<PD_TIMER::PD_TIMER_COUNT>;
     using Base::set_time;
     using Base::start;
@@ -95,7 +96,6 @@ class Timers : public TimerPack<PD_TIMER::PD_TIMER_COUNT> {
     using Base::is_disabled;
     using Base::is_expired;
 
-public:
     void set_time_provider(const ITimer::TimeFunc func) {
         get_time_func = func;
     }
@@ -105,7 +105,7 @@ public:
     }
 
     void start(const PD_TIMEOUT::Type& timeout) {
-        set_time(get_time());
+        set_time(get_time()); // Update time to actual prior to proceed
         start(timeout.first, timeout.second);
     }
 
@@ -118,15 +118,16 @@ public:
     }
 
     bool is_expired(const PD_TIMEOUT::Type& timeout) {
+        set_time(get_time());
         return is_expired(timeout.first);
     }
-
-private:
-    ITimer::TimeFunc get_time_func{nullptr};
 
     uint32_t get_time() {
         return get_time_func ? get_time_func() : 0;
     }
+
+private:
+    ITimer::TimeFunc get_time_func{nullptr};
 };
 
 } // namespace pd

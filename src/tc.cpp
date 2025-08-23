@@ -46,8 +46,11 @@ public:
         if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
 
         auto vbus_ok = tc.tcpc.is_vbus_ok();
+
         if (!vbus_ok) {
-            tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+            if (!tc.port.timers.is_disabled(PD_TIMEOUT::TC_VBUS_DEBOUNCE)) {
+                tc.port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
+            }
             return No_State_Change;
         }
 
