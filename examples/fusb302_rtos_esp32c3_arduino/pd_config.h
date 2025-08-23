@@ -8,7 +8,7 @@
 #define PD_LOG_FN_LVL_DEBUG     jetlog::level::debug
 #define PD_LOG_FN_LVL_VERBOSE   jetlog::level::verbose
 
-#define PD_LOG_DEFAULT VERBOSE
+#define PD_LOG_DEFAULT DEBUG
 
 #define USE_FUSB302_RTOS
 #define USE_FUSB302_RTOS_HAL_ESP32

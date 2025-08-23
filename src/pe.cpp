@@ -140,7 +140,7 @@ public:
             // The spec requires an exact match of the capabilities type and the
             // current sink mode to accept.
             if (pe.is_in_epr_mode()) {
-                if (port.rx_emsg.is_ext_msg(PD_EXT_MSGT::Source_Capabilities_Extended)) {
+                if (port.rx_emsg.is_ext_msg(PD_EXT_MSGT::EPR_Source_Capabilities)) {
                     return PE_SNK_Evaluate_Capability;
                 }
             } else {
@@ -426,7 +426,7 @@ public:
                 //
                 switch (hdr.message_type)
                 {
-                case PD_EXT_MSGT::Source_Capabilities_Extended:
+                case PD_EXT_MSGT::EPR_Source_Capabilities:
                     // If not in EPR mode, ignore this message
                     if (pe.is_in_epr_mode()) { return PE_SNK_Evaluate_Capability; }
                     break;
