@@ -332,6 +332,17 @@ TEST(TickFsm, PreviousStateTracking) {
     EXPECT_EQ(fsm.get_previous_state_id(), S1::STATE_ID);
 }
 
+
+TEST(TickFsm, UpdatesPreviousFromEnterRedirect) {
+    TestFSM fsm;
+    fsm.set_states<Pack>(0);
+
+    fsm.change_state(S2::STATE_ID); // S2 on_enter -> S3
+
+    EXPECT_EQ(fsm.get_state_id(), S3::STATE_ID);
+    EXPECT_EQ(fsm.get_previous_state_id(), S2::STATE_ID);
+}
+
 TEST(TickFsm, InterceptorMixinApproach) {
     TestFSM fsm;
     fsm.set_states<TestStatePack>(0);

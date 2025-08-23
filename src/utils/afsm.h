@@ -361,10 +361,12 @@ public:
                 next_state_id = current_state_id;
             } else if (enter_result.next_state == Uninitialized) {
                 execute_exit(current_state_id, &enter_result);
+                previous_state_id = current_state_id;
                 current_state_id = Uninitialized;
                 return;
             } else if (enter_result.next_state < state_count) {
                 execute_exit(current_state_id, &enter_result);
+                previous_state_id = current_state_id;
                 next_state_id = enter_result.next_state;
             } else {
                 next_state_id = current_state_id;
