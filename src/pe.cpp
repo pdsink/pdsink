@@ -94,7 +94,7 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        port.notify_prl(MsgToPrl_Restart{});
+        port.notify_prl(MsgToPrl_EnquireRestart{});
         port.pe_flags.clear(PE_FLAG::HAS_EXPLICIT_CONTRACT);
         port.notify_dpm(MsgToDpm_Startup{});
         return No_State_Change;
@@ -807,7 +807,7 @@ public:
         port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
         port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
-        port.notify_prl(MsgToPrl_Restart{});
+        port.notify_prl(MsgToPrl_EnquireRestart{});
         pe.check_request_progress_enter();
         return No_State_Change;
     }

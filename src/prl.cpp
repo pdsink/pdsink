@@ -1617,7 +1617,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
     }
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_Restart&) {
+void PRL_EventListener::on_receive(const MsgToPrl_EnquireRestart&) {
     prl.local_state = PRL::LOCAL_STATE::INIT;
 }
 
