@@ -42,13 +42,16 @@ public:
 enum class DRV_FLAG {
     FUSB_SETUP_DONE,
     FUSB_SETUP_FAILED,
-    TIMER_EVENT,
     _Count
 };
 
 // This class implements generic FUSB302B logic, and relies on FreeRTOS
 // to make i2c calls sync.
 class Fusb302Rtos : public IDriver {
+    static constexpr uint32_t MSK_PD_INTERRUPT = (1u << 0);
+    static constexpr uint32_t MSK_TIMER = (1u << 1);
+    static constexpr uint32_t MSK_API_CALL = (1u << 2);
+
 public:
     Fusb302Rtos(Port& port, IFusb302RtosHal& hal) : port{port}, hal{hal} {
         get_timestamp = hal.get_time_func();
@@ -69,13 +72,13 @@ public:
     //
     void req_scan_cc() override {
         sync_scan_cc.enquire();
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) override;
 
     void req_active_cc() override {
         sync_active_cc.enquire();
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) override;
 
@@ -83,13 +86,13 @@ public:
 
     void req_set_polarity(TCPC_POLARITY active_cc) override {
         sync_set_polarity.enquire(active_cc);
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool is_set_polarity_done() override { return sync_set_polarity.is_idle(); };
 
     void req_rx_enable(bool enable) override {
         sync_rx_enable.enquire(enable);
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool is_rx_enable_done() override { return sync_rx_enable.is_idle(); };
 
@@ -99,13 +102,13 @@ public:
 
     void req_set_bist(TCPC_BIST_MODE mode) override {
         sync_set_bist.enquire(mode);
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool is_set_bist_done() override { return sync_set_bist.is_idle(); };
 
     void req_hr_send() override {
         sync_hr_send.enquire();
-        kick_task();
+        kick_task(MSK_API_CALL);
     };
     bool is_hr_send_done() override { return sync_hr_send.is_idle(); };
 
@@ -129,7 +132,7 @@ protected:
     bool meter_tick(bool &retry);
 
     void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);
-    void kick_task(bool from_isr = false);
+    void kick_task(uint32_t event_mask, bool from_isr = false);
 
     bool fusb_setup();
     bool fusb_set_rxtx_interrupts(bool enable);
@@ -161,6 +164,7 @@ protected:
     etl::atomic<bool> vbus_ok{false};
     bool rx_enabled{false};
     bool has_deferred_wakeup{false};
+    bool has_deferred_timer{false};
 
 
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{

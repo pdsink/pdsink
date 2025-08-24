@@ -625,9 +625,8 @@ void Fusb302Rtos::handle_meter() {
 }
 
 void Fusb302Rtos::handle_timer() {
-    if (!flags.test_and_clear(DRV_FLAG::TIMER_EVENT)) { return; }
-
-    port.notify_task(MsgTask_Timer{});
+    handle_meter();
+    has_deferred_timer = true;
     return;
 }
 
@@ -689,25 +688,75 @@ void Fusb302Rtos::handle_tcpc_calls() {
 }
 
 void Fusb302Rtos::task() {
+    uint32_t event_mask{0};
+
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
         hal.setup();
         fusb_setup();
     }
 
     while (true) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
 
         if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { continue; }
-        handle_interrupt();
-        handle_timer();
-        handle_tcpc_calls();
-        handle_meter();
+
+        for (;;) {
+            if (event_mask & MSK_PD_INTERRUPT) {
+                DRV_LOGI("Handle PD interrupt");
+                handle_interrupt();
+            }
+            if (event_mask & MSK_TIMER) {
+                handle_timer();
+            }
+            if (event_mask & MSK_API_CALL) {
+                DRV_LOGI("Handle API call");
+                handle_tcpc_calls();
+            }
+
+            BaseType_t notified = xTaskNotifyWait(0, UINT32_MAX, &event_mask, 0);
+            if (notified == pdFALSE) { break; }
+
+            DRV_LOGI("New event detected, repeat processing...");
+        }
 
         if (has_deferred_wakeup) {
             has_deferred_wakeup = false;
             DRV_LOGD("Waking up port");
             port.wakeup();
         }
+        if (has_deferred_timer) {
+            has_deferred_timer = false;
+            port.notify_task(MsgTask_Timer{});
+        }
+    }
+}
+
+void Fusb302Rtos::kick_task(uint32_t event_mask, bool from_isr) {
+    if (!started) {
+        DRV_LOGE("Driver not started, can't notify");
+        return;
+    }
+    if (!xWaitingTaskHandle) {
+        DRV_LOGE("Driver task handle is null, can't notify");
+        return;
+    }
+
+    if (from_isr) {
+        auto woken = pdFALSE;
+        xTaskNotifyFromISR(xWaitingTaskHandle, event_mask, eSetBits, &woken);
+
+#if defined(ESP_PLATFORM)  /* ESP-IDF */
+        if (woken) { portYIELD_FROM_ISR(); }
+#elif defined(portYIELD_FROM_ISR)
+        portYIELD_FROM_ISR(woken);
+#elif defined(portEND_SWITCHING_ISR)
+        portEND_SWITCHING_ISR(woken);
+#else
+        (void)woken; /* no-op */
+#endif
+
+    } else {
+        xTaskNotify(xWaitingTaskHandle, event_mask, eSetBits);
     }
 }
 
@@ -737,41 +786,30 @@ void Fusb302Rtos::setup() {
     started = true;
 }
 
-void Fusb302Rtos::kick_task(bool from_isr) {
-    if (!started) {
-        DRV_LOGE("Driver not started, can't notify");
-        return;
-    }
-    if (!xWaitingTaskHandle) {
-        DRV_LOGE("Driver task handle is null, can't notify");
-        return;
-    }
-
-    if (from_isr) {
-        auto woken = pdFALSE;
-        vTaskNotifyGiveFromISR(xWaitingTaskHandle, &woken);
-        if (woken != pdFALSE) { portYIELD_FROM_ISR(); }
-    } else {
-        xTaskNotifyGive(xWaitingTaskHandle);
-    }
-}
-
-void Fusb302Rtos::req_transmit() {
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-    enquired_tx_chunk = port.tx_chunk;
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
-    kick_task();
-}
-
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
-    if (event == HAL_EVENT_TYPE::Timer) { flags.set(DRV_FLAG::TIMER_EVENT); }
-
-    kick_task(from_isr);
+    switch (event) {
+        case HAL_EVENT_TYPE::Timer:
+            kick_task(MSK_TIMER, from_isr);
+            break;
+        case HAL_EVENT_TYPE::FUSB302_Interrupt:
+            kick_task(MSK_PD_INTERRUPT, from_isr);
+            break;
+        default:
+            DRV_LOGE("Unknown HAL event");
+            break;
+    }
 }
 
 //
 // TCPC API methods.
 //
+
+void Fusb302Rtos::req_transmit() {
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+    enquired_tx_chunk = port.tx_chunk;
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
+    kick_task(MSK_API_CALL);
+}
 
 bool Fusb302Rtos::try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) {
     if (!sync_scan_cc.is_idle()) { return false; }
