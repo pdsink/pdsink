@@ -423,6 +423,8 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
 void Fusb302Rtos::handle_interrupt() {
     if (!hal.is_interrupt_active()) { return; }
 
+    DRV_LOGD("Handle PD interrupt");
+
     for (;;) {
         Interrupt interrupt;
         Interrupta interrupta;
@@ -701,10 +703,9 @@ void Fusb302Rtos::task() {
         if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { continue; }
 
         for (;;) {
-            if (event_mask & MSK_PD_INTERRUPT) {
-                DRV_LOGI("Handle PD interrupt");
-                handle_interrupt();
-            }
+            // Always check interrupt level to avoid deadlock
+            handle_interrupt();
+
             if (event_mask & MSK_TIMER) {
                 handle_timer();
             }
@@ -716,7 +717,7 @@ void Fusb302Rtos::task() {
             BaseType_t notified = xTaskNotifyWait(0, UINT32_MAX, &event_mask, 0);
             if (notified == pdFALSE) { break; }
 
-            DRV_LOGI("New event detected, repeat processing...");
+            DRV_LOGI("Fusb302Rtos task: New event detected, repeat processing...");
         }
 
         if (has_deferred_wakeup) {
