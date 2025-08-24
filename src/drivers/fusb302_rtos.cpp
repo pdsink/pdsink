@@ -421,7 +421,9 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
 }
 
 void Fusb302Rtos::handle_interrupt() {
-    while (hal.is_interrupt_active()) {
+    if (!hal.is_interrupt_active()) { return; }
+
+    for (;;) {
         Interrupt interrupt;
         Interrupta interrupta;
         Interruptb interruptb;
@@ -475,6 +477,10 @@ void Fusb302Rtos::handle_interrupt() {
                 DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
             }
         }
+
+        if (!hal.is_interrupt_active()) { break; }
+
+        DRV_LOGD("Interrupt handled, but still active. Repeat proceeding...");
     }
 
     return;
@@ -699,6 +705,7 @@ void Fusb302Rtos::task() {
 
         if (has_deferred_wakeup) {
             has_deferred_wakeup = false;
+            DRV_LOGD("Waking up port");
             port.wakeup();
         }
     }
@@ -731,8 +738,14 @@ void Fusb302Rtos::setup() {
 }
 
 void Fusb302Rtos::kick_task(bool from_isr) {
-    if (!started) { return; }
-    if (!xWaitingTaskHandle) { return; }
+    if (!started) {
+        DRV_LOGE("Driver not started, can't notify");
+        return;
+    }
+    if (!xWaitingTaskHandle) {
+        DRV_LOGE("Driver task handle is null, can't notify");
+        return;
+    }
 
     if (from_isr) {
         auto woken = pdFALSE;

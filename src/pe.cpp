@@ -103,7 +103,10 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (!port.is_prl_running()) { return No_State_Change; }
+        if (!port.is_prl_running()) {
+            PE_LOGD("PRL is not running, wait...");
+            return No_State_Change;
+        }
         return PE_SNK_Discovery;
     }
 
@@ -519,7 +522,10 @@ public:
             }
         }
 
-        if (port.is_prl_busy()) { return No_State_Change; }
+        if (port.is_prl_busy()) {
+            PE_LOGD("PRL is busy, wait...");
+            return No_State_Change;
+        }
 
         // Special case: process a postponed Source Capabilities request.
         // If pending, don't try the DPM requests queue.
@@ -816,7 +822,10 @@ public:
         auto& port = pe.port;
 
         // Wait until the PRL layer is ready
-        if (!port.is_prl_running()) { return No_State_Change; }
+        if (!port.is_prl_running()) {
+            PE_LOGD("PRL is not running, wait...");
+            return No_State_Change;
+        }
 
         // Send only once per state entry
         if (port.pe_flags.test_and_clear(PE_FLAG::CAN_SEND_SOFT_RESET)) {

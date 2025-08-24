@@ -740,6 +740,7 @@ public:
 
         if (prl_tx.get_previous_state_id() == PRL_Tx_PHY_Layer_Reset) {
             // This also resets fusb302 FIFO
+            PRL_LOGD("Requesting RX enable");
             prl_tx.prl.tcpc.req_rx_enable(true);
         }
 
