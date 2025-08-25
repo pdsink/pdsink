@@ -159,7 +159,6 @@ namespace PD_REVISION {
     };
 }; // namespace PD_REVISION
 
-
 //
 // [rev3.2] 6.4.1.1 Power Data Objects
 //
@@ -170,6 +169,8 @@ namespace PD_REVISION {
 namespace PDO_TYPE {
     enum {
         FIXED = 0,
+        // NOTE: VARIABLE and BATTERY IDs seems swapped in SNK PDO,
+        // spec 3.2 rev 1.1. Be careful if decide to add support.
         AUGMENTED = 3
     };
 }; // namespace PDO_TYPE
@@ -291,6 +292,7 @@ union RDO_PPS {
 };
 
 // [rev3.2] Table 6.26 AVS Request Data Object
+// Exactly the same as RDO_PPS in spec 3.2, but `output voltage` a bit different
 union RDO_AVS {
     uint32_t raw_value;
     struct {
@@ -344,7 +346,7 @@ union SNK_PDO_FIXED {
         uint32_t unconstrained_power : 1;
         uint32_t higher_capability : 1;
         uint32_t dual_role_power : 1;
-        uint32_t pdo_type : 2;
+        uint32_t pdo_type : 2; //
     };
 };
 
@@ -391,19 +393,6 @@ union SNK_PDO_EPR_AVS {
         uint32_t pdo_type : 2; // 11b
     };
 };
-
-namespace DO_TOOLS {
-    inline bool is_fixed(uint32_t pdo) {
-        PDO_FIXED pd{pdo};
-        return pd.pdo_type == PDO_TYPE::FIXED;
-    }
-
-    inline bool is_spr_pps(uint32_t pdo) {
-        PDO_SPR_PPS pd{pdo};
-        return pd.pdo_type == PDO_TYPE::AUGMENTED &&
-            pd.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
-    }
-}; // namespace DO_TOOLS
 
 namespace EPR_MODE_ACTION {
     enum Type {

@@ -2,8 +2,11 @@
 #include "dpm.h"
 #include "pd_log.h"
 #include "port.h"
+#include "utils/dobj_utils.h"
 
 namespace pd {
+
+using namespace dobj_utils;
 
 //
 // Custom handlers. You are expected to override these in your application.
@@ -27,10 +30,10 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     //
 
     // See [rev3.2] 6.4.1.3 Sink Power Data Objects
+    SNK_PDO_FIXED pdo1{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+
     // PDO 1 is always vSafe5V, with extra flags to describe demands.
     // NOTE: These flags should be zero in following PDO-s
-    SNK_PDO_FIXED pdo1{};
-    pdo1.pdo_type = PDO_TYPE::FIXED;
     pdo1.dual_role_power = 0; // No DRP support, Sink only
     pdo1.higher_capability = 1; // Require more power for full functionality
     pdo1.unconstrained_power = 1;
@@ -38,58 +41,36 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     pdo1.dual_role_data = 0; // No DFP support, UFP only
     pdo1.frs_required = 0; // No FRS support
 
-    pdo1.voltage = 5000 / 50; // 5V
-    pdo1.max_current = 3000 / 10; // 3A
-
+    set_snk_pdo_limits(pdo1.raw_value, PDO_LIMITS().set_mv(5000).set_ma(3000));
     sink_pdo_list.push_back(pdo1.raw_value);
 
     //
     // Fill the rest SRP PDOs, 2...7
     //
-    SNK_PDO_FIXED pdo2{};
-    pdo2.pdo_type = PDO_TYPE::FIXED;
-    pdo2.voltage = 9000 / 50; // 9V
-    pdo2.max_current = 3000 / 10; // 3A
-
+    SNK_PDO_FIXED pdo2{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo2.raw_value, PDO_LIMITS().set_mv(9000).set_ma(3000));
     sink_pdo_list.push_back(pdo2.raw_value);
 
-    SNK_PDO_FIXED pdo3{};
-    pdo3.pdo_type = PDO_TYPE::FIXED;
-    pdo3.voltage = 12000 / 50; // 12V
-    pdo3.max_current = 3000 / 10; // 3A
-
+    SNK_PDO_FIXED pdo3{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo3.raw_value, PDO_LIMITS().set_mv(12000).set_ma(3000));
     sink_pdo_list.push_back(pdo3.raw_value);
 
-    SNK_PDO_FIXED pdo4{};
-    pdo4.pdo_type = PDO_TYPE::FIXED;
-    pdo4.voltage = 15000 / 50; // 15V
-    pdo4.max_current = 3000 / 10; // 3A
-
+    SNK_PDO_FIXED pdo4{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo4.raw_value, PDO_LIMITS().set_mv(15000).set_ma(3000));
     sink_pdo_list.push_back(pdo4.raw_value);
 
-    SNK_PDO_FIXED pdo5{};
-    pdo5.pdo_type = PDO_TYPE::FIXED;
-    pdo5.voltage = 20000 / 50; // 20V
-    pdo5.max_current = 5000 / 10; // 5A
-
+    SNK_PDO_FIXED pdo5{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo5.raw_value, PDO_LIMITS().set_mv(20000).set_ma(5000));
     sink_pdo_list.push_back(pdo5.raw_value);
 
-    SNK_PDO_SPR_PPS pdo6{};
-    pdo6.pdo_type = PDO_TYPE::AUGMENTED;
-    pdo6.apdo_subtype = PDO_AUGMENTED_SUBTYPE::SPR_PPS;
-    pdo6.min_voltage = 3300 / 100; // 3.3V
-    pdo6.max_voltage = 11000 / 100; // 11V
-    pdo6.max_current = 3000 / 50; // 3A
-
+    SNK_PDO_SPR_PPS pdo6{create_pdo_type_bits(SRCSNK_PDO_ID::SPR_PPS)};
+    set_snk_pdo_limits(pdo6.raw_value,
+        PDO_LIMITS().set_mv_min(5000).set_mv_max(11000).set_ma(3000));
     sink_pdo_list.push_back(pdo6.raw_value);
 
-    SNK_PDO_SPR_PPS pdo7{};
-    pdo7.pdo_type = PDO_TYPE::AUGMENTED;
-    pdo7.apdo_subtype = PDO_AUGMENTED_SUBTYPE::SPR_PPS;
-    pdo7.min_voltage = 3300 / 100; // 3.3V
-    pdo7.max_voltage = 21000 / 100; // 21V
-    pdo7.max_current = 5000 / 50; // 5A
-
+    SNK_PDO_SPR_PPS pdo7{create_pdo_type_bits(SRCSNK_PDO_ID::SPR_PPS)};
+    set_snk_pdo_limits(pdo7.raw_value,
+        PDO_LIMITS().set_mv_min(3300).set_mv_max(21000).set_ma(5000));
     sink_pdo_list.push_back(pdo7.raw_value);
 
     //
@@ -97,34 +78,21 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     // padded with zeros. EPR block can have up to 3 Fixed PDOs + 1 AVS.
     //
 
-    SNK_PDO_FIXED pdo8{};
-    pdo8.pdo_type = PDO_TYPE::FIXED;
-    pdo8.voltage = 28000 / 50; // 28V
-    pdo8.max_current = 5000 / 10; // 5A
-
+    SNK_PDO_FIXED pdo8{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo8.raw_value, PDO_LIMITS().set_mv(28000).set_ma(5000));
     sink_pdo_list.push_back(pdo8.raw_value);
 
-    SNK_PDO_FIXED pdo9{};
-    pdo9.pdo_type = PDO_TYPE::FIXED;
-    pdo9.voltage = 36000 / 50; // 36V
-    pdo9.max_current = 5000 / 10; // 5A
-
+    SNK_PDO_FIXED pdo9{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo9.raw_value, PDO_LIMITS().set_mv(36000).set_ma(5000));
     sink_pdo_list.push_back(pdo9.raw_value);
 
-    SNK_PDO_FIXED pdo10{};
-    pdo10.pdo_type = PDO_TYPE::FIXED;
-    pdo10.voltage = 48000 / 50; // 48V
-    pdo10.max_current = 5000 / 10; // 5A
-
+    SNK_PDO_FIXED pdo10{create_pdo_type_bits(SRCSNK_PDO_ID::FIXED)};
+    set_snk_pdo_limits(pdo10.raw_value, PDO_LIMITS().set_mv(48000).set_ma(5000));
     sink_pdo_list.push_back(pdo10.raw_value);
 
-    SNK_PDO_EPR_AVS pdo11{};
-    pdo11.pdo_type = PDO_TYPE::AUGMENTED;
-    pdo11.apdo_subtype = PDO_AUGMENTED_SUBTYPE::EPR_AVS;
-    pdo11.min_voltage = 15000 / 100; // 15V
-    pdo11.max_voltage = 50000 / 100; // 50V
-    pdo11.pdp = 240 / 1; // 240W
-
+    SNK_PDO_EPR_AVS pdo11{create_pdo_type_bits(SRCSNK_PDO_ID::EPR_AVS)};
+    set_snk_pdo_limits(pdo11.raw_value,
+        PDO_LIMITS().set_mv_min(15000).set_mv_max(50000).set_pdp(get_epr_watts()));
     sink_pdo_list.push_back(pdo11.raw_value);
 
     return sink_pdo_list;
@@ -165,90 +133,88 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         return {0, 0};
     }
 
-    if (trigger_mode == TRIGGER_MODE::FIXED) {
-        for (int i = 0, max = src_caps.size(); i < max; i++) {
-            const auto pdo = src_caps[i];
-            // Skip padded positions
-            if (pdo == 0) { continue; }
-            // Skip not fixed PDOs
-            if (!DO_TOOLS::is_fixed(pdo)) { continue; }
+    for (int i = 0, max = src_caps.size(); i < max; i++) {
+        const auto pdo = src_caps[i];
+        // Skip padded positions
+        if (pdo == 0) { continue; }
 
-            const PDO_FIXED pdo_bits{pdo};
-            const uint32_t pdo_mv = static_cast<uint32_t>(pdo_bits.voltage) * 50U;
-            const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
+        auto id = get_src_pdo_id(pdo);
+        if (id == SRCSNK_PDO_ID::UNKNOWN) { continue; }
+        if (!trigger_any_pdo && id != trigger_pdo_id) { continue; }
 
-            if (pdo_mv == trigger_mv) {
-                RDO_FIXED rdo{};
-                fill_rdo_flags(rdo.raw_value);
-                rdo.obj_position = i + 1; // zero-based index + 1
-                rdo.max_current = pdo_ma / 10U;
-                rdo.operating_current = pdo_ma / 10U;
+        if (!match_limits(pdo, trigger_mv, trigger_ma)) { continue; }
 
-                return {rdo.raw_value, pdo};
-            }
+        // Create RDO
+        RDO_ANY rdo{};
+        fill_rdo_flags(rdo.raw_value);
+        rdo.obj_position = i + 1; // zero-based index + 1
+
+        // fill PDO-specific fields (volts/current/watts)
+        auto limits = get_src_pdo_limits(pdo);
+
+        if (id == SRCSNK_PDO_ID::FIXED) {
+            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
+            set_rdo_limits_fixed(rdo.raw_value, ma, ma);
+            return {rdo.raw_value, pdo};
         }
-    }
 
-    if (trigger_mode == TRIGGER_MODE::SPR_PPS) {
-        for (int i = 0, max = src_caps.size(); i < max; i++) {
-            const auto pdo = src_caps[i];
-            // Skip padded positions
-            if (pdo == 0) { continue; }
-            // Skip not SPR_PPS PDOs
-            if (!DO_TOOLS::is_spr_pps(pdo)) { continue; }
+        if (id == SRCSNK_PDO_ID::SPR_PPS) {
+            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
+            set_rdo_limits_pps(rdo.raw_value, trigger_mv, ma);
+            return {rdo.raw_value, pdo};
+        }
 
-            const PDO_SPR_PPS pdo_bits{pdo};
-            const uint32_t pdo_max_mv = static_cast<uint32_t>(pdo_bits.max_voltage) * 100U;
-            const uint32_t pdo_max_ma = static_cast<uint32_t>(pdo_bits.max_current) * 50U;
+        if (id == SRCSNK_PDO_ID::SPR_AVS) {
+            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
+            set_rdo_limits_avs(rdo.raw_value, trigger_mv, ma);
+            return {rdo.raw_value, pdo};
+        }
 
-            if (pdo_max_mv >= trigger_mv && pdo_max_ma >= trigger_ma) {
-                RDO_PPS rdo{};
-                fill_rdo_flags(rdo.raw_value);
-                rdo.obj_position = i + 1; // zero-based index + 1
-                rdo.operating_current = trigger_ma / 50U;
-                rdo.output_voltage = trigger_mv / 20U;
-
-                return {rdo.raw_value, pdo};
+        if (id == SRCSNK_PDO_ID::EPR_AVS) {
+            uint32_t ma = trigger_ma;
+            if (ma == 0) {
+                ma = limits.pdp * 1000U / trigger_mv;
+                if (ma > 5000) { ma = 5000; }
             }
+            set_rdo_limits_avs(rdo.raw_value, trigger_mv, ma);
+            return {rdo.raw_value, pdo};
         }
     }
 
     // By default return vSafe5V, based on first entry in SRC capabilities
+    const auto pdo = src_caps[0];
     RDO_FIXED rdo{};
     fill_rdo_flags(rdo.raw_value);
     rdo.obj_position = 0 + 1; // Position = zero-based index + 1
 
-    if (DO_TOOLS::is_fixed(src_caps[0])) {
-        const PDO_FIXED pdo_bits{src_caps[0]};
-        const uint32_t pdo_ma = static_cast<uint32_t>(pdo_bits.max_current) * 10U;
-        rdo.max_current = pdo_ma / 10U;
-        rdo.operating_current = pdo_ma / 10U;
-    };
-
-    return {rdo.raw_value, src_caps[0]};
+    auto limits = get_src_pdo_limits(pdo);
+    set_rdo_limits_fixed(rdo.raw_value, limits.ma, limits.ma);
+    return {rdo.raw_value, pdo};
 }
 
-void DPM::trigger_fixed(uint32_t mv) {
-    trigger_mv = mv;
-    trigger_mode = TRIGGER_MODE::FIXED;
-
-    // If explicit contract already exists, request new power level
+void DPM::request_new_power_level() {
+    // Only if explicit contract exists.
+    //If not - data will be used at handshake.
     if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
         port.wakeup();
     }
 }
+
+void DPM::trigger_fixed(uint32_t mv, uint32_t ma) {
+    trigger_mv = mv;
+    trigger_ma = ma;
+    trigger_pdo_id = SRCSNK_PDO_ID::FIXED;
+    trigger_any_pdo = false;
+    request_new_power_level();
+}
+
 void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
     trigger_mv = mv;
     trigger_ma = ma;
-    trigger_mode = TRIGGER_MODE::SPR_PPS;
-
-    // If explicit contract already exists, request new power level
-    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
-        port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
-        port.wakeup();
-    }
+    trigger_pdo_id = SRCSNK_PDO_ID::SPR_PPS;
+    trigger_any_pdo = false;
+    request_new_power_level();
 }
-
 
 } // namespace pd

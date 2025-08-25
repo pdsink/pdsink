@@ -3,6 +3,7 @@
 #include <etl/utility.h>
 
 #include "data_objects.h"
+#include "utils/dobj_utils.h"
 
 namespace pd {
 
@@ -51,27 +52,26 @@ public:
     //
     // Sugar methods for simple mode select. You are not forced to use those.
     //
-    void trigger_fixed(uint32_t mv);
+    void trigger_fixed(uint32_t mv, uint32_t ma = 0);
     void trigger_spr_pps(uint32_t mv, uint32_t ma);
 
 protected:
     Port& port;
 
-    enum class TRIGGER_MODE {
-        INACTIVE,
-        FIXED,
-        SPR_PPS,
-    } trigger_mode{TRIGGER_MODE::INACTIVE};
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};
+
+    dobj_utils::SRCSNK_PDO_ID trigger_pdo_id{dobj_utils::SRCSNK_PDO_ID::UNKNOWN};
+    bool trigger_any_pdo{false}; // try to use any suitable PDO type
 
     // SNK PDOs cache, to build only once
     PDO_LIST sink_pdo_list;
 
     // Helper to fill request RDO flags
     virtual void fill_rdo_flags(uint32_t &rdo);
-
     virtual bool has_usb_comm() { return false; }
+
+    virtual void request_new_power_level();
 };
 
 } // namespace pd
