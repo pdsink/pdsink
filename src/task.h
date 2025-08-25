@@ -20,7 +20,7 @@ public:
     Task_EventListener(Task& task) : task(task) {}
     void on_receive(const MsgTask_Wakeup& msg);
     void on_receive(const MsgTask_Timer& msg);
-    void on_receive_unknown(const etl::imessage&) {};
+    void on_receive_unknown(const etl::imessage&);
 private:
     Task& task;
 };

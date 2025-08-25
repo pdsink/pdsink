@@ -35,6 +35,10 @@
 #define PD_LOG_DPM PD_LOG_DEFAULT
 #endif
 
+#ifndef PD_LOG_TASK
+#define PD_LOG_TASK PD_LOG_DEFAULT
+#endif
+
 #define _PD_LOG_LVL_NONE_CHECK 1
 #define _PD_LOG_LVL_ERR_CHECK 1
 #define _PD_LOG_LVL_INFO_CHECK 1
@@ -54,6 +58,8 @@ static_assert(_PD_CHECK_VALID(PD_LOG_DRV),
     "PD_LOG_DRV must be one of: NONE, ERR, INFO, DEBUG, VERBOSE");
 static_assert(_PD_CHECK_VALID(PD_LOG_DPM),
     "PD_LOG_DPM must be one of: NONE, ERR, INFO, DEBUG, VERBOSE");
+static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
+    "PD_LOG_TASK must be one of: NONE, ERR, INFO, DEBUG, VERBOSE");
 
 #undef _PD_CHECK_VALID
 #undef _PD_CHECK_VALID_I
@@ -191,4 +197,31 @@ static_assert(_PD_CHECK_VALID(PD_LOG_DPM),
     #define DPM_LOGV(...) PD_LOG_FN("pd.dpm", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
 #else
     #define DPM_LOGV(...) ((void)0)
+#endif
+
+//
+// TASK
+//
+#if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_ERR
+    #define TASK_LOGE(...)   PD_LOG_FN("pd.task", PD_LOG_FN_LVL_ERR, __VA_ARGS__)
+#else
+    #define TASK_LOGE(...)   ((void)0)
+#endif
+
+#if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_INFO
+    #define TASK_LOGI(...)  PD_LOG_FN("pd.task", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+#else
+    #define TASK_LOGI(...)  ((void)0)
+#endif
+
+#if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_DEBUG
+    #define TASK_LOGD(...) PD_LOG_FN("pd.task", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+#else
+    #define TASK_LOGD(...) ((void)0)
+#endif
+
+#if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_VERBOSE
+    #define TASK_LOGV(...) PD_LOG_FN("pd.task", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+#else
+    #define TASK_LOGV(...) ((void)0)
 #endif

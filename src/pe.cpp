@@ -7,6 +7,7 @@
 #include "pd_log.h"
 #include "pe.h"
 #include "port.h"
+#include "utils/dobj_utils.h"
 
 namespace pd {
 
@@ -213,7 +214,12 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
+        pe.log_source_caps();
+
         auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
+
+        PE_LOGD("Selecting PDO by index {} [counting from 1], RDO is 0x{:08X}",
+            RDO_ANY{rdo_and_pdo.first}.obj_position, rdo_and_pdo.first);
 
         // This is not needed, but it exists to suppress warnings from code checkers.
         if (!rdo_and_pdo.first) {
@@ -689,7 +695,7 @@ public:
                 return PE_SNK_Ready;
             }
 
-            PE_LOGE("Protocol error: unexpected message received [0x{:04x}]", port.rx_emsg.header.raw_value);
+            PE_LOGE("Protocol error: unexpected message received [0x{:08X}]", port.rx_emsg.header.raw_value);
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -947,7 +953,7 @@ public:
                 port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
                 port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
-                PE_LOGE("EPR mode entry failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode entry failed [code 0x{:02X}]", eprmdo.action);
 
                 port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
                 port.notify_dpm(MsgToDpm_HandshakeDone());
@@ -1002,7 +1008,7 @@ public:
                     return PE_SNK_Wait_for_Capabilities;
                 }
 
-                PE_LOGE("EPR mode entry failed [code 0x{:02x}]", eprmdo.action);
+                PE_LOGE("EPR mode entry failed [code 0x{:02X}]", eprmdo.action);
             }
 
             return PE_SNK_Send_Soft_Reset;
@@ -1213,6 +1219,45 @@ PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
 
 void PE::log_state() {
     PE_LOGI("PE state => {}", pe_state_to_desc(get_state_id()));
+}
+
+void PE::log_source_caps() {
+    using namespace dobj_utils;
+
+    auto caps_count = port.source_caps.size();
+    PE_LOGD("Total source capabilities: {}", caps_count);
+
+    for (int i = 0; i < caps_count; i++) {
+        auto pdo = port.source_caps[i];
+        auto id = get_src_pdo_id(pdo);
+
+        if (id == SRCSNK_PDO_ID::UNKNOWN) {
+            PE_LOGD("  PDO[{}]: 0x{:08X} <UNKNOWN>", i+1, pdo);
+        }
+        else if (id == SRCSNK_PDO_ID::FIXED) {
+            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            PE_LOGD("  PDO[{}]: 0x{:08X} <FIXED> {}mV {}mA",
+                i+1, pdo, limits.mv_min, limits.ma);
+        }
+        else if (id == SRCSNK_PDO_ID::SPR_PPS) {
+            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            PE_LOGD("  PDO[{}]: 0x{:08X} <SPR_PPS> {}-{}mV {}mA",
+                i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
+        }
+        else if (id == SRCSNK_PDO_ID::SPR_AVS) {
+            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            PE_LOGD("  PDO[{}]: 0x{:08X} <SPR_AVS> {}-{}mV {}mA",
+                i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
+        }
+        else if (id == SRCSNK_PDO_ID::EPR_AVS) {
+            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            PE_LOGD("  PDO[{}]: 0x{:08X} <EPR_AVS> {}-{}mV {}W",
+                i+1, pdo, limits.mv_min, limits.mv_max, limits.pdp);
+        }
+        else {
+            PE_LOGD("  PDO[{}]: 0x{:08X} <!!!UNHANDLED!!!>", i+1, pdo);
+        }
+    }
 }
 
 void PE::setup() {

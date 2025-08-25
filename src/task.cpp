@@ -1,5 +1,6 @@
 #include "dpm.h"
 #include "idriver.h"
+#include "pd_log.h"
 #include "pe.h"
 #include "port.h"
 #include "prl.h"
@@ -99,6 +100,10 @@ void Task_EventListener::on_receive(const MsgTask_Wakeup&) {
 
 void Task_EventListener::on_receive(const MsgTask_Timer&) {
     task.set_event(Task::EVENT_TIMER_MSK);
+}
+
+void Task_EventListener::on_receive_unknown(const etl::imessage& msg) {
+    TASK_LOGE("Task unknown message, ID: {}", msg.get_message_id());
 }
 
 } // namespace pd

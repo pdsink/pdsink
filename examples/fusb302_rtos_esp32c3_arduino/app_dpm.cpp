@@ -26,13 +26,13 @@ void DPM_EventListener::on_receive(const pd::MsgToDpm_SrcDisabled& msg) {
 void DPM_EventListener::on_receive(const pd::MsgToDpm_Alert& msg) {
     // May be useful to control overheating, if you can reduce the load
     // If overheating ignored, charger will reset the power.
-    DPM_LOGI("Alert received, value {:04X}", msg.value);
+    DPM_LOGI("Alert received, value 0x{:08X}", msg.value);
 }
 
 void DPM_EventListener::on_receive(const pd::MsgToDpm_EPREntryFailed& msg) {
     // When charger has EPR mode, but entry declined
     // Abnormal situation, this should not happen
-    DPM_LOGI("EPR entry failed, reason: {:04X}, stay in SPR", msg.reason);
+    DPM_LOGI("EPR entry failed, reason: 0x{:08X}, stay in SPR", msg.reason);
 }
 
 void DPM_EventListener::on_receive(const pd::MsgToDpm_NewPowerLevel& msg) {

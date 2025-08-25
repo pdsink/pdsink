@@ -56,6 +56,7 @@ public:
     PE& operator=(const PE&) = delete;
 
     void log_state();
+    void log_source_caps();
     void setup();
     void init();
 
