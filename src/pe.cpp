@@ -218,7 +218,7 @@ public:
 
         auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
 
-        PE_LOGD("Selecting PDO by index {} [counting from 1], RDO is 0x{:08X}",
+        PE_LOGD("Selecting PDO[{}] (counting from 1), RDO is 0x{:08X}",
             RDO_ANY{rdo_and_pdo.first}.obj_position, rdo_and_pdo.first);
 
         // This is not needed, but it exists to suppress warnings from code checkers.
@@ -1224,11 +1224,17 @@ void PE::log_state() {
 void PE::log_source_caps() {
     using namespace dobj_utils;
 
-    auto caps_count = port.source_caps.size();
+    int caps_count = port.source_caps.size();
     PE_LOGD("Total source capabilities: {}", caps_count);
 
     for (int i = 0; i < caps_count; i++) {
         auto pdo = port.source_caps[i];
+
+        if (pdo == 0) {
+            PE_LOGD("  PDO[{}]: <PLACEHOLDER> (zero)", i+1);
+            continue;
+        }
+
         auto id = get_src_pdo_id(pdo);
 
         if (id == SRCSNK_PDO_ID::UNKNOWN) {

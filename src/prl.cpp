@@ -1406,7 +1406,7 @@ void PRL::setup() {
 }
 
 void PRL::init(bool from_hr_fsm) {
-    PRL_LOGI("PRL init");
+    PRL_LOGI("PRL init begin [with prl_hr = {}]", from_hr_fsm ? "YES" : "NO");
 
     // If init called from PRL_HR, don't interfere with HR fsm
     if (!from_hr_fsm) {
@@ -1431,6 +1431,8 @@ void PRL::init(bool from_hr_fsm) {
     prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
     // Ensure loop repeat to continue PE States, which wait for PRL run.
     port.wakeup();
+
+    PRL_LOGI("PRL init end");
 }
 
 void PRL::reset_msg_counters() {
