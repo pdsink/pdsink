@@ -421,6 +421,8 @@ public:
         }
         return No_State_Change;
     }
+
+    static void on_exit_state(PRL_TCH&) {}
 };
 
 class TCH_Pass_Down_Message_State : public afsm::state<PRL_TCH, TCH_Pass_Down_Message_State, TCH_Pass_Down_Message> {
