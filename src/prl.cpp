@@ -210,6 +210,7 @@ public:
         rch.log_state();
 
         rch.prl.port.notify_pe(MsgToPe_PrlMessageReceived{});
+        rch.prl.request_wakeup();
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
@@ -365,9 +366,11 @@ public:
             port.rx_emsg = port.rx_chunk;
             port.rx_emsg.resize_by_data_obj_count();
             port.notify_pe(MsgToPe_PrlMessageReceived{});
+            rch.prl.request_wakeup();
         }
 
         port.notify_pe(MsgToPe_PrlReportError{port.rch_error});
+        rch.prl.request_wakeup();
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
@@ -411,6 +414,7 @@ public:
                 // more consistent than error reporting (the same as discarding TX by RX).
                 //
                 port.notify_pe(MsgToPe_PrlReportDiscard{});
+                tch.prl.request_wakeup();
                 return No_State_Change;
             }
 
@@ -470,7 +474,7 @@ public:
         // This is possible, because TX and RX events can arrive in the same
         // time. In this case just wait until PRL_TX called.
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
-            port.wakeup(); // Probably not needed, but just in case.
+            tch.prl.request_wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
 
@@ -493,6 +497,7 @@ public:
         tch.log_state();
 
         port.notify_pe(MsgToPe_PrlMessageSent{});
+        tch.prl.request_wakeup();
 
         // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
         // Any Message Received and not in state TCH_Wait_Chunk_Request
@@ -572,7 +577,7 @@ public:
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED &&
             !port.prl_tx_flags.test(PRL_TX_FLAG::TX_COMPLETED))
         {
-            port.wakeup(); // Probably not needed, but just in case.
+            tch.prl.request_wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
 
@@ -596,6 +601,7 @@ public:
         // Duplicated discard reporting is not a problem (those are merged)
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             port.notify_pe(MsgToPe_PrlReportDiscard{});
+            tch.prl.request_wakeup();
             return TCH_Message_Received;
         }
 
@@ -618,7 +624,7 @@ public:
         // In edge case we could come here with RX already enqueued.
         // Then force loop wakeup() to ensure we continue processing.
         if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
-            port.wakeup();
+            tch.prl.request_wakeup();
         }
         return No_State_Change;
     }
@@ -649,6 +655,7 @@ public:
             // when chunked sending was interrupted instead of consuming next
             // chunks. Let's add discard for sure.
             port.notify_pe(MsgToPe_PrlReportDiscard{});
+            tch.prl.request_wakeup();
             return TCH_Message_Received;
         }
 
@@ -673,11 +680,12 @@ public:
 
         // Forward PRL_RX message to RCH
         port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
-        port.wakeup();
+        tch.prl.request_wakeup();
 
         // Drop incoming TCH request from PE if any
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             port.notify_pe(MsgToPe_PrlReportDiscard{});
+            tch.prl.request_wakeup();
         }
 
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -694,6 +702,7 @@ public:
         tch.log_state();
 
         port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
+        tch.prl.request_wakeup();
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
@@ -899,7 +908,7 @@ public:
 
         // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
         // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
-        port.wakeup();
+        prl_tx.prl.request_wakeup();
 
         return PRL_Tx_Wait_for_Message_Request;
     }
@@ -954,7 +963,7 @@ public:
 
         // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
         // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
-        port.wakeup();
+        prl_tx.prl.request_wakeup();
 
         return PRL_Tx_Wait_for_Message_Request;
     }
@@ -981,6 +990,7 @@ public:
         {
             port.tx_msg_id_counter++;
             port.notify_pe(MsgToPe_PrlReportDiscard{});
+            prl_tx.prl.request_wakeup();
         }
         return PRL_Tx_PHY_Layer_Reset;
     }
@@ -1081,7 +1091,7 @@ public:
             //
             // This is not expected to happen, because we do multiple RCH/TCH
             // calls.
-            port.wakeup();
+            prl.request_wakeup();
             return No_State_Change;
         }
 
@@ -1116,6 +1126,7 @@ public:
         prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
 
         port.notify_pe(MsgToPe_PrlSoftResetFromPartner{});
+        prl.request_wakeup();
         return PRL_Rx_Send_GoodCRC;
     }
 
@@ -1275,6 +1286,7 @@ public:
         hr.log_state();
 
         hr.prl.port.notify_pe(MsgToPe_PrlHardResetFromPartner{});
+        hr.prl.request_wakeup();
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
@@ -1338,6 +1350,7 @@ public:
         hr.log_state();
 
         port.notify_pe(MsgToPe_PrlHardResetSent{});
+        hr.prl.request_wakeup();
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
@@ -1430,7 +1443,7 @@ void PRL::init(bool from_hr_fsm) {
     // Reset TX last, because it does driver call on init.
     prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
     // Ensure loop repeat to continue PE States, which wait for PRL run.
-    port.wakeup();
+    request_wakeup();
 
     PRL_LOGI("PRL init end");
 }
@@ -1455,7 +1468,7 @@ void PRL::prl_tx_enquire_chunk() {
     // Mark tx_chunk ready to be sent
     port.prl_tx_flags.set(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
 
-    port.wakeup();
+    request_wakeup();
 }
 
 
@@ -1618,6 +1631,11 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
             prl.prl_rch.run();
             break;
     }
+
+    if (prl.has_deferred_wakeup_request) {
+        prl.has_deferred_wakeup_request = false;
+        prl.request_wakeup();
+    }
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_EnquireRestart&) {
@@ -1634,7 +1652,6 @@ void PRL_EventListener::on_receive(const MsgToPrl_PEHardResetDone&) {
 
 void PRL_EventListener::on_receive(const MsgToPrl_TcpcHardReset&) {
     prl.port.prl_hr_flags.set(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER);
-    prl.port.wakeup();
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_CtlMsgFromPe& msg) {
@@ -1644,7 +1661,6 @@ void PRL_EventListener::on_receive(const MsgToPrl_CtlMsgFromPe& msg) {
     prl.port.tx_emsg.header = hdr;
 
     prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
-    prl.port.wakeup();
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_DataMsgFromPe& msg) {
@@ -1653,7 +1669,6 @@ void PRL_EventListener::on_receive(const MsgToPrl_DataMsgFromPe& msg) {
     prl.port.tx_emsg.header = hdr;
 
     prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
-    prl.port.wakeup();
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_ExtMsgFromPe& msg) {
@@ -1663,7 +1678,6 @@ void PRL_EventListener::on_receive(const MsgToPrl_ExtMsgFromPe& msg) {
     prl.port.tx_emsg.header = hdr;
 
     prl.port.prl_tch_flags.set(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
-    prl.port.wakeup();
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {

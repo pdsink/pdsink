@@ -417,7 +417,7 @@ public:
         }
 
         // Ensure we run after entering the state to process pending items (DPM requests)
-        port.wakeup();
+        pe.request_wakeup();
         return No_State_Change;
     }
 
@@ -589,10 +589,6 @@ public:
             return PE_SNK_Select_Capability;
         }
 
-        // TODO: Consider remove. This causes unnecessary flood.
-        // If the event caused no activity, emit Idle to the DPM
-        // port.notify_dpm(MsgToDpm_Idle());
-
         return No_State_Change;
     }
 
@@ -755,7 +751,7 @@ public:
         // If you need to pend, call `wait_dpm_transit_to_default(true)` in the
         // event handler, and `wait_dpm_transit_to_default(false)` to continue.
         port.notify_dpm(MsgToDpm_TransitToDefault());
-        port.wakeup();
+        pe.request_wakeup();
         return No_State_Change;
     }
 
@@ -1400,21 +1396,28 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
             pe.run();
             break;
     }
+
+    if (pe.has_deferred_wakeup_request) {
+        pe.has_deferred_wakeup_request = false;
+        pe.request_wakeup();
+    }
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived&) {
+    PE_LOGD("Message received (PRL notification to PE)");
+
     pe.port.pe_flags.set(PE_FLAG::MSG_RECEIVED);
-    pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
+    PE_LOGD("Message transfered (PRL notification to PE)");
+
     // Any successful sent inside AMS means first message was sent
     if (pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
         pe.port.pe_flags.set(PE_FLAG::AMS_FIRST_MSG_SENT);
     }
 
     pe.port.pe_flags.set(PE_FLAG::TX_COMPLETE);
-    pe.port.wakeup();
 }
 
 //
@@ -1436,7 +1439,6 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
 
     if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
-        port.wakeup();
         return;
     }
 
@@ -1444,7 +1446,6 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         err == PRL_ERROR::TCH_SEND_FAIL)
     {
         pe.change_state(PE_SNK_Send_Soft_Reset);
-        port.wakeup();
         return;
     }
 
@@ -1457,35 +1458,30 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
             port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
         pe.change_state(PE_SNK_Ready);
-        port.wakeup();
         return;
     }
 
     pe.change_state(PE_SNK_Send_Soft_Reset);
-    port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
+    PE_LOGD("Message discarded (PRL notification to PE)");
     pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
-    pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
     if (pe.is_uninitialized()) { return; }
     pe.change_state(PE_SNK_Soft_Reset);
-    pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
     if (pe.is_uninitialized()) { return; }
     pe.change_state(PE_SNK_Transition_to_default);
-    pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
     if (pe.is_uninitialized()) { return; }
     pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
-    pe.port.wakeup();
 }
 
 void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {

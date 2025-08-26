@@ -84,6 +84,7 @@ public:
 
     void setup();
     void init(bool from_hr_fsm = false);
+    void request_wakeup() { has_deferred_wakeup_request = true; };
 
     void reset_msg_counters();
     void reset_revision();
@@ -105,6 +106,7 @@ public:
     PRL_TCH prl_tch;
 
     PRL_EventListener prl_event_listener;
+    etl::atomic<bool> has_deferred_wakeup_request{false};
 };
 
 } // namespace pd

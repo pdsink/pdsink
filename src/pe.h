@@ -59,6 +59,7 @@ public:
     void log_source_caps();
     void setup();
     void init();
+    void request_wakeup() { has_deferred_wakeup_request = true; };
 
     // Helpers
     void send_ctrl_msg(PD_CTRL_MSGT::Type msgt);
@@ -84,6 +85,7 @@ public:
     ITCPC& tcpc;
 
     PE_EventListener pe_event_listener;
+    etl::atomic<bool> has_deferred_wakeup_request{false};
 };
 
 } // namespace pd
