@@ -307,6 +307,8 @@ public:
 
         return No_State_Change;
     }
+
+    static void on_exit_state(PRL_RCH&) {}
 };
 
 class RCH_Waiting_Chunk_State : public afsm::state<PRL_RCH, RCH_Waiting_Chunk_State, RCH_Waiting_Chunk> {
@@ -836,7 +838,7 @@ public:
         // Kick driver
         prl_tx.prl.tcpc.req_transmit();
 
-        return No_State_Change;
+        return PRL_Tx_Wait_for_PHY_Response;
     }
 
     static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
