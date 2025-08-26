@@ -5,20 +5,21 @@
 #include "hal/usb_serial_jtag_ll.h"
 #include "rom/ets_sys.h"
 
-static jetlog::RingBuffer<1024*20> ringBuffer;
+static jetlog::RingBuffer<1024*40> ringBuffer;
 
 Logger logger(ringBuffer);
 jetlog::Reader<> logReader(ringBuffer);
+
+static etl::string<1024> outputBuffer{};
+// Join multiple records to batch. That significantly improves
+// USB VCOM throughput.
+static etl::string<4096> batchBuffer{};
 
 // Use idf api for output. Its connection detector is more robust for re-uploads.
 void logger_start() {
     xTaskCreate([](void* pvParameters) {
         (void)pvParameters;
 
-        static etl::string<1024> outputBuffer{};
-        // Join multiple records to batch. That significantly improves
-        // USB VCOM throughput.
-        static etl::string<4096> batchBuffer{};
         // Required to properly track empty strings
         bool has_pending_str{false};
 
