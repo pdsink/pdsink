@@ -841,7 +841,7 @@ public:
         prl_tx.log_state();
 
         // Timer should be used ONLY when hardware confirmation not supported
-        // if (!prl_tx.prl.tcpc.get_hw_features().tx_goodcrc_receive) {
+        // if (!prl_tx.prl.tcpc.get_hw_features().tx_auto_goodcrc_check) {
         //    prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
         // }
         return No_State_Change;
@@ -921,11 +921,9 @@ public:
         //   has not been chunked
         //
         // Since we are Sink-only, without unchunked ext msg support - no extra
-        // checks needed. Always use retries.
+        // checks needed. Always use retries is supported by hardware.
 
-        if (prl_tx.prl.tcpc.get_hw_features().tx_retransmit) {
-            // TODO: consider removing this feature.
-
+        if (prl_tx.prl.tcpc.get_hw_features().tx_auto_retry) {
             // Don't try retransmit if supported by hardware.
             return PRL_Tx_Transmission_Error;
         }

@@ -466,8 +466,8 @@ void Fusb302Rtos::handle_interrupt() {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
         if (interrupta.I_TXSENT) {
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
             DRV_LOGI("IRQ: tx completed");
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
             // That's not necessary, but force GoodCRC peek to free FIFO faster.
             DRV_LOG_ON_ERROR(fusb_rx_pkt());
         }

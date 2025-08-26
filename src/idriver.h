@@ -32,10 +32,9 @@ enum class TCPC_BIST_MODE {
 // Hardware features description, to clarify Rx/Tx logic in PRL.
 // Not final. May be cases without hardware CRC support should be dropped.
 struct TCPC_HW_FEATURES {
-    bool rx_goodcrc_send;
-    bool tx_goodcrc_receive;
-    bool tx_retransmit;
-    bool unchunked_ext_msg; // By default - not supported
+    bool rx_auto_goodcrc_send;
+    bool tx_auto_goodcrc_check;
+    bool tx_auto_retry;
 };
 
 // NOTE: discarding is done at PRL layer.
