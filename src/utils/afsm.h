@@ -1,6 +1,8 @@
 #pragma once
 
+#include <etl/error_handler.h>
 #include <etl/fsm.h>
+#include <etl/type_lookup.h>
 #include <etl/type_traits.h>
 #include <etl/integral_limits.h>
 #include <stddef.h>
@@ -11,6 +13,9 @@ using state_id_t = etl::fsm_state_id_t;
 static constexpr state_id_t No_State_Change = etl::ifsm_state::No_State_Change;
 static constexpr state_id_t Self_Transition = etl::ifsm_state::Self_Transition;
 static constexpr state_id_t Uninitialized = etl::integral_limits<etl::fsm_state_id_t>::max;
+
+#define AFSM_STR_(x) #x
+#define AFSM_STR(x)  AFSM_STR_(x)
 
 namespace details {
     template<typename...>
@@ -216,9 +221,10 @@ private:
     const on_exit_fn* exit_table = nullptr;
     const details::interceptor_pack_interface* const* interceptor_table = nullptr;
 
-    size_t state_count = 0;
-    state_id_t current_state_id = Uninitialized;
-    state_id_t previous_state_id = Uninitialized;
+    size_t state_count{0};
+    state_id_t current_state_id{Uninitialized};
+    state_id_t previous_state_id{Uninitialized};
+    bool is_busy{false};
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
 
@@ -320,9 +326,23 @@ public:
     }
 
     void run() {
+        if (is_busy) {
+            struct run_recursion_err : etl::exception {
+                run_recursion_err(string_type file, numeric_type line)
+                    : exception(ETL_ERROR_TEXT(
+                        "run() recursive call in " AFSM_STR(FSMImpl), "EFSM"),
+                        file, line) {}
+            };
+
+            ETL_ASSERT_FAIL(ETL_ERROR(run_recursion_err));
+            return;
+        }
+
         if (current_state_id >= state_count) { return; }
 
+        is_busy = true;
         auto result = execute_run(current_state_id);
+        is_busy = false;
 
         if (result == Self_Transition) {
             change_state(current_state_id, true);
@@ -332,10 +352,24 @@ public:
     }
 
     void change_state(state_id_t new_state_id, bool reenter = false) {
+        if (is_busy) {
+            struct change_state_recursion_err : etl::exception {
+                change_state_recursion_err(string_type file, numeric_type line)
+                    : exception(ETL_ERROR_TEXT(
+                        "change_state() recursive call in " AFSM_STR(FSMImpl), "EFSM"),
+                        file, line) {}
+            };
+
+            ETL_ASSERT_FAIL(ETL_ERROR(change_state_recursion_err));
+            return;
+        }
+
         if (new_state_id == Uninitialized) {
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
+                is_busy = true;
                 execute_exit(current_state_id);
+                is_busy = false;
             }
             current_state_id = Uninitialized;
             return;
@@ -350,22 +384,32 @@ public:
         bool have_current = (current_state_id < state_count);
 
         if (have_current || reenter) { previous_state_id = current_state_id; }
-        if (have_current) { execute_exit(current_state_id); }
+        if (have_current) {
+            is_busy = true;
+            execute_exit(current_state_id);
+            is_busy = false;
+        }
 
         do {
             current_state_id = next_state_id;
 
+            is_busy = true;
             auto enter_result = execute_enter(current_state_id);
+            is_busy = false;
 
             if (enter_result.next_state == No_State_Change) {
                 next_state_id = current_state_id;
             } else if (enter_result.next_state == Uninitialized) {
+                is_busy = true;
                 execute_exit(current_state_id, &enter_result);
+                is_busy = false;
                 previous_state_id = current_state_id;
                 current_state_id = Uninitialized;
                 return;
             } else if (enter_result.next_state < state_count) {
+                is_busy = true;
                 execute_exit(current_state_id, &enter_result);
+                is_busy = false;
                 previous_state_id = current_state_id;
                 next_state_id = enter_result.next_state;
             } else {

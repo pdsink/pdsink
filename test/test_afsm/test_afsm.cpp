@@ -404,6 +404,86 @@ TEST(TickFsm, InterceptorSelfTransition) {
     EXPECT_EQ(fsm.interceptor_enter_cnt[0], 2); // LogInterceptor enter called again
 }
 
+TEST(TickFsm, ChangeStateInsideRunIsIgnored) {
+    class BadRunState : public state<TestFSM, BadRunState, SID0> {
+    public:
+        static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
+        static etl::fsm_state_id_t on_run_state(FSMType& f) {
+            f.run_cnt[STATE_ID]++;
+            f.change_state(SID1); // should be ignored
+            return No_State_Change;
+        }
+        static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
+    };
+
+    TestFSM fsm;
+    fsm.set_states<state_pack<BadRunState, S1>>(0);
+    fsm.run();
+
+    EXPECT_EQ(fsm.get_state_id(), SID0);
+
+    fsm.change_state(SID1);
+    EXPECT_EQ(fsm.get_state_id(), SID1);
+}
+
+TEST(TickFsm, RunRecursionIsIgnored) {
+    class RecursiveRunState : public state<TestFSM, RecursiveRunState, SID0> {
+    public:
+        static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
+        static etl::fsm_state_id_t on_run_state(FSMType& f) {
+            f.run_cnt[STATE_ID]++;
+            f.run(); // should be ignored
+            return No_State_Change;
+        }
+        static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
+    };
+
+    TestFSM fsm;
+    fsm.set_states<state_pack<RecursiveRunState>>(0);
+    fsm.run();
+
+    EXPECT_EQ(fsm.run_cnt[SID0], 1);
+}
+
+TEST(TickFsm, ChangeStateInsideEnterIsIgnored) {
+    class EnterChangeState : public state<TestFSM, EnterChangeState, SID0> {
+    public:
+        static etl::fsm_state_id_t on_enter_state(FSMType& f) {
+            f.enter_cnt[STATE_ID]++;
+            f.change_state(SID1); // should be ignored
+            return No_State_Change;
+        }
+        static etl::fsm_state_id_t on_run_state(FSMType& f) { f.run_cnt[STATE_ID]++; return No_State_Change; }
+        static void on_exit_state(FSMType& f) { f.exit_cnt[STATE_ID]++; }
+    };
+
+    TestFSM fsm;
+    fsm.set_states<state_pack<EnterChangeState, S1>>(0);
+
+    EXPECT_EQ(fsm.get_state_id(), SID0);
+
+    fsm.change_state(SID1);
+    EXPECT_EQ(fsm.get_state_id(), SID1);
+}
+
+TEST(TickFsm, ChangeStateInsideExitIsIgnored) {
+    class ExitChangeState : public state<TestFSM, ExitChangeState, SID0> {
+    public:
+        static etl::fsm_state_id_t on_enter_state(FSMType& f) { f.enter_cnt[STATE_ID]++; return No_State_Change; }
+        static etl::fsm_state_id_t on_run_state(FSMType&) { return SID1; }
+        static void on_exit_state(FSMType& f) {
+            f.exit_cnt[STATE_ID]++;
+            f.change_state(SID2); // should be ignored
+        }
+    };
+
+    TestFSM fsm;
+    fsm.set_states<state_pack<ExitChangeState, S1, S2>>(0);
+    fsm.run();
+
+    EXPECT_EQ(fsm.get_state_id(), SID1);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

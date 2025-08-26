@@ -1,3 +1,4 @@
+#include <etl/error_handler.h>
 #include <pd/pd.h>
 
 #include "app_dpm.h"
@@ -26,6 +27,10 @@ pd::TC tc(port, driver);
 
 Blinker<LedDriver> blinker;
 
+void etl_error_log(const etl::exception& e) {
+    APP_LOGE("ETL Error: {}, file: {}, line: {}",
+        e.what(), e.file_name(), e.line_number());
+}
 
 void setup() {
     logger_start();
@@ -37,6 +42,14 @@ void setup() {
     task.start(tc, dpm, pe, prl, driver);
     // Preset desired voltage
     dpm.trigger_fixed(12000);
+
+    etl::error_handler::set_callback<etl_error_log>();
+
+    struct test_exception : etl::exception {
+        test_exception(string_type file, numeric_type line)
+            : exception("Test exception", file, line) {}
+    };
+    ETL_ASSERT_FAIL(ETL_ERROR(test_exception)); // Test ETL error handling
 
     APP_LOGI("Setup complete");
 }
