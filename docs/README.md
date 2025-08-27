@@ -44,27 +44,26 @@ available options.
 
 The most frequent cases can be:
 
-- IO pins change.
-- Task stack & priority changes (for RTOS-based drivers).
+- IO pin changes
+- Task stack & priority changes (for RTOS-based drivers)
 
 These can be achieved through class inheritance and by updating properties
 in the constructor.
 
 Additionally, you are not forced to use built-in drivers. You can clone them to
-modify as needed or even create a new one to support different hardware or RTOS.
+modify as needed or even create new ones to support different hardware or RTOS.
 
 ### Device Policy Manager
 
-The USB PD specification does not provide any information about DPM architecture.
-We provide a simple DPM, suitable for basic operation:
+The USB PD specification does not provide any information about DPM
+architecture. We provide a simple DPM, suitable for basic operation:
 
 - Automatic PD profile selection, based on desired voltage and current.
 
 You may wish to modify DPM for:
-
-- Advanced PD profile selection strategy.
-- Alert listening.
-- Controlling PD handshake status.
+- Advanced PD profile selection strategy
+- Alert listening
+- Controlling PD handshake status
 
 See `MsgToDpm_*` in [messages.h](../src/messages.h), examples, and the `DPM`
 class.
@@ -119,12 +118,36 @@ processing, do the following:
 
 ## Debugging
 
-If something goes wrong, the first step is to enable logging.
+If something goes wrong, the first step is to enable logging. See provided
+examples on how to do that.
 
-1. Try to use the provided examples, which already have logging functionality
-   implemented. If you can't use examples directly, copy-paste the appropriate
-   code into your project.
-2. Enable INFO level for all except PRL/driver (those can be noisy).
-3. If that is not sufficient, add logs for PRL.
-4. If the issue is still not clear, enable driver logs and optionally increase
-   the log level to DEBUG or VERBOSE.
+**PD logs**
+
+Start with enabling debug logs in all modules. Then reduce to the desired
+level/location.
+
+NOTE: EPR chargers (28v and above) can be noisy with full logs, due to EPR pings
+every 0.5 second. If it's not critical for you, use an SPR charger to reduce
+the noise.
+
+**ETL assert logs**
+
+This is usually not required, but can help if you develop a driver. They can
+show recursive (improper) FSM calls, for example.
+
+**Logger priority and stack size**
+
+This library uses `jetlog`, specially optimized for fast writes from any
+context, including interrupts. Log reading and output to console happen in a
+background thread, to avoid blocking of important tasks.
+
+In very specific cases, if you suspect a PD thread crash that blocks low
+priority tasks, increase logger priority to the same as PD priority. This will
+cause the log reader to continue doing its job and show you all log buffer
+content before the crash happened.
+
+You are recommended to set the log writer record size to 256 bytes, and have
+512 extra stack size in all places where the log writer is invoked. The log
+buffer is circular, and 10K is usually a good choice to see enough of the last
+messages. These recommendations are not strict, just a starting point. Adjust
+for your project if needed.
