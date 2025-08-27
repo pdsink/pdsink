@@ -80,15 +80,15 @@ public:
     static constexpr auto Self_Transition = afsm::Self_Transition;
     static constexpr auto Uninitialized = afsm::Uninitialized;
 
-    static state_id_t on_enter_state(FSMType& fsm) {
+    static state_id_t _afsm_on_enter_state(FSMType& fsm) {
         return Derived::on_enter_state(fsm);
     }
 
-    static state_id_t on_run_state(FSMType& fsm) {
+    static state_id_t _afsm_on_run_state(FSMType& fsm) {
         return Derived::on_run_state(fsm);
     }
 
-    static void on_exit_state(FSMType& fsm) {
+    static void _afsm_on_exit_state(FSMType& fsm) {
         Derived::on_exit_state(fsm);
     }
 };
@@ -118,17 +118,17 @@ public:
                   "All elements must have the same FSMType");
 
     static const on_enter_fn* get_enter_table() {
-        static const on_enter_fn table[element_count] = { &Elements::on_enter_state... };
+        static const on_enter_fn table[element_count] = { &Elements::_afsm_on_enter_state... };
         return table;
     }
 
     static const on_run_fn* get_run_table() {
-        static const on_run_fn table[element_count] = { &Elements::on_run_state... };
+        static const on_run_fn table[element_count] = { &Elements::_afsm_on_run_state... };
         return table;
     }
 
     static const on_exit_fn* get_exit_table() {
-        static const on_exit_fn table[element_count] = { &Elements::on_exit_state... };
+        static const on_exit_fn table[element_count] = { &Elements::_afsm_on_exit_state... };
         return table;
     }
 

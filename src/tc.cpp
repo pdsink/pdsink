@@ -143,7 +143,7 @@ public:
         return No_State_Change;
     }
 
-    static void on_exit_state(TC& tc) {}
+    static void on_exit_state(TC&) {}
 };
 
 using TC_STATES = afsm::state_pack<
