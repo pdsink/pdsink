@@ -95,7 +95,7 @@ public:
     bool is_prl_running();
     bool is_prl_busy();
 
-    uint8_t max_retries() { return revision > PD_REVISION::REV20 ? 2 : 3; }
+    uint8_t max_retries() { return revision > PD_REVISION::REV20 ? nRetryCount : nRetryCount_REV20; }
 };
 
 } // namespace pd

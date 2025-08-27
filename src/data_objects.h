@@ -20,6 +20,8 @@ constexpr int MaxPdoObjects_SPR = 7; // 7 for SPR mode.
 constexpr int MaxUnchunkedMsgLen = 28;
 
 constexpr int nHardResetCount = 2;
+constexpr int nRetryCount = 2;
+constexpr int nRetryCount_REV20 = 3;
 
 using PDO_LIST = etl::vector<uint32_t, MaxPdoObjects>;
 

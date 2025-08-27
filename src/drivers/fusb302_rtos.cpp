@@ -97,9 +97,6 @@ bool Fusb302Rtos::fusb_setup() {
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
     DRV_LOGI("Read initial VBUSOK: {}", vbus_ok.load());
 
-    // TODO: Retries are in PRL now, consider use here.
-    DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(0));
-
     DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
@@ -253,6 +250,8 @@ void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
     if (port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
         DRV_LOGI("TX end, status: {}", static_cast<int>(status));
         has_deferred_wakeup = true;
+    } else {
+        DRV_LOGI("TX end failed: TCPC status changed from outside to {}", static_cast<int>(expected));
     }
 }
 
@@ -260,6 +259,14 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
     DRV_LOGI("TX begin");
+
+    // Auto-retries MUST be used to get interrupts about completion. Without
+    // auto-retries we can't know when TX is done.
+    //
+    // NOTE: Spec says, retries should NOT be used for unchunked extended
+    // messages and cable plug messages. Since we not support those, just
+    // set SOP retries count according to negotiated protocol revision.
+    DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(port.max_retries()));
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
@@ -448,6 +455,7 @@ void Fusb302Rtos::handle_interrupt() {
             DRV_LOG_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
             DRV_LOG_ON_ERROR(hr_cleanup());
             port.notify_prl(MsgToPrl_TcpcHardReset{});
+            has_deferred_wakeup = true;
         }
 
         if (interrupta.I_HARDSENT) {
