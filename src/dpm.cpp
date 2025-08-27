@@ -63,6 +63,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     set_snk_pdo_limits(pdo5.raw_value, PDO_LIMITS().set_mv(20000).set_ma(5000));
     sink_pdo_list.push_back(pdo5.raw_value);
 
+    // Before rev3.2 min PPS voltage was 3.3v, then updated to 5v.
     SNK_PDO_SPR_PPS pdo6{create_pdo_type_bits(SRCSNK_PDO_ID::SPR_PPS)};
     set_snk_pdo_limits(pdo6.raw_value,
         PDO_LIMITS().set_mv_min(5000).set_mv_max(11000).set_ma(3000));
@@ -70,7 +71,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 
     SNK_PDO_SPR_PPS pdo7{create_pdo_type_bits(SRCSNK_PDO_ID::SPR_PPS)};
     set_snk_pdo_limits(pdo7.raw_value,
-        PDO_LIMITS().set_mv_min(3300).set_mv_max(21000).set_ma(5000));
+        PDO_LIMITS().set_mv_min(5000).set_mv_max(21000).set_ma(5000));
     sink_pdo_list.push_back(pdo7.raw_value);
 
     //
@@ -107,7 +108,7 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
     rdo_bits.epr_capable = 1;
     // Unchunked ext messages (long transfers) NOT supported (and not needed,
     // because chunking is enough).
-    // Don't try to set this bit, it will fuckup everything!
+    // DON'T try to set this bit, it will fuckup everything!
     rdo_bits.unchunked_ext_msg_supported = 0;
     rdo_bits.no_usb_suspend = 1;
     rdo_bits.usb_comm_capable = has_usb_comm() ? 1 : 0;

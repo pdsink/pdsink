@@ -55,7 +55,7 @@ modify as needed or even create new ones to support different hardware or RTOS.
 
 ### Device Policy Manager
 
-The USB PD specification does not provide any information about DPM
+The USB PD specification does not provide any information about the DPM
 architecture. We provide a simple DPM, suitable for basic operation:
 
 - Automatic PD profile selection, based on desired voltage and current.
@@ -149,5 +149,12 @@ content before the crash happened.
 You are recommended to set the log writer record size to 256 bytes, and have
 512 extra stack size in all places where the log writer is invoked. The log
 buffer is circular, and 10K is usually a good choice to see enough of the last
-messages. These recommendations are not strict, just a starting point. Adjust
+messages.
+
+For the log reader, it's worth setting the message buffer to 256 bytes. If
+batching is implemented, use a batch size of 1-4K. Batching is useful if you
+have burst writes. Sending fewer big blocks via USB VCOM is much faster than
+many small ones.
+
+These recommendations are not strict, just a starting point. Adjust
 for your project if needed.
