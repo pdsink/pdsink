@@ -14,9 +14,6 @@ static constexpr state_id_t No_State_Change = etl::ifsm_state::No_State_Change;
 static constexpr state_id_t Self_Transition = etl::ifsm_state::Self_Transition;
 static constexpr state_id_t Uninitialized = etl::integral_limits<etl::fsm_state_id_t>::max;
 
-#define AFSM_STR_(x) #x
-#define AFSM_STR(x)  AFSM_STR_(x)
-
 namespace details {
     template<typename...>
     struct first_type;
@@ -330,7 +327,7 @@ public:
             struct run_recursion_err : etl::exception {
                 run_recursion_err(string_type file, numeric_type line)
                     : exception(ETL_ERROR_TEXT(
-                        "run() recursive call in " AFSM_STR(FSMImpl), "EFSM"),
+                        ".run() recursive call in afsm", "Eafsm"),
                         file, line) {}
             };
 
@@ -356,7 +353,7 @@ public:
             struct change_state_recursion_err : etl::exception {
                 change_state_recursion_err(string_type file, numeric_type line)
                     : exception(ETL_ERROR_TEXT(
-                        "change_state() recursive call in " AFSM_STR(FSMImpl), "EFSM"),
+                        ".change_state() recursive call in afsm", "Eafsm"),
                         file, line) {}
             };
 
