@@ -85,6 +85,8 @@ public:
     void setup();
     void init(bool from_hr_fsm = false);
     void request_wakeup() { has_deferred_wakeup_request = true; };
+    // notify + deferred wakeup
+    void report_pe(const etl::imessage& msg);
 
     void reset_msg_counters();
     void reset_revision();

@@ -209,8 +209,7 @@ public:
     static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         rch.log_state();
 
-        rch.prl.port.notify_pe(MsgToPe_PrlMessageReceived{});
-        rch.prl.request_wakeup();
+        rch.prl.report_pe(MsgToPe_PrlMessageReceived{});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
@@ -367,12 +366,10 @@ public:
         if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
             port.rx_emsg = port.rx_chunk;
             port.rx_emsg.resize_by_data_obj_count();
-            port.notify_pe(MsgToPe_PrlMessageReceived{});
-            rch.prl.request_wakeup();
+            rch.prl.report_pe(MsgToPe_PrlMessageReceived{});
         }
 
-        port.notify_pe(MsgToPe_PrlReportError{port.rch_error});
-        rch.prl.request_wakeup();
+        rch.prl.report_pe(MsgToPe_PrlReportError{port.rch_error});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
@@ -415,8 +412,7 @@ public:
                 // In context of RCH/TCH transparency for PE, this behaviour looks
                 // more consistent than error reporting (the same as discarding TX by RX).
                 //
-                port.notify_pe(MsgToPe_PrlReportDiscard{});
-                tch.prl.request_wakeup();
+                tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
                 return No_State_Change;
             }
 
@@ -498,8 +494,7 @@ public:
         auto& port = tch.prl.port;
         tch.log_state();
 
-        port.notify_pe(MsgToPe_PrlMessageSent{});
-        tch.prl.request_wakeup();
+        tch.prl.report_pe(MsgToPe_PrlMessageSent{});
 
         // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
         // Any Message Received and not in state TCH_Wait_Chunk_Request
@@ -602,8 +597,7 @@ public:
         // requesting sequence). For second case - report discard.
         // Duplicated discard reporting is not a problem (those are merged)
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            tch.prl.request_wakeup();
+            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
@@ -656,8 +650,7 @@ public:
             // TODO: It's not clear why error/discard is not reported
             // when chunked sending was interrupted instead of consuming next
             // chunks. Let's add discard for sure.
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            tch.prl.request_wakeup();
+            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
@@ -686,8 +679,7 @@ public:
 
         // Drop incoming TCH request from PE if any
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            tch.prl.request_wakeup();
+            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
         }
 
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
@@ -703,8 +695,7 @@ public:
         auto& port = tch.prl.port;
         tch.log_state();
 
-        port.notify_pe(MsgToPe_PrlReportError{port.tch_error});
-        tch.prl.request_wakeup();
+        tch.prl.report_pe(MsgToPe_PrlReportError{port.tch_error});
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
@@ -991,8 +982,7 @@ public:
             is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
         {
             port.tx_msg_id_counter++;
-            port.notify_pe(MsgToPe_PrlReportDiscard{});
-            prl_tx.prl.request_wakeup();
+            prl_tx.prl.report_pe(MsgToPe_PrlReportDiscard{});
         }
         return PRL_Tx_PHY_Layer_Reset;
     }
@@ -1127,8 +1117,7 @@ public:
         prl.prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine, true);
         prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
 
-        port.notify_pe(MsgToPe_PrlSoftResetFromPartner{});
-        prl.request_wakeup();
+        prl.report_pe(MsgToPe_PrlSoftResetFromPartner{});
         return PRL_Rx_Send_GoodCRC;
     }
 
@@ -1287,8 +1276,7 @@ public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
-        hr.prl.port.notify_pe(MsgToPe_PrlHardResetFromPartner{});
-        hr.prl.request_wakeup();
+        hr.prl.report_pe(MsgToPe_PrlHardResetFromPartner{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
@@ -1351,8 +1339,7 @@ public:
         auto& port = hr.prl.port;
         hr.log_state();
 
-        port.notify_pe(MsgToPe_PrlHardResetSent{});
-        hr.prl.request_wakeup();
+        hr.prl.report_pe(MsgToPe_PrlHardResetSent{});
         return PRL_HR_Wait_for_PE_Hard_Reset_Complete;
     }
 
@@ -1448,6 +1435,11 @@ void PRL::init(bool from_hr_fsm) {
     request_wakeup();
 
     PRL_LOGI("PRL init end");
+}
+
+void PRL::report_pe(const etl::imessage& msg) {
+    port.notify_pe(msg);
+    request_wakeup();
 }
 
 void PRL::reset_msg_counters() {
