@@ -117,6 +117,9 @@ bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
         if (limits.pdp == 0) { return true; }
         // Calculate implied current from PDP and voltage
         auto implied_ma = (limits.pdp * 1000u) / mv;
+        // Clamp max possible current to global PD limit
+        if (implied_ma > 5000) { implied_ma = 5000; }
+
         return implied_ma >= ma;
     }
 
