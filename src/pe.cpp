@@ -716,7 +716,7 @@ public:
         pe.log_state();
 
         if (port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
-            port.hard_reset_counter > nHardResetCount)
+            port.hard_reset_counter >= nHardResetCount)
         {
             return PE_Src_Disabled;
         }
@@ -1182,7 +1182,7 @@ public:
 
     static state_id_t on_run_state(PE&) { return No_State_Change; }
     static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
     }
 };
 
