@@ -1172,12 +1172,18 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
+        // Don't leave state on error. Only allow exit via Hard Reset from
+        // partner, if cable stays connected.
+        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+
         pe.port.notify_dpm(MsgToDpm_SrcDisabled());
         return No_State_Change;
     }
 
     static state_id_t on_run_state(PE&) { return No_State_Change; }
-    static void on_exit_state(PE&) {}
+    static void on_exit_state(PE& pe) {
+        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+    }
 };
 
 
@@ -1472,6 +1478,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
 
 void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
     if (pe.is_uninitialized()) { return; }
+    if (pe.get_state_id() == PE_Src_Disabled) { return; }
     pe.change_state(PE_SNK_Soft_Reset);
 }
 
