@@ -1442,7 +1442,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     // optional resource free in `on_exit()`, when some are shared between state.
     //
     // Since only 2 target states possible, ensure both
-    // clear this flag in `on_enter()`.
+    // clear this flag in `on_exit()`.
     port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
 
     if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
