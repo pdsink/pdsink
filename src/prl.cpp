@@ -42,7 +42,9 @@ namespace {
 enum PRL_TCH_State {
     TCH_Wait_For_Message_Request_From_Policy_Engine,
     TCH_Pass_Down_Message,
-    TCH_Wait_For_Transmision_Complete,
+    // NOTE: rev3.2 spec has obvious typo, naming it as
+    // TCH_Wait_For_Transmision_Complete (with single 's')
+    TCH_Wait_For_Transmission_Complete,
     TCH_Message_Sent,
     TCH_Prepare_To_Send_Chunked_Message,
     TCH_Construct_Chunked_Message,
@@ -57,7 +59,7 @@ namespace {
         switch (state) {
             case TCH_Wait_For_Message_Request_From_Policy_Engine: return "TCH_Wait_For_Message_Request_From_Policy_Engine";
             case TCH_Pass_Down_Message: return "TCH_Pass_Down_Message";
-            case TCH_Wait_For_Transmision_Complete: return "TCH_Wait_For_Transmision_Complete";
+            case TCH_Wait_For_Transmission_Complete: return "TCH_Wait_For_Transmission_Complete";
             case TCH_Message_Sent: return "TCH_Message_Sent";
             case TCH_Prepare_To_Send_Chunked_Message: return "TCH_Prepare_To_Send_Chunked_Message";
             case TCH_Construct_Chunked_Message: return "TCH_Construct_Chunked_Message";
@@ -438,14 +440,14 @@ public:
         port.tx_chunk.header.data_obj_count = port.tx_emsg.size_to_pdo_count();
 
         tch.prl.prl_tx_enquire_chunk();
-        return TCH_Wait_For_Transmision_Complete;
+        return TCH_Wait_For_Transmission_Complete;
     }
 
     static auto on_run_state(PRL_TCH&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_TCH&) {}
 };
 
-class TCH_Wait_For_Transmision_Complete_State : public afsm::state<PRL_TCH, TCH_Wait_For_Transmision_Complete_State, TCH_Wait_For_Transmision_Complete> {
+class TCH_Wait_For_Transmission_Complete_State : public afsm::state<PRL_TCH, TCH_Wait_For_Transmission_Complete_State, TCH_Wait_For_Transmission_Complete> {
 public:
     static auto on_enter_state(PRL_TCH& tch) -> state_id_t {
         tch.log_state();
@@ -568,7 +570,7 @@ public:
             return TCH_Report_Error;
         }
 
-        // The same approach as in TCH_Wait_For_Transmision_Complete_State
+        // The same approach as in TCH_Wait_For_Transmission_Complete_State
         // If transfer completed, but PRL_TX not yet executed before
         // TCH called - just allow it to happen.
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED &&
@@ -1497,7 +1499,7 @@ void PRL_RCH::log_state() const {
 using TCH_STATES = afsm::state_pack<
     TCH_Wait_For_Message_Request_From_Policy_Engine_State,
     TCH_Pass_Down_Message_State,
-    TCH_Wait_For_Transmision_Complete_State,
+    TCH_Wait_For_Transmission_Complete_State,
     TCH_Message_Sent_State,
     TCH_Prepare_To_Send_Chunked_Message_State,
     TCH_Construct_Chunked_Message_State,
