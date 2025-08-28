@@ -158,7 +158,7 @@ TC::TC(Port& port, ITCPC& tcpc)
     set_states<TC_STATES>();
 }
 
-void TC::log_state() {
+void TC::log_state() const {
     TC_LOGI("TC state => {}", tc_state_to_desc(get_state_id()));
 }
 

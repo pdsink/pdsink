@@ -33,7 +33,7 @@ public:
     TC(const TC&) = delete;
     TC& operator=(const TC&) = delete;
 
-    void log_state();
+    void log_state() const;
     void setup();
 
     Port& port;

@@ -55,8 +55,8 @@ public:
     PE(const PE&) = delete;
     PE& operator=(const PE&) = delete;
 
-    void log_state();
-    void log_source_caps();
+    void log_state() const;
+    void log_source_caps() const;
     void setup();
     void init();
     void request_wakeup() { has_deferred_wakeup_request = true; };

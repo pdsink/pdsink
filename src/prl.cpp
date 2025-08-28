@@ -1340,7 +1340,6 @@ public:
 class PRL_HR_PHY_Hard_Reset_Requested_State : public afsm::state<PRL_HR, PRL_HR_PHY_Hard_Reset_Requested_State, PRL_HR_PHY_Hard_Reset_Requested> {
 public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
-        auto& port = hr.prl.port;
         hr.log_state();
 
         hr.prl.report_pe(MsgToPe_PrlHardResetSent{});
@@ -1491,7 +1490,7 @@ PRL_RCH::PRL_RCH(PRL& prl) : prl{prl} {
     set_states<RCH_STATES>();
 };
 
-void PRL_RCH::log_state() {
+void PRL_RCH::log_state() const {
     PRL_LOGI("PRL_RCH state => {}", prl_rch_state_to_desc(get_state_id()));
 }
 
@@ -1512,7 +1511,7 @@ PRL_TCH::PRL_TCH(PRL& prl) : prl{prl} {
     set_states<TCH_STATES>();
 }
 
-void PRL_TCH::log_state() {
+void PRL_TCH::log_state() const {
     PRL_LOGI("PRL_TCH state => {}", prl_tch_state_to_desc(get_state_id()));
 }
 
@@ -1535,7 +1534,7 @@ PRL_Tx::PRL_Tx(PRL& prl) : prl{prl} {
     set_states<PRL_TX_STATES>();
 }
 
-void PRL_Tx::log_state() {
+void PRL_Tx::log_state() const {
     PRL_LOGI("PRL_Tx state => {}", prl_tx_state_to_desc(get_state_id()));
 }
 
@@ -1551,7 +1550,7 @@ PRL_Rx::PRL_Rx(PRL& prl) : prl{prl} {
     set_states<PRL_RX_STATES>();
 }
 
-void PRL_Rx::log_state() {
+void PRL_Rx::log_state() const {
     PRL_LOGI("PRL_Rx state => {}", prl_rx_state_to_desc(get_state_id()));
 }
 
@@ -1570,7 +1569,7 @@ PRL_HR::PRL_HR(PRL& prl) : prl{prl} {
     set_states<PRL_HR_STATES>();
 }
 
-void PRL_HR::log_state() {
+void PRL_HR::log_state() const {
     PRL_LOGI("PRL_HR state => {}", prl_hr_state_to_desc(get_state_id()));
 }
 

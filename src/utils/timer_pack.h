@@ -39,7 +39,7 @@ public:
         timers_changed.store(true);
     }
 
-    bool is_disabled(int timer_id) { return disabled.test(int(timer_id)); }
+    bool is_disabled(int timer_id) const { return disabled.test(int(timer_id)); }
 
     bool is_expired(int timer_id) {
         if (active.test(timer_id)) {
@@ -62,7 +62,7 @@ public:
 
     // May be used for precise timer management. If regular 1ms interrupts are
     // used, that's not needed.
-    int32_t get_next_expiration() {
+    int32_t get_next_expiration() const {
         constexpr int32_t MAX_EXPIRE = etl::numeric_limits<int32_t>::max();
 
         int32_t min = MAX_EXPIRE;
@@ -86,7 +86,7 @@ private:
 
     // After expiration, timer becomes deactivated, but not disabled, to
     // keep expire status.
-    bool is_inactive(int timer_id) {
+    bool is_inactive(int timer_id) const {
         return !active.test(timer_id) && !disabled.test(timer_id);
     }
 
@@ -97,7 +97,7 @@ private:
     }
 
     // Timestamps compare with care about overflow
-    int32_t time_diff(uint32_t expiration, uint32_t now) {
+    int32_t time_diff(uint32_t expiration, uint32_t now) const {
         return static_cast<int32_t>(expiration - now);
     }
 

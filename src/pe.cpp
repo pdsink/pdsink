@@ -1219,11 +1219,11 @@ PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
     set_states<PE_STATES>();
 }
 
-void PE::log_state() {
+void PE::log_state() const {
     PE_LOGI("PE state => {}", pe_state_to_desc(get_state_id()));
 }
 
-void PE::log_source_caps() {
+void PE::log_source_caps() const {
     using namespace dobj_utils;
 
     int caps_count = port.source_caps.size();
