@@ -525,40 +525,29 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::CC_ACTIVE_BEGIN:
-            if (polarity.load() == TCPC_POLARITY::NONE) {
-                DRV_LOGE("Can't measure active CC without polarity set");
-                meter_state = MeterState::CC_ACTIVE_END;
-                repeat = true;
-                break;
-            }
-
-            static constexpr uint32_t DEBOUNCE_PERIOD_MS = 5;
-
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
-            if (status0.ACTIVITY) {
-                meter_wait_until_ts = get_timestamp() + DEBOUNCE_PERIOD_MS;
-                meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
-                repeat = true;
-                break;
-            }
-
-            {
-                const auto cc_new = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
-                if (polarity.load() == TCPC_POLARITY::CC1) { cc1_value.store(cc_new); }
-                else { cc2_value.store(cc_new); }
-            }
-
-            meter_state = MeterState::CC_ACTIVE_END;
+            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
+            meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
             repeat = true;
             break;
 
         case MeterState::CC_ACTIVE_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
-            meter_state = MeterState::CC_ACTIVE_BEGIN;
-            repeat = true;
-            break;
 
-        case MeterState::CC_ACTIVE_END:
+            // Note, CC activity can make a noise, but since we are waiting
+            // SinkTxOK, false negatives are acceptable - those will only cause
+            // small transfer delay.
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+
+            if (polarity.load() == TCPC_POLARITY::NONE) {
+                DRV_LOGE("Can't measure active CC without polarity set");
+            } else {
+                if (polarity.load() == TCPC_POLARITY::CC1) {
+                    cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
+                } else {
+                    cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
+                }
+            }
+
             DRV_LOGV("Active CC measurement end");
             sync_active_cc.job_finish();
             meter_state = MeterState::IDLE;

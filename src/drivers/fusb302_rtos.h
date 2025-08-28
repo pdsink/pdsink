@@ -187,7 +187,6 @@ protected:
         IDLE,
         CC_ACTIVE_BEGIN,
         CC_ACTIVE_MEASURE_WAIT,
-        CC_ACTIVE_END,
         SCAN_CC_BEGIN,
         SCAN_CC1_MEASURE_WAIT,
         SCAN_CC2_MEASURE_WAIT,
