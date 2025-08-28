@@ -1107,15 +1107,19 @@ public:
         prl_rx.log_state();
 
         // Similar to init, but skip RX and (?) revision clear.
+        prl.prl_rch.change_state(afsm::Uninitialized);
+        prl.prl_tch.change_state(afsm::Uninitialized);
+        prl.prl_tx.change_state(afsm::Uninitialized);
+
         port.prl_tx_flags.clear_all();
         port.prl_rch_flags.clear_all();
         port.prl_tch_flags.clear_all();
 
         prl.reset_msg_counters();
 
-        prl.prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer, true);
-        prl.prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine, true);
-        prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
+        prl.prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
+        prl.prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
+        prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
 
         prl.report_pe(MsgToPe_PrlSoftResetFromPartner{});
         return PRL_Rx_Send_GoodCRC;
@@ -1412,11 +1416,16 @@ void PRL::init(bool from_hr_fsm) {
 
     // If init called from PRL_HR, don't interfere with HR fsm
     if (!from_hr_fsm) {
+        prl_hr.change_state(afsm::Uninitialized);
         port.prl_hr_flags.clear_all();
-        prl_hr.change_state(PRL_HR_IDLE, true);
+        prl_hr.change_state(PRL_HR_IDLE);
     }
 
-    // Reset vars before FSMs reset.
+    prl_rch.change_state(afsm::Uninitialized);
+    prl_tch.change_state(afsm::Uninitialized);
+    prl_rx.change_state(afsm::Uninitialized);
+    prl_tx.change_state(afsm::Uninitialized);
+
     port.prl_tx_flags.clear_all();
     port.prl_rch_flags.clear_all();
     port.prl_tch_flags.clear_all();
@@ -1426,11 +1435,11 @@ void PRL::init(bool from_hr_fsm) {
     reset_msg_counters();
     reset_revision();
 
-    prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer, true);
-    prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine, true);
-    prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message, true);
+    prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
+    prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
+    prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message);
     // Reset TX last, because it does driver call on init.
-    prl_tx.change_state(PRL_Tx_PHY_Layer_Reset, true);
+    prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
     // Ensure loop repeat to continue PE States, which wait for PRL run.
     request_wakeup();
 

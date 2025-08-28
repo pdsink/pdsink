@@ -1267,10 +1267,11 @@ void PE::setup() {
 }
 
 void PE::init() {
+    change_state(afsm::Uninitialized);
     port.pe_flags.clear_all();
     port.dpm_requests.clear_all();
-    change_state(PE_SNK_Startup, true);
     port.timers.stop_range(PD_TIMERS_RANGE::PE);
+    change_state(PE_SNK_Startup);
 }
 
 //
