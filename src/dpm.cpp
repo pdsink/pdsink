@@ -219,4 +219,12 @@ void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
     request_new_power_level();
 }
 
+void DPM::trigger_any(uint32_t mv, uint32_t ma) {
+    trigger_mv = mv;
+    trigger_ma = ma;
+    trigger_pdo_id = SRCSNK_PDO_ID::UNKNOWN;
+    trigger_any_pdo = true;
+    request_new_power_level();
+}
+
 } // namespace pd

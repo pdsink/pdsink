@@ -47,13 +47,18 @@ public:
     virtual PDO_LIST get_sink_pdo_list() override;
 
     // Required by spec to enter EPR mode (no ideas why)
-    virtual uint32_t get_epr_watts() override { return 140; }
+    virtual uint32_t get_epr_watts() override { return epr_watts; }
 
     //
     // Sugar methods for simple mode select. You are not forced to use those.
+    // If current not set - use max available from profile. For EPR AVS, where
+    // current not available in profile directly, use watts instead, to
+    // calculate (and clamp to 5A if above).
     //
     void trigger_fixed(uint32_t mv, uint32_t ma = 0);
     void trigger_spr_pps(uint32_t mv, uint32_t ma);
+    // Scans all available profiles, and use the first suitable.
+    void trigger_any(uint32_t mv, uint32_t ma = 0);
 
 protected:
     Port& port;
@@ -63,6 +68,9 @@ protected:
 
     dobj_utils::SRCSNK_PDO_ID trigger_pdo_id{dobj_utils::SRCSNK_PDO_ID::UNKNOWN};
     bool trigger_any_pdo{false}; // try to use any suitable PDO type
+
+    // Basic value for source with EPR. Update for your needs.
+    uint32_t epr_watts{140};
 
     // SNK PDOs cache, to build only once
     PDO_LIST sink_pdo_list;

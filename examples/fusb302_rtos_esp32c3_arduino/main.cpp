@@ -41,7 +41,7 @@ void setup() {
     // Activate PD stack
     task.start(tc, dpm, pe, prl, driver);
     // Preset desired voltage
-    dpm.trigger_fixed(12000);
+    dpm.trigger_any(12000);
 
     etl::error_handler::set_callback<etl_error_log>();
 
