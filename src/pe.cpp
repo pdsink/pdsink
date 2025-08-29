@@ -117,7 +117,9 @@ public:
 
 class PE_SNK_Discovery_State : public afsm::state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
-    static auto on_enter_state(PE&) -> state_id_t {
+    static auto on_enter_state(PE& pe) -> state_id_t {
+        pe.log_state();
+
         // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
         // be stable at this moment, so there is no need to wait.
         return PE_SNK_Wait_for_Capabilities;
@@ -175,7 +177,7 @@ public:
 
         port.hard_reset_counter = 0;
         port.revision = static_cast<PD_REVISION::Type>(
-            etl::min(static_cast<uint16_t>(PD_REVISION::REV30), port.rx_emsg.header.spec_revision));
+            etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
 
         port.source_caps.clear();
         for (int i = 0; i < port.rx_emsg.size_to_pdo_count(); i++) {
@@ -1276,6 +1278,7 @@ void PE::init() {
     change_state(afsm::Uninitialized);
     port.pe_flags.clear_all();
     port.dpm_requests.clear_all();
+    port.revision = MaxSupportedRevision;
     port.timers.stop_range(PD_TIMERS_RANGE::PE);
     change_state(PE_SNK_Startup);
 }

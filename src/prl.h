@@ -83,13 +83,12 @@ public:
     PRL& operator=(const PRL&) = delete;
 
     void setup();
-    void init(bool from_hr_fsm = false);
+    void init();
     void request_wakeup() { has_deferred_wakeup_request = true; };
     // notify + deferred wakeup
     void report_pe(const etl::imessage& msg);
 
     void reset_msg_counters();
-    void reset_revision();
 
     // Mark TX chunk for sending (+ cleanup status flags from prev operations)
     void prl_tx_enquire_chunk();

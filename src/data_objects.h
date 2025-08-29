@@ -23,6 +23,17 @@ constexpr int nHardResetCount = 2;
 constexpr int nRetryCount = 2;
 constexpr int nRetryCount_REV20 = 3;
 
+namespace PD_REVISION {
+    enum Type {
+        REV10 = 0,
+        REV20 = 1,
+        REV30 = 2
+    };
+}; // namespace PD_REVISION
+
+// NOTE: redefine if implement option to build without full PRL support.
+constexpr auto MaxSupportedRevision = PD_REVISION::REV30;
+
 using PDO_LIST = etl::vector<uint32_t, MaxPdoObjects>;
 
 namespace PD_PACKET_TYPE {
@@ -152,14 +163,6 @@ union PD_EXT_HEADER {
     };
 };
 
-
-namespace PD_REVISION {
-    enum Type {
-        REV10 = 0,
-        REV20 = 1,
-        REV30 = 2
-    };
-}; // namespace PD_REVISION
 
 //
 // [rev3.2] 6.4.1.1 Power Data Objects

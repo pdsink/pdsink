@@ -1227,6 +1227,8 @@ class PRL_HR_IDLE_State : public afsm::state<PRL_HR, PRL_HR_IDLE_State, PRL_HR_I
 public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
+
+        hr.prl.port.prl_hr_flags.clear_all();
         return No_State_Change;
     }
 
@@ -1251,9 +1253,7 @@ public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
-        // First, we don't "reset" anything in this state, because PRL_TX fsm
-        // reset will cause enabling RX back. Until PRL_HR returns to initial
-        // state, events are not processed, and that looks safe.
+        hr.prl.port.revision = MaxSupportedRevision;
 
         // Start with RX path disable (and FIFO clear).
         hr.prl.tcpc.req_rx_enable(false);
@@ -1326,11 +1326,22 @@ public:
 
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& port = hr.prl.port;
-        if ((port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
-            port.timers.is_expired(PD_TIMEOUT::tHardResetComplete))
+        auto status = port.tcpc_tx_status.load();
+
+        if ((status == TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
+            (status == TCPC_TRANSMIT_STATUS::FAILED))
         {
+            if (status == TCPC_TRANSMIT_STATUS::FAILED) {
+                PRL_LOGE("Hard Reset sending failed");
+            }
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
+
+        if (port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
+            PRL_LOGE("Hard Reset sending timed out");
+            return PRL_HR_PHY_Hard_Reset_Requested;
+        }
+
         return No_State_Change;
     }
 
@@ -1384,8 +1395,6 @@ public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
-        hr.prl.init(true);
-        hr.prl.port.prl_hr_flags.clear_all();
         return PRL_HR_IDLE;
     }
 
@@ -1412,15 +1421,12 @@ void PRL::setup() {
     port.prl_rtr = &prl_event_listener;
 }
 
-void PRL::init(bool from_hr_fsm) {
-    PRL_LOGI("PRL init begin [with prl_hr = {}]", from_hr_fsm ? "YES" : "NO");
+void PRL::init() {
+    PRL_LOGI("PRL init begin");
 
-    // If init called from PRL_HR, don't interfere with HR fsm
-    if (!from_hr_fsm) {
-        prl_hr.change_state(afsm::Uninitialized);
-        port.prl_hr_flags.clear_all();
-        prl_hr.change_state(PRL_HR_IDLE);
-    }
+    prl_hr.change_state(afsm::Uninitialized);
+    port.prl_hr_flags.clear_all();
+    prl_hr.change_state(PRL_HR_IDLE);
 
     prl_rch.change_state(afsm::Uninitialized);
     prl_tch.change_state(afsm::Uninitialized);
@@ -1433,8 +1439,10 @@ void PRL::init(bool from_hr_fsm) {
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
     port.timers.stop_range(PD_TIMERS_RANGE::PRL);
+
+    // NOTE: negotiated revision stays intact. It's cleared via PE init and
+    // hard reset.
     reset_msg_counters();
-    reset_revision();
 
     prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
     prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
@@ -1455,10 +1463,6 @@ void PRL::report_pe(const etl::imessage& msg) {
 void PRL::reset_msg_counters() {
     port.rx_msg_id_stored = -1;
     port.tx_msg_id_counter = 0;
-}
-
-void PRL::reset_revision() {
-    port.revision = PD_REVISION::REV30;
 }
 
 void PRL::prl_tx_enquire_chunk() {
