@@ -39,7 +39,7 @@ public:
     Port& port;
     ITCPC& tcpc;
 
-    // Internal vars, used from states classes
+    // Internal variables, used from state classes
     TCPC_CC_LEVEL::Type prev_cc1{TCPC_CC_LEVEL::NONE};
     TCPC_CC_LEVEL::Type prev_cc2{TCPC_CC_LEVEL::NONE};
 

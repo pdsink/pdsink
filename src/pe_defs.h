@@ -29,7 +29,7 @@ enum class PE_FLAG {
     AMS_FIRST_MSG_SENT,
     EPR_AUTO_ENTER_DISABLED,
 
-    // Minor flags to control local behaviour in states
+    // Minor flags to control local behavior in states
     WAIT_DPM_TRANSIT_TO_DEFAULT,
     PRL_HARD_RESET_PENDING,
     HR_BY_CAPS_TIMEOUT,

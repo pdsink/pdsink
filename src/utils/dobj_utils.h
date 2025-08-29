@@ -61,7 +61,7 @@ inline void set_rdo_limits_pps(uint32_t& rdo, uint32_t mv, uint32_t ma) {
 
 inline void set_rdo_limits_avs(uint32_t& rdo, uint32_t mv, uint32_t ma) {
     RDO_AVS rdo_bits{rdo};
-    // Spec says step is 25 mv but least 2 bits to be zero
+    // The spec says the step is 25 mV, but the two least significant bits must be zero
     rdo_bits.output_voltage = (mv / 100u) << 2;
     rdo_bits.operating_current = ma / 50u;
     rdo = rdo_bits.raw_value;

@@ -1420,9 +1420,9 @@ void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived&) {
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
-    PE_LOGD("Message transfered (PRL notification to PE)");
+    PE_LOGD("Message transferred (PRL notification to PE)");
 
-    // Any successful sent inside AMS means first message was sent
+    // Any successful send inside AMS means the first message was sent
     if (pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
         pe.port.pe_flags.set(PE_FLAG::AMS_FIRST_MSG_SENT);
     }
@@ -1433,7 +1433,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
 //
 // 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
 //
-// NOTE: May need care; the spec is not clear
+// NOTE: Needs attention; the specification is unclear here
 //
 void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto& port = pe.port;
@@ -1463,7 +1463,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
         !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
     {
-        // Discard is not possible without an RX msg, but let's check to be sure.
+        // Discard is not possible without an RX message, but let's check to be sure.
         if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
             port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
         }
@@ -1496,7 +1496,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
 }
 
 void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PE_LOGE("PE unknown message, ID: {}", msg.get_message_id());
+    PE_LOGE("PE unknown message, id: {}", msg.get_message_id());
 }
 
 } // namespace pd

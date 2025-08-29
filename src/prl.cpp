@@ -164,8 +164,8 @@ namespace {
 
 class RCH_Wait_For_Message_From_Protocol_Layer_State : public afsm::state<PRL_RCH, RCH_Wait_For_Message_From_Protocol_Layer_State, RCH_Wait_For_Message_From_Protocol_Layer> {
 public:
-    // Spec requires to clear extended message buffer (rx_emsg) on enter,
-    // but we do that on first chunk instead. Because buffer is shared with PE.
+    // The spec requires clearing the extended message buffer (rx_emsg) on enter,
+    // but we do that on the first chunk instead because the buffer is shared with PE.
     static auto on_enter_state(PRL_RCH& rch) -> state_id_t {
         rch.log_state();
         return No_State_Change;
@@ -182,15 +182,16 @@ public:
                 PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
                 if (ehdr.chunked) {
-                    // Spec says clear vars below in RCH_Processing_Extended_Message
-                    // on first chunk, but this place looks more obvious
+                    // The spec says to clear variables below in
+                    // RCH_Processing_Extended_Message
+                    // on the first chunk, but this place looks more obvious.
                     port.rch_chunk_number_expected = 0;
                     port.rx_emsg.clear();
                     port.rx_emsg.header = port.rx_chunk.header;
                     return RCH_Processing_Extended_Message;
                 }
 
-                // Unchunked ext messages are not supported
+                // Unchunked extended messages are not supported
                 port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
                 return RCH_Report_Error;
             }
@@ -263,7 +264,7 @@ public:
         auto& port = rch.prl.port;
         rch.log_state();
 
-        // Block PE timeout timer for multichunk responses, it should not fail
+        // Block PE timeout timer for multi-chunk responses; it should not fail
         port.timers.stop(PD_TIMEOUT::tSenderResponse);
 
         PD_HEADER hdr{0};
@@ -329,20 +330,20 @@ public:
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
-            // Spec requires to inform PE immediately about new message on
-            // wrong sequence, prior returning to
+            // The spec requires informing PE immediately about a new message on
+            // a wrong sequence, prior to returning to
             // RCH_Wait_For_Message_From_Protocol_Layer.
             // But we can safely land only unchunked messages this way.
 
-            // NOTE: if unchunked ext msg ever supported, filter here too.
+            // NOTE: if unchunked extended messages are ever supported, filter here too.
             if (port.rx_chunk.header.extended == 0) {
                 port.rch_error = PRL_ERROR::RCH_SEQUENCE_DISCARDED;
                 return RCH_Report_Error;
             }
 
-            // Now disable message forward in error reporter, and continue
-            // checks in next state. Everything not matched will be
-            // a pure error (without message forward).
+            // Now disable message forwarding in the error reporter and continue
+            // checks in the next state. Everything not matched will be
+            // a pure error (without message forwarding).
             port.prl_rch_flags.clear(RCH_FLAG::RX_ENQUEUED);
             return RCH_Processing_Extended_Message;
         }
@@ -401,18 +402,20 @@ public:
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             if (tch.prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) {
                 //
-                // This may happen, when
+                // This may happen when
                 // - PRL was NOT busy
                 // - PE started DPM request
                 // - Got message from partner and RCH started to process it
                 //
-                // Spec says, reaction depends on implementation of optional ABORT flag.
-                // Since absolutely no ideas how to use that ABORT flag in real world,
-                // it's not implemented. So, according to spec, we just discard
+                // The spec says the reaction depends on the implementation of
+                // the optional ABORT flag. Since there are no clear ideas on
+                // how to use that ABORT flag in the real world, it is not
+                // implemented. So, according to the spec, we just discard
                 // PE request and stay in the same state.
                 //
-                // In context of RCH/TCH transparency for PE, this behaviour looks
-                // more consistent than error reporting (the same as discarding TX by RX).
+                // In the context of RCH/TCH transparency for PE, this behavior
+                // looks more consistent than error reporting (the same as
+                // discarding TX by RX).
                 //
                 tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
                 return No_State_Change;
@@ -584,20 +587,21 @@ public:
             // Calculate max possible bytes sent, if all chunks are of max size
             uint32_t max_bytes = (port.tch_chunk_number_to_send + 1) * MaxExtendedMsgChunkLen;
 
-            // Reached msg size => last chunk sent. Land situation without error,
-            // even if new message received.
+            // Reached message size => last chunk sent. Handle the situation
+            // without error, even if a new message is received.
             if (max_bytes >= port.tx_emsg.data_size()) {
                 return TCH_Message_Sent;
             }
 
-            // Not last chunk and probably can have incoming message
+            // Not the last chunk and might have an incoming message
             return TCH_Wait_Chunk_Request;
         }
 
-        // Not completed, but has incoming msg instead => discard happened.
-        // on PRL_TX layer (most probable) OR at chunking layer (partner stopped
-        // requesting sequence). For second case - report discard.
-        // Duplicated discard reporting is not a problem (those are merged)
+        // Not completed, but has an incoming message instead => a discard
+        // happened on PRL_TX layer (most probable) OR at chunking layer
+        // (partner stopped requesting sequence). For second case - report
+        // discard. Duplicated discard reporting is not a problem (those are
+        // merged).
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
@@ -724,8 +728,9 @@ public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
-        // Technically, we should call set_rx_enable(true). But since call is
-        // async - postpone it for next state, to have vars init coordinated.
+        // Technically, we should call set_rx_enable(true). But since the call
+        // is asynchronous — postpone it to the next state to coordinate
+        // variable initialization.
         return PRL_Tx_Wait_for_Message_Request;
     }
 
@@ -758,7 +763,7 @@ public:
 
         if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
-        // For first AMS message need to wait SinkTxOK CC level
+        // For the first AMS message, we need to wait for the SinkTxOK CC level
         if (!port.is_ams_active()) {
             port.prl_tx_flags.clear(PRL_TX_FLAG::START_OF_AMS_DETECTED);
         } else {
@@ -788,7 +793,7 @@ public:
         auto& prl = prl_tx.prl;
         prl_tx.log_state();
 
-        // NOTE: Spec says to reset only `msg_id_counter` here, and reset
+        // NOTE: The spec says to reset only `msg_id_counter` here, and reset
         // `msg_id_stored` via RX state change. But etl::fsm does not re-run
         // `on_enter` if we come from current state to itself.
         // So, reset both here.
@@ -924,11 +929,11 @@ public:
         // - for Extended Message with data size > MaxExtendedMsgLegacyLen that
         //   has not been chunked
         //
-        // Since we are Sink-only, without unchunked ext msg support - no extra
-        // checks needed. Always use retries is supported by hardware.
+        // Since we are sink-only and do not support unchunked extended messages,
+        // no extra checks are needed. Always use retries if supported by hardware.
 
         if (prl_tx.prl.tcpc.get_hw_features().tx_auto_retry) {
-            // Don't try retransmit if supported by hardware.
+            // Don't try to retransmit if supported by hardware.
             return PRL_Tx_Transmission_Error;
         }
 
@@ -1197,8 +1202,8 @@ public:
 
         // Spec describes TCH doing chunking as
         // "Not in TCH_Wait_For_Message_Request_From_Policy_Engine state".
-        // But PE sending requests are not executed immediately, those just
-        // rise flag. So, having that flag set means "not waiting" too.
+        // But PE sending requests are not executed immediately; those just
+        // raise a flag. So, having that flag set means "not waiting" too.
         // Because TCH will leave waiting state on nearest call.
         if (port.prl_tch_flags.test(TCH_FLAG::MSG_FROM_PE_ENQUEUED) ||
             prl_rx.prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine)
@@ -1696,7 +1701,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {
 }
 
 void PRL_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    PRL_LOGE("PRL unknown message, id: {}", msg.get_message_id());
+    PRL_LOGE("PRL unknown message, ID: {}", msg.get_message_id());
 }
 
 } // namespace pd

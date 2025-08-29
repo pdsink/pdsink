@@ -15,22 +15,22 @@ USB PD stack usage <!-- omit in toc -->
 
 <img src="./images/intro2.jpg" width="40%">
 
-This document describes generic principles only. You are expected to explore the
+This document covers the basics. Check the
 [examples](../examples/) folder before getting started.
 
 ## Base
 
 ### pd_config.h
 
-You should create `pd_config.h` in a searchable path of your project. It will be
-loaded automatically to configure the library. As an alternative - you can set
+Create `pd_config.h` in a searchable path of your project. It will be
+loaded automatically to configure the library. Alternatively, you can set
 all variables via the `-D` option, but that's more tedious.
 
-The configuration is used for:
+Configuration controls:
 
-- Selecting built-in drivers
-- Providing log mapping and activating desired log levels in modules. See
-  examples and [pd_log.h](../src/pd_log.h) for available options.
+- Built-in driver selection
+- Log mapping and module log levels. See examples and
+  [pd_log.h](../src/pd_log.h) for available options.
 
 ### Built-in drivers
 
@@ -42,7 +42,7 @@ available options.
 
 ### Drivers
 
-The most frequent cases can be:
+The most common cases are:
 
 - IO pin changes
 - Task stack & priority changes (for RTOS-based drivers)
@@ -50,8 +50,8 @@ The most frequent cases can be:
 These can be achieved through class inheritance and by updating properties
 in the constructor.
 
-Additionally, you are not forced to use built-in drivers. You can clone them to
-modify as needed or even create new ones to support different hardware or RTOS.
+You don’t have to use the built-in drivers. You can clone and tweak them, or
+write your own to support different hardware or RTOS.
 
 ### Device Policy Manager
 
@@ -79,12 +79,12 @@ By default, logging is disabled. To use it:
 - Create a simple wrapper.
 - Set variables in config to enable desired levels and modules.
 
-Please refer to the examples for details.
+See the examples for details.
 
 ### Event loop
 
 See the `Task` class. By default, event propagation occurs immediately via a
-simple event loop with re-entrance protection. This should be suitable for both
+simple event loop with reentrancy protection. This should be suitable for both
 threaded and interrupt contexts.
 
 There are some general considerations:
@@ -100,7 +100,7 @@ section on how to implement such changes.
 If you use a driver with a built-in thread (FUSB302, for example), no extra care
 is required. The event loop already works in the driver's thread context.
 
-TBD: alternative drivers & RTOSes.
+More drivers/RTOSes can be added; contributions are welcome.
 
 #### Project without RTOS
 
@@ -126,8 +126,8 @@ examples on how to do that.
 Start with enabling debug logs in all modules. Then reduce to the desired
 level/location.
 
-NOTE: EPR chargers (28v and above) can be noisy with full logs, due to EPR pings
-every 0.5 second. If it's not critical for you, use an SPR charger to reduce
+NOTE: EPR chargers (28 V and above) can be noisy with full logs due to EPR pings
+every 0.5 s. If that’s not critical for you, use an SPR charger to reduce
 the noise.
 
 **ETL assert logs**
@@ -137,7 +137,7 @@ show recursive (improper) FSM calls, for example.
 
 **Logger priority and stack size**
 
-This library uses `jetlog`, specially optimized for fast writes from any
+This library uses `jetlog`, specifically optimized for fast writes from any
 context, including interrupts. Log reading and output to console happen in a
 background thread, to avoid blocking of important tasks.
 
@@ -146,15 +146,14 @@ priority tasks, increase logger priority to the same as PD priority. This will
 cause the log reader to continue doing its job and show you all log buffer
 content before the crash happened.
 
-You are recommended to set the log writer record size to 256 bytes, and have
-512 extra stack size in all places where the log writer is invoked. The log
-buffer is circular, and 10K is usually a good choice to see enough of the last
+Recommended: set the log-writer record size to 256 bytes, and have
+an extra 512 bytes of stack in all places where the log writer is invoked. The
+log buffer is circular; 10 KB is usually a good choice to keep enough recent
 messages.
 
-For the log reader, it's worth setting the message buffer to 256 bytes. If
-batching is implemented, use a batch size of 1-4K. Batching is useful if you
-have burst writes. Sending fewer big blocks via USB VCOM is much faster than
-many small ones.
+For the log reader, set the message buffer to 256 bytes. If batching is
+implemented, use a batch size of 1–4 KB. Batching helps with burst writes:
+sending fewer large blocks via USB VCOM is much faster than many small ones.
 
 These recommendations are not strict, just a starting point. Adjust
 for your project if needed.

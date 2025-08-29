@@ -172,7 +172,7 @@ void TC_EventListener::on_receive(const MsgSysUpdate&) {
 }
 
 void TC_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
-    TC_LOGE("TC unknown message, id: {}", msg.get_message_id());
+    TC_LOGE("TC unknown message, ID: {}", msg.get_message_id());
 }
 
 } // namespace pd

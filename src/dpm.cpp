@@ -106,8 +106,8 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
     RDO_ANY rdo_bits{rdo};
 
     rdo_bits.epr_capable = 1;
-    // Unchunked ext messages (long transfers) NOT supported (and not needed,
-    // because chunking is enough).
+    // Unchunked extended messages (long transfers) are NOT supported (and not
+    // needed, because chunking is enough).
     // DON'T try to set this bit, it will fuckup everything!
     rdo_bits.unchunked_ext_msg_supported = 0;
     rdo_bits.no_usb_suspend = 1;

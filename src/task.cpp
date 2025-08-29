@@ -29,7 +29,7 @@ void Task::loop() {
         // for manual loop polling.
         if (e_group) {
             if (e_group & Task::EVENT_TIMER_MSK) {
-                // Timers don't interract with system directly. We update
+                // Timers don't interact with the system directly. We update
                 // internal timestamp value in 2 cases:
                 //
                 // - when timer event comes

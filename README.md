@@ -12,14 +12,14 @@ Features:
 - EPR modes (28 V and up).
 - No platform dependencies in the core.
 
-What is not supported:
+Not supported:
 
 - Source role (SRC).
 - DRP / DFP / FRS / Alt Modes.
 
 ## Usage
 
-See [docs](./docs) and [examples](./examples)
+See [docs](./docs) and [examples](./examples).
 
 ## References
 

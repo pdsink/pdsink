@@ -74,8 +74,8 @@ struct PD_TIMEOUT {
 
     // This should be 1.0ms, but if timer precision is 1ms only,
     // we use 2ms to be sure AT LEAST 1ms passed. Anyway, that's not critical,
-    // because all modern TCPC process GoodCRC in hardware. Probably we should
-    // remove that logic at all, when drivers architecture become more clear.
+    // because modern TCPCs process GoodCRC in hardware. We should probably
+    // remove this logic entirely when the drivers architecture is clearer.
     // #if PD_TIMER_RESOLUTION_US != 0
     //     static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms_mult}; // 0.9-1.1 ms
     // #else

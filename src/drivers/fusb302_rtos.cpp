@@ -239,7 +239,7 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 }
 
 void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
-    // Ensure transmit was not re-called. In other case our info is outdated
+    // Ensure transmit was not invoked again; otherwise our info is outdated
     // and should be discarded.
     auto expected = TCPC_TRANSMIT_STATUS::SENDING;
     if (port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
@@ -258,16 +258,16 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     // Auto-retries MUST be used to get interrupts about completion. Without
     // auto-retries we can't know when TX is done.
     //
-    // NOTE: Spec says, retries should NOT be used for unchunked extended
-    // messages and cable plug messages. Since we not support those, just
+    // NOTE: The spec says retries should NOT be used for unchunked extended
+    // messages and cable plug messages. Since we do not support those, just
     // set SOP retries count according to negotiated protocol revision.
     DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(port.max_retries()));
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
     // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4]
-    // = 39. One extra byte may be used if HAL API uses first byte as
-    // i2c address (but current API takes it as separate parameter)
+    // = 39. One extra byte may be used if the HAL API uses the first byte as
+    // I2C address (but the current API takes it as a separate parameter)
     static_assert(decltype(fifo_buf)::MAX_SIZE >=
         4 + 1 + 2 + PD_CHUNK::MAX_SIZE + 4,
         "TX buffer too small to fit all possible data");
@@ -559,8 +559,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = 0;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
 
-            // Technically, 250uS is ok, but precise match would be platform-dependant
-            // and, probably, blocking. We rely on FreeRTOS ticks instead.
+            // Technically, 250 µs is OK, but a precise match would be platform-dependent
+            // and probably blocking. We rely on FreeRTOS ticks instead.
             // Minimal value is 1, and we add one more to guard against jitter.
             meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
             meter_state = MeterState::SCAN_CC1_MEASURE_WAIT;
@@ -664,7 +664,7 @@ void Fusb302Rtos::handle_tcpc_calls() {
     }
 
     if (sync_hr_send.get_job()) {
-        // Cleanup before send for sure (probably, not required)
+        // Clean up before sending just in case (probably not required)
         DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
         DRV_LOG_ON_ERROR(fusb_flush_tx_fifo());
         rx_queue.clear_from_producer();
