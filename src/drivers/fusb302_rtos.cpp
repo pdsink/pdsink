@@ -228,17 +228,12 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
 
     DRV_LOGI("Set RX enable {}", enable ? "ON" : "OFF");
 
-    if (rx_enabled == enable) {
-        // If no state change - only drop TX FIFO.
-        DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
-        return true; // No change
-    }
-
     DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
     rx_queue.clear_from_producer();
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(enable));
+
     rx_enabled = enable;
     return true;
 }
@@ -654,8 +649,24 @@ void Fusb302Rtos::handle_tcpc_calls() {
         has_deferred_wakeup = true;
     }
 
+    TCPC_BIST_MODE _bist_mode{};
+    if (sync_set_bist.get_job(_bist_mode)) {
+        DRV_LOG_ON_ERROR(fusb_set_bist(_bist_mode));
+        sync_set_bist.job_finish();
+        has_deferred_wakeup = true;
+    }
+
+    auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
+    if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
+        if (!fusb_tx_pkt_begin(enquired_tx_chunk)) {
+            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
+        }
+    }
+
     if (sync_hr_send.get_job()) {
-        // Cleanup before send (FIFOs are cleared automatically)
+        // Cleanup before send for sure (probably, not required)
+        DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
+        DRV_LOG_ON_ERROR(fusb_flush_tx_fifo());
         rx_queue.clear_from_producer();
 
         // Emulate transmit entry to get result as for ordinary chunk
@@ -669,20 +680,6 @@ void Fusb302Rtos::handle_tcpc_calls() {
         }
         sync_hr_send.job_finish();
         has_deferred_wakeup = true;
-    }
-
-    TCPC_BIST_MODE _bist_mode{};
-    if (sync_set_bist.get_job(_bist_mode)) {
-        DRV_LOG_ON_ERROR(fusb_set_bist(_bist_mode));
-        sync_set_bist.job_finish();
-        has_deferred_wakeup = true;
-    }
-
-    auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
-    if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
-        if (!fusb_tx_pkt_begin(enquired_tx_chunk)) {
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
-        }
     }
 }
 
