@@ -155,8 +155,8 @@ union Power {
 union Reset {
     uint8_t raw_value;
     struct {
-        uint8_t PD_RESET : 1;
         uint8_t SW_RES : 1;
+        uint8_t PD_RESET : 1;
         uint8_t : 6;
     };
     enum { addr = 0x0C };
