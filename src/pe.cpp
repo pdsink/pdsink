@@ -290,7 +290,7 @@ public:
                 }
 
                 if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    port.notify_dpm(MsgToDpm_NewPowerLevel(true));
+                    port.notify_dpm(MsgToDpm_NewPowerLevelAccepted{});
                 }
 
                 port.notify_dpm(MsgToDpm_SelectCapDone());
@@ -311,7 +311,7 @@ public:
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
                 if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
-                    port.notify_dpm(MsgToDpm_NewPowerLevel(false));
+                    port.notify_dpm(MsgToDpm_NewPowerLevelRejected{});
                 }
 
                 if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
@@ -363,6 +363,7 @@ public:
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::PS_RDY)) {
+                port.notify_dpm(MsgToDpm_SnkReady{});
                 return PE_SNK_Ready;
             }
             // Anything else - protocol error

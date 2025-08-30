@@ -35,13 +35,8 @@ void DPM_EventListener::on_receive(const pd::MsgToDpm_EPREntryFailed& msg) {
     DPM_LOGI("EPR entry failed, reason: 0x{:08X}, stay in SPR", msg.reason);
 }
 
-void DPM_EventListener::on_receive(const pd::MsgToDpm_NewPowerLevel& msg) {
-    // Result of new power level request
-    if (msg.ok) {
-        DPM_LOGI("New power level request succeeded");
-    } else {
-        DPM_LOGI("New power level request failed");
-    }
+void DPM_EventListener::on_receive(const pd::MsgToDpm_SnkReady& msg) {
+    DPM_LOGI("Sink ready");
 }
 
 void DPM_EventListener::on_receive(const pd::MsgToDpm_HandshakeDone& msg) {
@@ -50,6 +45,14 @@ void DPM_EventListener::on_receive(const pd::MsgToDpm_HandshakeDone& msg) {
     // - Upgraded to EPR mode if available
     // - From this moment we can change available PD profiles anyhow
     DPM_LOGI("Handshake done");
+}
+
+void DPM_EventListener::on_receive(const pd::MsgToDpm_NewPowerLevelRejected& msg) {
+    DPM_LOGI("New power level request rejected");
+}
+
+void DPM_EventListener::on_receive(const pd::MsgToDpm_NewPowerLevelAccepted& msg) {
+    DPM_LOGI("New power level request accepted");
 }
 
 void DPM_EventListener::on_receive_unknown(const etl::imessage& msg) {
