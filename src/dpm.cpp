@@ -30,7 +30,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     //
 
     // See [rev3.2] 6.4.1.3 Sink Power Data Objects
-    SNK_PDO_FIXED pdo1{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo1{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
 
     // PDO 1 is always vSafe5V, with extra flags to describe demands.
     // NOTE: These flags should be zero in following PDO-s
@@ -47,29 +47,29 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     //
     // Fill the rest SRP PDOs, 2...7
     //
-    SNK_PDO_FIXED pdo2{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo2{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo2.raw_value, PDO_LIMITS().set_mv(9000).set_ma(3000));
     sink_pdo_list.push_back(pdo2.raw_value);
 
-    SNK_PDO_FIXED pdo3{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo3{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo3.raw_value, PDO_LIMITS().set_mv(12000).set_ma(3000));
     sink_pdo_list.push_back(pdo3.raw_value);
 
-    SNK_PDO_FIXED pdo4{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo4{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo4.raw_value, PDO_LIMITS().set_mv(15000).set_ma(3000));
     sink_pdo_list.push_back(pdo4.raw_value);
 
-    SNK_PDO_FIXED pdo5{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo5{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo5.raw_value, PDO_LIMITS().set_mv(20000).set_ma(5000));
     sink_pdo_list.push_back(pdo5.raw_value);
 
     // Before rev3.2 min PPS voltage was 3.3v, then updated to 5v.
-    SNK_PDO_SPR_PPS pdo6{create_pdo_type_bits(PDO_VARIANT::APDO_PPS)};
+    SNK_PDO_SPR_PPS pdo6{create_pdo_variant_bits(PDO_VARIANT::APDO_PPS)};
     set_snk_pdo_limits(pdo6.raw_value,
         PDO_LIMITS().set_mv_min(5000).set_mv_max(11000).set_ma(3000));
     sink_pdo_list.push_back(pdo6.raw_value);
 
-    SNK_PDO_SPR_PPS pdo7{create_pdo_type_bits(PDO_VARIANT::APDO_PPS)};
+    SNK_PDO_SPR_PPS pdo7{create_pdo_variant_bits(PDO_VARIANT::APDO_PPS)};
     set_snk_pdo_limits(pdo7.raw_value,
         PDO_LIMITS().set_mv_min(5000).set_mv_max(21000).set_ma(5000));
     sink_pdo_list.push_back(pdo7.raw_value);
@@ -79,19 +79,19 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     // padded with zeros. EPR block can have up to 3 Fixed PDOs + 1 AVS.
     //
 
-    SNK_PDO_FIXED pdo8{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo8{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo8.raw_value, PDO_LIMITS().set_mv(28000).set_ma(5000));
     sink_pdo_list.push_back(pdo8.raw_value);
 
-    SNK_PDO_FIXED pdo9{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo9{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo9.raw_value, PDO_LIMITS().set_mv(36000).set_ma(5000));
     sink_pdo_list.push_back(pdo9.raw_value);
 
-    SNK_PDO_FIXED pdo10{create_pdo_type_bits(PDO_VARIANT::FIXED)};
+    SNK_PDO_FIXED pdo10{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo10.raw_value, PDO_LIMITS().set_mv(48000).set_ma(5000));
     sink_pdo_list.push_back(pdo10.raw_value);
 
-    SNK_PDO_EPR_AVS pdo11{create_pdo_type_bits(PDO_VARIANT::APDO_EPR_AVS)};
+    SNK_PDO_EPR_AVS pdo11{create_pdo_variant_bits(PDO_VARIANT::APDO_EPR_AVS)};
     set_snk_pdo_limits(pdo11.raw_value,
         PDO_LIMITS().set_mv_min(15000).set_mv_max(50000).set_pdp(get_epr_watts()));
     sink_pdo_list.push_back(pdo11.raw_value);
@@ -139,9 +139,9 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         // Skip padded positions
         if (pdo == 0) { continue; }
 
-        auto id = get_src_pdo_id(pdo);
+        auto id = get_src_pdo_variant(pdo);
         if (id == PDO_VARIANT::UNKNOWN) { continue; }
-        if (!trigger_any_pdo && id != trigger_pdo_id) { continue; }
+        if (!trigger_any_pdo && id != trigger_pdo_variant) { continue; }
 
         if (!match_limits(pdo, trigger_mv, trigger_ma)) { continue; }
 
@@ -206,7 +206,7 @@ void DPM::request_new_power_level() {
 void DPM::trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma) {
     trigger_mv = mv;
     trigger_ma = ma;
-    trigger_pdo_id = pdo_variant;
+    trigger_pdo_variant = pdo_variant;
     trigger_any_pdo = (pdo_variant == PDO_VARIANT::UNKNOWN);
 }
 

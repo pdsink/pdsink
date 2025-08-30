@@ -29,12 +29,12 @@ public:
     PDO_LIMITS& set_mv(uint32_t mv) { mv_min = mv; mv_max = mv; return *this; }
 };
 
-PDO_VARIANT get_src_pdo_id(uint32_t src_pdo);
+PDO_VARIANT get_src_pdo_variant(uint32_t src_pdo);
 
-inline PDO_VARIANT get_snk_pdo_id(uint32_t snk_pdo) {
+inline PDO_VARIANT get_snk_pdo_variant(uint32_t snk_pdo) {
     // WARNING: in spec rev3.2 v1.1, SNK BATTERY/VARIABLE IDs seem swapped
     // Be careful if decide to add support.
-    return get_src_pdo_id(snk_pdo);
+    return get_src_pdo_variant(snk_pdo);
 };
 
 PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo);
@@ -43,7 +43,7 @@ void set_snk_pdo_limits(uint32_t& snk_pdo, const PDO_LIMITS& limits);
 
 bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma);
 
-uint32_t create_pdo_type_bits(PDO_VARIANT id);
+uint32_t create_pdo_variant_bits(PDO_VARIANT id);
 
 inline void set_rdo_limits_fixed(uint32_t& rdo, uint32_t operating_ma, uint32_t max_ma) {
     RDO_FIXED rdo_bits{rdo};

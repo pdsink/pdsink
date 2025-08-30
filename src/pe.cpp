@@ -1240,7 +1240,7 @@ void PE::log_source_caps() const {
             continue;
         }
 
-        auto id = get_src_pdo_id(pdo);
+        auto id = get_src_pdo_variant(pdo);
 
         if (id == PDO_VARIANT::UNKNOWN) {
             PE_LOGI("  PDO[{}]: 0x{:08X} <UNKNOWN>", i+1, pdo);

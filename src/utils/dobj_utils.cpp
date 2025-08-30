@@ -3,7 +3,7 @@
 namespace pd {
 namespace dobj_utils {
 
-PDO_VARIANT get_src_pdo_id(uint32_t src_pdo) {
+PDO_VARIANT get_src_pdo_variant(uint32_t src_pdo) {
     PDO_EPR_AVS pdo{src_pdo}; // Use this type to just access high bits
     if (pdo.pdo_type == PDO_TYPE::FIXED) { return PDO_VARIANT::FIXED; }
     if (pdo.pdo_type == PDO_TYPE::AUGMENTED) {
@@ -16,16 +16,16 @@ PDO_VARIANT get_src_pdo_id(uint32_t src_pdo) {
 
 PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo) {
     PDO_LIMITS limits{};
-    auto pdo_type = get_src_pdo_id(src_pdo);
+    auto id = get_src_pdo_variant(src_pdo);
 
-    if (pdo_type == PDO_VARIANT::FIXED) {
+    if (id == PDO_VARIANT::FIXED) {
         const PDO_FIXED pdo{src_pdo};
         return limits
             .set_mv(pdo.voltage * 50u)
             .set_ma(pdo.max_current * 10u);
     }
 
-    if (pdo_type == PDO_VARIANT::APDO_PPS) {
+    if (id == PDO_VARIANT::APDO_PPS) {
         const PDO_SPR_PPS pdo{src_pdo};
         return limits
             .set_mv_min(pdo.min_voltage * 100u)
@@ -33,7 +33,7 @@ PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo) {
             .set_ma(pdo.max_current * 50u);
     }
 
-    if (pdo_type == PDO_VARIANT::APDO_SPR_AVS) {
+    if (id == PDO_VARIANT::APDO_SPR_AVS) {
         const PDO_SPR_AVS pdo{src_pdo};
         auto mv_max = 15000u; // 15V
         auto ma = pdo.max_current_15v * 10u;
@@ -47,7 +47,7 @@ PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo) {
             .set_ma(ma);
     }
 
-    if (pdo_type == PDO_VARIANT::APDO_EPR_AVS) {
+    if (id == PDO_VARIANT::APDO_EPR_AVS) {
         const PDO_EPR_AVS pdo{src_pdo};
         return limits
             .set_mv_min(pdo.min_voltage * 100u)
@@ -59,7 +59,7 @@ PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo) {
 }
 
 void set_snk_pdo_limits(uint32_t& snk_pdo, const PDO_LIMITS& limits) {
-    auto id = get_snk_pdo_id(snk_pdo);
+    auto id = get_snk_pdo_variant(snk_pdo);
     if (id == PDO_VARIANT::FIXED) {
         PDO_FIXED pdo{snk_pdo};
         pdo.voltage = limits.mv_min / 50u;
@@ -96,7 +96,7 @@ void set_snk_pdo_limits(uint32_t& snk_pdo, const PDO_LIMITS& limits) {
 }
 
 bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
-    auto id = get_src_pdo_id(pdo);
+    auto id = get_src_pdo_variant(pdo);
     if (id == PDO_VARIANT::UNKNOWN) { return false; }
 
     auto limits = get_src_pdo_limits(pdo);
@@ -126,7 +126,7 @@ bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
     return false;
 }
 
-uint32_t create_pdo_type_bits(PDO_VARIANT id) {
+uint32_t create_pdo_variant_bits(PDO_VARIANT id) {
     // WARNING: in spec rev3.2 v1.1, SNK BATTERY/VARIABLE IDs seem swapped
     // Be careful if decide to add support.
     PDO_SPR_PPS pdo{};

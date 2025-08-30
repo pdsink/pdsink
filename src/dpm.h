@@ -67,7 +67,7 @@ protected:
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};
 
-    dobj_utils::PDO_VARIANT trigger_pdo_id{dobj_utils::PDO_VARIANT::UNKNOWN};
+    dobj_utils::PDO_VARIANT trigger_pdo_variant{dobj_utils::PDO_VARIANT::UNKNOWN};
     bool trigger_any_pdo{false}; // try to use any suitable PDO type
 
     // Basic value for source with EPR. Update for your needs.
