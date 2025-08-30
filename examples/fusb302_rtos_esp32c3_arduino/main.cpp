@@ -44,7 +44,11 @@ void setup() {
     // Preset desired voltage
     dpm.trigger_any(12000);
 
+    // Register ETL error callback only when ETL error logging is enabled
+#ifdef ETL_LOG_ERRORS
     etl::error_handler::set_callback<etl_error_log>();
+#endif
+
     APP_LOGI("Setup complete");
 }
 
