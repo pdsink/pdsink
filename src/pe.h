@@ -84,6 +84,8 @@ public:
     PRL& prl;
     ITCPC& tcpc;
 
+    DPM_REQUEST_FLAG active_dpm_request{DPM_REQUEST_FLAG::NONE};
+
     PE_EventListener pe_event_listener;
     etl::atomic<bool> has_deferred_wakeup_request{false};
 };

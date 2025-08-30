@@ -281,7 +281,8 @@ public:
                 port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
                 port.rdo_contracted = port.rdo_to_request;
 
-                if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+                if (pe.active_dpm_request == DPM_REQUEST_FLAG::NEW_POWER_LEVEL) {
+                    port.dpm_requests.clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
                     port.notify_dpm(MsgToDpm_NewPowerLevelAccepted{});
                 }
 
@@ -311,7 +312,8 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Reject))
             {
-                if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+                if (pe.active_dpm_request == DPM_REQUEST_FLAG::NEW_POWER_LEVEL) {
+                    port.dpm_requests.clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
                     port.notify_dpm(MsgToDpm_NewPowerLevelRejected{});
                 }
 
@@ -403,6 +405,8 @@ public:
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
         port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+
+        pe.active_dpm_request = DPM_REQUEST_FLAG::NONE;
 
         if (pe.is_in_epr_mode()) {
             // If we are in EPR mode, re-arm the timer for an EPR Keep-Alive request
@@ -566,11 +570,13 @@ public:
                     PE_LOGI("EPR mode entry requested, but not allowed");
                     port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
                 } else {
+                    pe.active_dpm_request = DPM_REQUEST_FLAG::EPR_MODE_ENTRY;
                     return PE_SNK_Send_EPR_Mode_Entry;
                 }
             }
 
             if (port.dpm_requests.test(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
+                pe.active_dpm_request = DPM_REQUEST_FLAG::NEW_POWER_LEVEL;
                 return PE_SNK_Select_Capability;
             }
 
@@ -1284,6 +1290,7 @@ void PE::init() {
     port.pe_flags.clear_all();
     port.dpm_requests.clear_all();
     port.revision = MaxSupportedRevision;
+    active_dpm_request = DPM_REQUEST_FLAG::NONE;
     port.timers.stop_range(PD_TIMERS_RANGE::PE);
     change_state(PE_SNK_Startup);
 }

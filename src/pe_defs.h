@@ -4,7 +4,7 @@ namespace pd {
 
 // Boolean flags to organize  simple DPM requests queue
 enum class DPM_REQUEST_FLAG {
-    UNUSED, // Skip 0 to simplify current request checks
+    NONE, // Skip 0 to simplify active request checks
     NEW_POWER_LEVEL,
     EPR_MODE_ENTRY,
 
