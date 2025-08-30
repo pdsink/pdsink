@@ -35,6 +35,7 @@ void etl_error_log(const etl::exception& e) {
 void setup() {
     logger_start();
     blinker.start();
+
     // LED animation example
     blinker.loop({ {{255,0,0}, 1000}, {{0,255,0}, 1000}, {{0,0,255}, 1000}, {{128,128,128}, 1000} });
 
@@ -44,13 +45,6 @@ void setup() {
     dpm.trigger_any(12000);
 
     etl::error_handler::set_callback<etl_error_log>();
-
-    struct test_exception : etl::exception {
-        test_exception(string_type file, numeric_type line)
-            : exception("Test exception", file, line) {}
-    };
-    ETL_ASSERT_FAIL(ETL_ERROR(test_exception)); // Test ETL error handling
-
     APP_LOGI("Setup complete");
 }
 

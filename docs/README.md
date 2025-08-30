@@ -9,8 +9,6 @@ USB PD stack usage <!-- omit in toc -->
   - [Device Policy Manager](#device-policy-manager)
   - [Logging](#logging)
   - [Event loop](#event-loop)
-    - [Project with RTOS support](#project-with-rtos-support)
-    - [Project without RTOS](#project-without-rtos)
 - [Debugging](#debugging)
 
 <img src="./images/intro2.jpg" width="40%">
@@ -34,9 +32,9 @@ Configuration controls:
 
 ### Built-in drivers
 
-The library contains some built-in drivers for popular hardware, disabled by
-default. See [src/drivers/](../src/drivers/) folder and `src/pd_include.h` for
-available options.
+The library contains some built-in drivers for popular hardware, which are
+disabled by default. See the [src/drivers/](../src/drivers/) folder and
+`src/pd_include.h` for available options.
 
 ## Customization
 
@@ -50,8 +48,9 @@ The most common cases are:
 These can be achieved through class inheritance and by updating properties
 in the constructor.
 
-You don’t have to use the built-in drivers. You can clone and tweak them, or
-write your own to support different hardware or RTOS.
+You don’t have to use the built-in drivers as they are. You can clone and tweak
+them, or write your own to support different hardware or RTOS. Contributions are
+welcome.
 
 ### Device Policy Manager
 
@@ -60,8 +59,8 @@ architecture. We provide a simple DPM, suitable for basic operation:
 
 - Automatic PD profile selection, based on desired voltage and current.
 
-You may wish to modify DPM for:
-- Advanced PD profile selection strategy
+You may wish to modify the DPM for:
+- Advanced PD profile selection strategies
 - Alert listening
 - Controlling PD handshake status
 
@@ -77,7 +76,7 @@ By default, logging is disabled. To use it:
 
 - Add `jetlog` to project dependencies.
 - Create a simple wrapper.
-- Set variables in config to enable desired levels and modules.
+- Set variables in the config to enable desired levels and modules.
 
 See the examples for details.
 
@@ -87,43 +86,27 @@ See the `Task` class. By default, event propagation occurs immediately via a
 simple event loop with reentrancy protection. This should be suitable for both
 threaded and interrupt contexts.
 
-There are some general considerations:
+You may wish to decouple events from interrupts in several cases:
 
-#### Project with RTOS support
+1. If you use a driver without RTOS, but wish to run the PD Stack in a high
+   priority task.
+2. If your platform runs without RTOS at all, and you wish to call the
+   dispatcher from the application main loop.
 
-This is the most common case. By default, no action is required.
+In this case, override `Task.set_event()` and `Task.dispatch()` to suit your
+needs.
 
-To minimize code in interrupt handlers, reorganize `Task` to process events in a
-separate thread. However, this is likely not needed. See details in the next
-section on how to implement such changes.
-
-If you use a driver with a built-in thread (FUSB302, for example), no extra care
-is required. The event loop already works in the driver's thread context.
-
-More drivers/RTOSes can be added; contributions are welcome.
-
-#### Project without RTOS
-
-NOTE: The driver must support this mode (to operate without RTOS dependency).
-
-In most cases, no action is required. The library code is ready to be executed
-from an interrupt context. But if you wish to further decouple interrupt
-processing, do the following:
-
-- Override the `Task.set_event()` method to remove the loop execution from that
-  location.
-- Invoke `Task.loop()` manually from an external loop (from `main()`, for
-  example). To avoid unnecessary CPU load, sleep until an interrupt arrives
-  (via `WFI` or something similar).
+NOTE: This is not required if the driver already has an RTOS task inside
+(FUSB302, for example).
 
 ## Debugging
 
-If something goes wrong, the first step is to enable logging. See provided
+If something goes wrong, the first step is to enable logging. See the provided
 examples on how to do that.
 
 **PD logs**
 
-Start with enabling debug logs in all modules. Then reduce to the desired
+Start by enabling debug logs in all modules. Then reduce to the desired
 level/location.
 
 NOTE: EPR chargers (28 V and above) can be noisy with full logs due to EPR pings
@@ -138,13 +121,13 @@ show recursive (improper) FSM calls, for example.
 **Logger priority and stack size**
 
 This library uses `jetlog`, specifically optimized for fast writes from any
-context, including interrupts. Log reading and output to console happen in a
-background thread, to avoid blocking of important tasks.
+context, including interrupts. Log reading and output to the console happen in a
+background thread, to avoid blocking important tasks.
 
 In very specific cases, if you suspect a PD thread crash that blocks low
-priority tasks, increase logger priority to the same as PD priority. This will
-cause the log reader to continue doing its job and show you all log buffer
-content before the crash happened.
+priority tasks, increase the logger priority to the same as the PD priority.
+This will allow the log reader to continue doing its job and show you all log
+buffer content before the crash happened.
 
 Recommended: set the log-writer record size to 256 bytes, and have
 an extra 512 bytes of stack in all places where the log writer is invoked. The
