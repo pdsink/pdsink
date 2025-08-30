@@ -88,6 +88,65 @@ namespace {
     }
 } // namespace
 
+class InterceptorForwardErrors : public afsm::interceptor<PE, InterceptorForwardErrors> {
+public:
+    static auto on_enter_state(PE& pe) -> state_id_t {
+        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
+        return No_State_Change;
+    }
+
+    static auto on_run_state(PE& pe) -> state_id_t { return No_State_Change; }
+
+    static void on_exit_state(PE& pe) {
+        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
+    }
+};
+
+class InterceptorCheckRequestProgress : public afsm::interceptor<PE, InterceptorCheckRequestProgress> {
+public:
+    static auto on_enter_state(PE& pe) -> state_id_t {
+        pe.port.pe_flags.clear(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
+        return No_State_Change;
+    }
+
+    static auto on_run_state(PE& pe) -> state_id_t {
+        auto& port = pe.port;
+
+        if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
+            if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+                pe.request_progress = PE_REQUEST_PROGRESS::DISCARDED;
+                return No_State_Change;
+            }
+
+            if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
+                pe.request_progress = PE_REQUEST_PROGRESS::FAILED;
+                return No_State_Change;
+            }
+
+            // Wait for GoodCRC
+            if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+                port.pe_flags.set(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
+                // NOTE: This timer can be disabled from RCH chunking. But the flag
+                // TRANSMIT_REQUEST_SUCCEEDED protect us from re-arming it. If
+                // RCH chunker is activated, then chunker timeout will be used
+                // instead to generate error.
+                port.timers.start(PD_TIMEOUT::tSenderResponse);
+                pe.request_progress = PE_REQUEST_PROGRESS::FINISHED;
+                return No_State_Change;
+            }
+
+            pe.request_progress = PE_REQUEST_PROGRESS::PENDING;
+            return No_State_Change;
+        }
+
+        pe.request_progress = PE_REQUEST_PROGRESS::FINISHED;
+        return No_State_Change;
+    }
+
+    static void on_exit_state(PE& pe) {
+        pe.port.timers.stop(PD_TIMEOUT::tSenderResponse);
+    }
+};
 
 class PE_SNK_Startup_State : public afsm::state<PE, PE_SNK_Startup_State, PE_SNK_Startup> {
 public:
@@ -210,7 +269,10 @@ public:
 // device this is a good place to keep things simple.
 //
 
-class PE_SNK_Select_Capability_State : public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability> {
+class PE_SNK_Select_Capability_State :
+    public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability>,
+    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
@@ -244,34 +306,29 @@ public:
             pe.send_data_msg(PD_DATA_MSGT::Request);
         }
 
-        pe.check_request_progress_enter();
         port.timers.stop(PD_TIMEOUT::tSinkRequest);
-
-        // Don't break on error; process errors manually.
-        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
-        auto send_status = pe.check_request_progress_run();
 
         // Reproduce AMS interrupt logic:
         // - If this state is a standalone request (DPM), roll back to the Ready
         //   state. DPM means an explicit contract already exists.
         // - If we came from Evaluate_Capability and the AMS was interrupted after
         //   the first message => perform a Soft Reset.
-        if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
             if (pe.get_previous_state_id() == PE_SNK_Evaluate_Capability) {
                 return PE_SNK_Send_Soft_Reset;
             }
             return PE_SNK_Ready;
         }
-        if (send_status == PE_REQUEST_PROGRESS::FAILED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
+        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             auto& msg = port.rx_emsg;
@@ -334,10 +391,7 @@ public:
         return No_State_Change;
     }
 
-    static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-        pe.check_request_progress_exit();
-    }
+    static void on_exit_state(PE&) {}
 };
 
 
@@ -658,7 +712,10 @@ public:
 };
 
 
-class PE_SNK_EPR_Keep_Alive_State : public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive> {
+class PE_SNK_EPR_Keep_Alive_State :
+    public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive>,
+    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
@@ -673,28 +730,23 @@ public:
         port.tx_emsg.append16(ecdb.raw_value);
 
         pe.send_ext_msg(PD_EXT_MSGT::Extended_Control);
-        pe.check_request_progress_enter();
-
-        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        auto send_status = pe.check_request_progress_run();
-
-        if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
             // If the message was discarded due to another activity => the connection
             // is OK, and a heartbeat is not needed. Consider it successful.
             return PE_SNK_Ready;
         }
 
-        if (send_status == PE_REQUEST_PROGRESS::FAILED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
+        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
@@ -712,10 +764,7 @@ public:
         return No_State_Change;
     }
 
-    static void on_exit_state(PE& pe) {
-        pe.check_request_progress_exit();
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-    }
+    static void on_exit_state(PE&) {}
 };
 
 
@@ -810,7 +859,10 @@ public:
 };
 
 
-class PE_SNK_Send_Soft_Reset_State : public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset> {
+class PE_SNK_Send_Soft_Reset_State :
+    public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset>,
+    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
@@ -821,12 +873,9 @@ public:
         port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
 
-        // Set up error handling and initial state
         port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
-        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
         port.notify_prl(MsgToPrl_EnquireRestart{});
-        pe.check_request_progress_enter();
         return No_State_Change;
     }
 
@@ -845,13 +894,14 @@ public:
             return No_State_Change;
         }
 
-        auto send_status = pe.check_request_progress_run();
+        // NOTE: here was the right place for status check before using
+        // interceptors.
 
-        if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
             return PE_SNK_Ready;
         }
 
-        if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
+        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Accept)) {
@@ -867,10 +917,7 @@ public:
         return No_State_Change;
     }
 
-    static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-        pe.check_request_progress_exit();
-    }
+    static void on_exit_state(PE&) {}
 };
 
 
@@ -916,7 +963,10 @@ public:
 };
 
 
-class PE_SNK_Send_EPR_Mode_Entry_State : public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry> {
+class PE_SNK_Send_EPR_Mode_Entry_State :
+    public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry>,
+    public afsm::interceptor_pack<InterceptorCheckRequestProgress>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
@@ -930,7 +980,6 @@ public:
         port.tx_emsg.append32(eprmdo.raw_value);
 
         pe.send_data_msg(PD_DATA_MSGT::EPR_Mode);
-        pe.check_request_progress_enter();
 
         port.timers.start(PD_TIMEOUT::tEnterEPR);
 
@@ -940,13 +989,11 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        auto send_status = pe.check_request_progress_run();
-
-        if (send_status == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
             return PE_SNK_Ready;
         }
 
-        if ((send_status == PE_REQUEST_PROGRESS::FINISHED) &&
+        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
@@ -984,8 +1031,6 @@ public:
 
     static void on_exit_state(PE& pe) {
         auto& port = pe.port;
-
-        pe.check_request_progress_exit();
 
         // On protocol fuckup free `tEnterEPR` timer. In other case
         // it will continue in PE_SNK_EPR_Mode_Entry_Wait_For_Response
@@ -1356,46 +1401,6 @@ auto PE::is_in_pps_contract() const -> bool {
 
     return pdo.pdo_type == PDO_TYPE::AUGMENTED &&
         pdo.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
-}
-
-//
-// "Virtual" state to handle a [request] + [response] sequence. The main idea is to
-// automate starting the response timer and to restore the DPM task when custom error
-// processing is used.
-//
-
-void PE::check_request_progress_enter() {
-    port.timers.stop(PD_TIMEOUT::tSenderResponse);
-    port.pe_flags.clear(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
-}
-
-void PE::check_request_progress_exit() {
-    port.timers.stop(PD_TIMEOUT::tSenderResponse);
-}
-
-auto PE::check_request_progress_run() -> PE_REQUEST_PROGRESS {
-    if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
-        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-            return PE_REQUEST_PROGRESS::DISCARDED;
-        }
-
-        if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
-            return PE_REQUEST_PROGRESS::FAILED;
-        }
-
-        // Wait for GoodCRC
-        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            port.pe_flags.set(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
-            // NOTE: This timer can be disabled from RCH chunking. But the flag
-            // TRANSMIT_REQUEST_SUCCEEDED protect us from re-arming it. If
-            // RCH chunker is activated, then chunker timeout will be used
-            // instead to generate error.
-            port.timers.start(PD_TIMEOUT::tSenderResponse);
-            return PE_REQUEST_PROGRESS::FINISHED;
-        }
-        return PE_REQUEST_PROGRESS::PENDING;
-    }
-    return PE_REQUEST_PROGRESS::FINISHED;
 }
 
 void PE_EventListener::on_receive(const MsgSysUpdate&) {

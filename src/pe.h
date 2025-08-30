@@ -71,10 +71,6 @@ public:
     bool is_in_pps_contract() const;
     bool is_epr_mode_available() const;
 
-    void check_request_progress_enter();
-    auto check_request_progress_run() -> PE_REQUEST_PROGRESS;
-    void check_request_progress_exit();
-
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING
     } local_state{LOCAL_STATE::DISABLED};
@@ -85,6 +81,7 @@ public:
     ITCPC& tcpc;
 
     DPM_REQUEST_FLAG active_dpm_request{DPM_REQUEST_FLAG::NONE};
+    PE_REQUEST_PROGRESS request_progress{PE_REQUEST_PROGRESS::PENDING};
 
     PE_EventListener pe_event_listener;
     etl::atomic<bool> has_deferred_wakeup_request{false};
