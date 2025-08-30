@@ -55,10 +55,11 @@ public:
     // current not available in profile directly, use watts instead, to
     // calculate (and clamp to 5A if above).
     //
-    void trigger_fixed(uint32_t mv, uint32_t ma = 0);
-    void trigger_spr_pps(uint32_t mv, uint32_t ma);
-    // Scans all available profiles, and use the first suitable.
-    void trigger_any(uint32_t mv, uint32_t ma = 0);
+    void trigger(dobj_utils::SRCSNK_PDO_ID pdo_variant, uint32_t mv, uint32_t ma = 0);
+
+    void trigger_any(uint32_t mv, uint32_t ma = 0) {
+        trigger(dobj_utils::SRCSNK_PDO_ID::UNKNOWN, mv, ma);
+    }
 
 protected:
     Port& port;

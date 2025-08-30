@@ -203,28 +203,11 @@ void DPM::request_new_power_level() {
     }
 }
 
-void DPM::trigger_fixed(uint32_t mv, uint32_t ma) {
+void DPM::trigger(SRCSNK_PDO_ID pdo_variant, uint32_t mv, uint32_t ma) {
     trigger_mv = mv;
     trigger_ma = ma;
-    trigger_pdo_id = SRCSNK_PDO_ID::FIXED;
-    trigger_any_pdo = false;
-    request_new_power_level();
-}
-
-void DPM::trigger_spr_pps(uint32_t mv, uint32_t ma) {
-    trigger_mv = mv;
-    trigger_ma = ma;
-    trigger_pdo_id = SRCSNK_PDO_ID::SPR_PPS;
-    trigger_any_pdo = false;
-    request_new_power_level();
-}
-
-void DPM::trigger_any(uint32_t mv, uint32_t ma) {
-    trigger_mv = mv;
-    trigger_ma = ma;
-    trigger_pdo_id = SRCSNK_PDO_ID::UNKNOWN;
-    trigger_any_pdo = true;
-    request_new_power_level();
+    trigger_pdo_id = pdo_variant;
+    trigger_any_pdo = (pdo_variant == SRCSNK_PDO_ID::UNKNOWN);
 }
 
 } // namespace pd
