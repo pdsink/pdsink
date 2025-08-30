@@ -55,10 +55,10 @@ public:
     // current not available in profile directly, use watts instead, to
     // calculate (and clamp to 5A if above).
     //
-    void trigger(dobj_utils::PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma = 0);
+    void trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma = 0);
 
     void trigger_any(uint32_t mv, uint32_t ma = 0) {
-        trigger(dobj_utils::PDO_VARIANT::UNKNOWN, mv, ma);
+        trigger(PDO_VARIANT::UNKNOWN, mv, ma);
     }
 
 protected:
@@ -67,7 +67,7 @@ protected:
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};
 
-    dobj_utils::PDO_VARIANT trigger_pdo_variant{dobj_utils::PDO_VARIANT::UNKNOWN};
+    PDO_VARIANT trigger_pdo_variant{PDO_VARIANT::UNKNOWN};
     bool trigger_any_pdo{false}; // try to use any suitable PDO type
 
     // Basic value for source with EPR. Update for your needs.

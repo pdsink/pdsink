@@ -191,6 +191,16 @@ namespace PDO_AUGMENTED_SUBTYPE {
     };
 }; // namespace PDO_AUGMENTED_SUBTYPE
 
+// Supported PDO variants for PDO utilities & dpm. Reflect PDO type + subtype.
+// Not from spec, but simplify things.
+enum class PDO_VARIANT {
+    UNKNOWN,
+    FIXED,
+    APDO_PPS,
+    APDO_SPR_AVS,
+    APDO_EPR_AVS
+};
+
 // [rev3.2] 6.4.1.2.1 Fixed Supply Power Data Object
 // Table 6.9
 union PDO_FIXED {

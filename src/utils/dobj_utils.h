@@ -5,14 +5,6 @@
 namespace pd {
 namespace dobj_utils {
 
-enum class PDO_VARIANT {
-    UNKNOWN,
-    FIXED,
-    APDO_PPS,
-    APDO_SPR_AVS,
-    APDO_EPR_AVS
-};
-
 class PDO_LIMITS {
 public:
     uint32_t mv_min{0};
