@@ -5,12 +5,12 @@
 namespace pd {
 namespace dobj_utils {
 
-enum class SRCSNK_PDO_ID {
+enum class PDO_VARIANT {
     UNKNOWN,
     FIXED,
-    SPR_PPS,
-    SPR_AVS,
-    EPR_AVS
+    APDO_PPS,
+    APDO_SPR_AVS,
+    APDO_EPR_AVS
 };
 
 class PDO_LIMITS {
@@ -29,9 +29,9 @@ public:
     PDO_LIMITS& set_mv(uint32_t mv) { mv_min = mv; mv_max = mv; return *this; }
 };
 
-SRCSNK_PDO_ID get_src_pdo_id(uint32_t src_pdo);
+PDO_VARIANT get_src_pdo_id(uint32_t src_pdo);
 
-inline SRCSNK_PDO_ID get_snk_pdo_id(uint32_t snk_pdo) {
+inline PDO_VARIANT get_snk_pdo_id(uint32_t snk_pdo) {
     // WARNING: in spec rev3.2 v1.1, SNK BATTERY/VARIABLE IDs seem swapped
     // Be careful if decide to add support.
     return get_src_pdo_id(snk_pdo);
@@ -43,7 +43,7 @@ void set_snk_pdo_limits(uint32_t& snk_pdo, const PDO_LIMITS& limits);
 
 bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma);
 
-uint32_t create_pdo_type_bits(SRCSNK_PDO_ID id);
+uint32_t create_pdo_type_bits(PDO_VARIANT id);
 
 inline void set_rdo_limits_fixed(uint32_t& rdo, uint32_t operating_ma, uint32_t max_ma) {
     RDO_FIXED rdo_bits{rdo};

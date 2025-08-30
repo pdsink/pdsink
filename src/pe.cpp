@@ -1242,27 +1242,27 @@ void PE::log_source_caps() const {
 
         auto id = get_src_pdo_id(pdo);
 
-        if (id == SRCSNK_PDO_ID::UNKNOWN) {
+        if (id == PDO_VARIANT::UNKNOWN) {
             PE_LOGI("  PDO[{}]: 0x{:08X} <UNKNOWN>", i+1, pdo);
         }
-        else if (id == SRCSNK_PDO_ID::FIXED) {
+        else if (id == PDO_VARIANT::FIXED) {
             __maybe_unused auto limits = get_src_pdo_limits(pdo);
             PE_LOGI("  PDO[{}]: 0x{:08X} <FIXED> {}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.ma);
         }
-        else if (id == SRCSNK_PDO_ID::SPR_PPS) {
+        else if (id == PDO_VARIANT::APDO_PPS) {
             __maybe_unused auto limits = get_src_pdo_limits(pdo);
-            PE_LOGI("  PDO[{}]: 0x{:08X} <SPR_PPS> {}-{}mV {}mA",
+            PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_PPS> {}-{}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
         }
-        else if (id == SRCSNK_PDO_ID::SPR_AVS) {
+        else if (id == PDO_VARIANT::APDO_SPR_AVS) {
             __maybe_unused auto limits = get_src_pdo_limits(pdo);
-            PE_LOGI("  PDO[{}]: 0x{:08X} <SPR_AVS> {}-{}mV {}mA",
+            PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_SPR_AVS> {}-{}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
         }
-        else if (id == SRCSNK_PDO_ID::EPR_AVS) {
+        else if (id == PDO_VARIANT::APDO_EPR_AVS) {
             __maybe_unused auto limits = get_src_pdo_limits(pdo);
-            PE_LOGI("  PDO[{}]: 0x{:08X} <EPR_AVS> {}-{}mV {}W",
+            PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_EPR_AVS> {}-{}mV {}W",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.pdp);
         }
         else {
