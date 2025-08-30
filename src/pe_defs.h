@@ -28,6 +28,11 @@ enum class PE_FLAG {
     AMS_ACTIVE,
     AMS_FIRST_MSG_SENT,
     EPR_AUTO_ENTER_DISABLED,
+    // Used to mark complete entry sequence at start. When SNK become ready to
+    // accept DPM requests.
+    // - [SELECT CAPABILITIES, [EPR ENTER, SELECT CAPABILITIES]]
+    // The tail is optional, for EPR chargers only.
+    HANDSHAKE_REPORTED,
 
     // Minor flags to control local behavior in states
     WAIT_DPM_TRANSIT_TO_DEFAULT,

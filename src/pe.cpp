@@ -278,22 +278,23 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Accept))
             {
-                bool is_first_contract = !port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT);
-
                 port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
                 port.rdo_contracted = port.rdo_to_request;
-
-                if (is_first_contract && (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
-                    // Report handshake complete if this is the first contract
-                    // and we should not try EPR
-                    port.notify_dpm(MsgToDpm_HandshakeDone());
-                }
 
                 if (port.dpm_requests.test_and_clear(DPM_REQUEST_FLAG::NEW_POWER_LEVEL)) {
                     port.notify_dpm(MsgToDpm_NewPowerLevelAccepted{});
                 }
 
                 port.notify_dpm(MsgToDpm_SelectCapDone());
+
+                if (!port.pe_flags.test(PE_FLAG::HANDSHAKE_REPORTED) &&
+                    (pe.is_in_epr_mode() || !pe.is_epr_mode_available())) {
+                    // Report handshake complete if not done before, and we
+                    // should not try to enter EPR (already there or not supported)
+                    port.pe_flags.set(PE_FLAG::HANDSHAKE_REPORTED);
+                    port.notify_dpm(MsgToDpm_HandshakeDone());
+                }
+
                 return PE_SNK_Transition_Sink;
             }
 
@@ -952,10 +953,13 @@ public:
                 port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
                 port.dpm_requests.clear(DPM_REQUEST_FLAG::EPR_MODE_ENTRY);
 
-                PE_LOGE("EPR mode entry failed [code 0x{:02X}]", eprmdo.action);
+                if (!port.pe_flags.test(PE_FLAG::HANDSHAKE_REPORTED)) {
+                    port.pe_flags.set(PE_FLAG::HANDSHAKE_REPORTED);
+                    port.notify_dpm(MsgToDpm_HandshakeDone());
+                }
 
+                PE_LOGE("EPR mode entry failed [code 0x{:02X}]", eprmdo.action);
                 port.notify_dpm(MsgToDpm_EPREntryFailed(eprmdo.raw_value));
-                port.notify_dpm(MsgToDpm_HandshakeDone());
 
                 return PE_SNK_Ready;
             }
