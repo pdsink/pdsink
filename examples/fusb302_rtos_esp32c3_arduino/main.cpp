@@ -1,4 +1,8 @@
+#include <etl/array.h>
+#include <etl/cyclic_value.h>
 #include <etl/error_handler.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <pd/pd.h>
 
 #include "app_dpm.h"
@@ -43,6 +47,23 @@ void setup() {
     task.start(tc, dpm, pe, prl, driver);
     // Preset desired voltage
     dpm.trigger_any(12000);
+
+    // Simple task to cycle trigger_any every 5 seconds (ETL array + cyclic counter)
+    xTaskCreate(
+        [](void* /*pv*/){
+            const etl::array mv_values{ 9000, 12000, 17000/*PPS*/ };
+            etl::cyclic_value<uint8_t, 0, mv_values.SIZE - 1> idx{0};
+
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(10*1000));
+                const uint32_t mv = mv_values[idx];
+                APP_LOGI("Trigger to {} mV", mv);
+                dpm.trigger_any(mv);
+                ++idx;
+            }
+        },
+        "TriggerCycler", 1024 * 2, nullptr, 1, nullptr
+    );
 
     // Register ETL error callback only when ETL error logging is enabled
 #ifdef ETL_LOG_ERRORS

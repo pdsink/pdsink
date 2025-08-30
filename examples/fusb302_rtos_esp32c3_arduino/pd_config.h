@@ -10,7 +10,9 @@
 
 // Use for debugging
 // #define PD_LOG_DEFAULT DEBUG
-#define PD_LOG_PE INFO
+
+// #define PD_LOG_PE INFO
+// #define PD_LOG_PRL INFO
 #define PD_LOG_TC INFO
 #define PD_LOG_DPM INFO
 

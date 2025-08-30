@@ -208,6 +208,7 @@ void DPM::trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma) {
     trigger_ma = ma;
     trigger_pdo_variant = pdo_variant;
     trigger_any_pdo = (pdo_variant == PDO_VARIANT::UNKNOWN);
+    request_new_power_level();
 }
 
 } // namespace pd
