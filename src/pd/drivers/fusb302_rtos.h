@@ -5,12 +5,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "data_objects.h"
+#include "../data_objects.h"
 #include "fusb302_regs.h"
-#include "idriver.h"
-#include "utils/atomic_enum_bits.h"
-#include "utils/leapsync.h"
-#include "utils/spsc_overwrite_queue.h"
+#include "../idriver.h"
+#include "../utils/atomic_enum_bits.h"
+#include "../utils/leapsync.h"
+#include "../utils/spsc_overwrite_queue.h"
 
 namespace pd {
 

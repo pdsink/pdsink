@@ -1,13 +1,13 @@
-#include "pd_conf.h"
+#include "../pd_conf.h"
 
 #if defined(USE_FUSB302_RTOS)
 
 #include <etl/vector.h>
 
 #include "fusb302_rtos.h"
-#include "messages.h"
-#include "pd_log.h"
-#include "port.h"
+#include "../messages.h"
+#include "../pd_log.h"
+#include "../port.h"
 
 namespace pd {
 

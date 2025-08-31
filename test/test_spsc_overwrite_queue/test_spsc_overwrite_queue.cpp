@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <etl/vector.h>
 #include <cstring>
-#include "utils/spsc_overwrite_queue.h"
+#include "pd/utils/spsc_overwrite_queue.h"
 
 // Basic functionality tests
 TEST(SPSCOverwriteQueueTest, InitiallyEmpty) {

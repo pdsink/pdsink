@@ -1,5 +1,5 @@
-#include "pd_conf.h"
-#include "pd_log.h"
+#include "../pd_conf.h"
+#include "../pd_log.h"
 
 #if defined(USE_FUSB302_RTOS_HAL_ESP32)
 

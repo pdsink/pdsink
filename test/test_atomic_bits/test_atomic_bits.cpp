@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "utils/atomic_bits.h"
+#include "pd/utils/atomic_bits.h"
 
 TEST(AtomicBitsTest, ConstructorInitializesToZero) {
     AtomicBits<32> bits;

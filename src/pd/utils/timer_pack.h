@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/atomic_bits.h"
+#include "atomic_bits.h"
 
 #include <etl/array.h>
 #include <etl/atomic.h>
