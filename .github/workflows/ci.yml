@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * 3'
+
+jobs:
+  test:
+    name: Run PlatformIO Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade platformio
+
+      - name: Execute tests
+        run: |
+          platformio test --environment test-desktop
+
+      - name: Check examples build
+        run: |
+          platformio run --environment example-fusb302_rtos_esp32c3_arduino
