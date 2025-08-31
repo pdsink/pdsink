@@ -4,7 +4,8 @@
 
 <img src="./docs/images/intro1.jpg" width="40%">
 
-This library focuses on the most common needs of PD‑powered projects and on ease of use.
+This library focuses on the most common needs of PD‑powered projects and on
+ease of use.
 
 Features:
 
@@ -17,9 +18,15 @@ Not supported:
 - Source role (SRC).
 - DRP / DFP / FRS / Alt Modes.
 
+
 ## Usage
 
 See [docs](./docs) and [examples](./examples).
+
+Note that this package uses [ETL](https://www.etlcpp.com/) but does not pin a
+specific version, to avoid conflicts with your application. Set a specific
+dependency version in your application to keep the configuration stable.
+
 
 ## References
 

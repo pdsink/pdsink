@@ -1,0 +1,28 @@
+{
+    "name": "pdsink",
+    "version": "0.1.0",
+    "description": "USB PD Sink stack.",
+    "keywords": [ "USB", "Power Delivery", "Sink", "USB PD" ],
+    "homepage": "https://github.com/pdsink/pdsink",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/pdsink/pdsink.git"
+    },
+    "license": "MIT",
+    "dependencies": {
+      "Embedded Template Library": "*"
+    },
+    "headers": [
+        "pd/pd.h"
+    ],
+    "export": {
+        "include": [
+            "examples/**",
+            "include/**",
+            "src/**",
+            "CHANGELOG.md",
+            "LICENSE",
+            "README.md"
+        ]
+    }
+}
