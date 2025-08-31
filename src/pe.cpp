@@ -1,7 +1,6 @@
 #include <etl/algorithm.h>
 #include <etl/array.h>
 
-#include "common_macros.h"
 #include "dpm.h"
 #include "idriver.h"
 #include "pd_log.h"
@@ -95,7 +94,7 @@ public:
         return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> state_id_t { return No_State_Change; }
+    static auto on_run_state(PE&) -> state_id_t { return No_State_Change; }
 
     static void on_exit_state(PE& pe) {
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
@@ -1301,22 +1300,22 @@ void PE::log_source_caps() const {
             PE_LOGI("  PDO[{}]: 0x{:08X} <UNKNOWN>", i+1, pdo);
         }
         else if (id == PDO_VARIANT::FIXED) {
-            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            ETL_MAYBE_UNUSED auto limits = get_src_pdo_limits(pdo);
             PE_LOGI("  PDO[{}]: 0x{:08X} <FIXED> {}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.ma);
         }
         else if (id == PDO_VARIANT::APDO_PPS) {
-            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            ETL_MAYBE_UNUSED auto limits = get_src_pdo_limits(pdo);
             PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_PPS> {}-{}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
         }
         else if (id == PDO_VARIANT::APDO_SPR_AVS) {
-            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            ETL_MAYBE_UNUSED auto limits = get_src_pdo_limits(pdo);
             PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_SPR_AVS> {}-{}mV {}mA",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.ma);
         }
         else if (id == PDO_VARIANT::APDO_EPR_AVS) {
-            __maybe_unused auto limits = get_src_pdo_limits(pdo);
+            ETL_MAYBE_UNUSED auto limits = get_src_pdo_limits(pdo);
             PE_LOGI("  PDO[{}]: 0x{:08X} <APDO_EPR_AVS> {}-{}mV {}W",
                 i+1, pdo, limits.mv_min, limits.mv_max, limits.pdp);
         }
@@ -1408,12 +1407,12 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
         case PE::LOCAL_STATE::DISABLED:
             if (!pe.port.is_attached) { break; }
 
-            __fallthrough;
+            ETL_FALLTHROUGH;
         case PE::LOCAL_STATE::INIT:
             pe.init();
             pe.local_state = PE::LOCAL_STATE::WORKING;
 
-            __fallthrough;
+            ETL_FALLTHROUGH;
         case PE::LOCAL_STATE::WORKING:
             if (!pe.port.is_attached) {
                 pe.local_state = PE::LOCAL_STATE::DISABLED;
@@ -1512,7 +1511,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlHardResetSent&) {
     pe.port.pe_flags.clear(PE_FLAG::PRL_HARD_RESET_PENDING);
 }
 
-void PE_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
+void PE_EventListener::on_receive_unknown(ETL_MAYBE_UNUSED const etl::imessage& msg) {
     PE_LOGE("PE unknown message, id: {}", msg.get_message_id());
 }
 

@@ -1,4 +1,3 @@
-#include "common_macros.h"
 #include "dpm.h"
 #include "pd_log.h"
 #include "port.h"

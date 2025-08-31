@@ -1,4 +1,3 @@
-#include "common_macros.h"
 #include "dpm.h"
 #include "idriver.h"
 #include "pd_log.h"
@@ -107,7 +106,7 @@ void Task_EventListener::on_receive(const MsgTask_Timer&) {
     task.set_event(Task::EVENT_TIMER_MSK);
 }
 
-void Task_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
+void Task_EventListener::on_receive_unknown(ETL_MAYBE_UNUSED const etl::imessage& msg) {
     TASK_LOGE("Task unknown message, ID: {}", msg.get_message_id());
 }
 

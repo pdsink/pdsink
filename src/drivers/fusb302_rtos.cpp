@@ -4,7 +4,6 @@
 
 #include <etl/vector.h>
 
-#include "common_macros.h"
 #include "fusb302_rtos.h"
 #include "messages.h"
 #include "pd_log.h"
@@ -313,9 +312,9 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
 
 bool Fusb302Rtos::fusb_rx_pkt() {
     PD_CHUNK pkt{};
-    __maybe_unused uint8_t sop;
+    ETL_MAYBE_UNUSED uint8_t sop;
     uint8_t hdr[2];
-    __maybe_unused uint8_t crc_junk[4];
+    ETL_MAYBE_UNUSED uint8_t crc_junk[4];
 
     Status1 status1{};
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));

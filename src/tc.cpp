@@ -1,6 +1,5 @@
 #include <etl/array.h>
 
-#include "common_macros.h"
 #include "idriver.h"
 #include "pd_log.h"
 #include "port.h"
@@ -171,7 +170,7 @@ void TC_EventListener::on_receive(const MsgSysUpdate&) {
     tc.run();
 }
 
-void TC_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
+void TC_EventListener::on_receive_unknown(ETL_MAYBE_UNUSED const etl::imessage& msg) {
     TC_LOGE("TC unknown message, ID: {}", msg.get_message_id());
 }
 

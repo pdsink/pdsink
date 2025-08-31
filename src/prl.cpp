@@ -1,6 +1,5 @@
 #include <etl/array.h>
 
-#include "common_macros.h"
 #include "idriver.h"
 #include "pd_log.h"
 #include "port.h"
@@ -1590,12 +1589,12 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
         case PRL::LOCAL_STATE::DISABLED:
             if (!prl.port.is_attached) { break; }
 
-            __fallthrough;
+            ETL_FALLTHROUGH;
         case PRL::LOCAL_STATE::INIT:
             prl.init();
             prl.local_state = PRL::LOCAL_STATE::WORKING;
 
-            __fallthrough;
+            ETL_FALLTHROUGH;
         case PRL::LOCAL_STATE::WORKING:
             if (!prl.port.is_attached) {
                 prl.tcpc.req_rx_enable(false);
@@ -1700,7 +1699,7 @@ void PRL_EventListener::on_receive(const MsgToPrl_GetPrlStatus& msg) {
         (prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine);
 }
 
-void PRL_EventListener::on_receive_unknown(__maybe_unused const etl::imessage& msg) {
+void PRL_EventListener::on_receive_unknown(ETL_MAYBE_UNUSED const etl::imessage& msg) {
     PRL_LOGE("PRL unknown message, ID: {}", msg.get_message_id());
 }
 
