@@ -163,6 +163,25 @@ union PD_EXT_HEADER {
     };
 };
 
+union PD_ALERT {
+    uint32_t raw_value;
+    struct {
+        uint32_t ext_type : 4;
+        uint32_t : 12; // reserved
+        uint32_t hot_swappable_batteries : 4;
+        uint32_t fixed_batteries : 4;
+        // Alert bits
+        uint32_t : 1; // reserved
+        uint32_t battery_status_change : 1;
+        uint32_t ocp : 1;
+        uint32_t otp : 1;
+        uint32_t operating_condition_change : 1;
+        uint32_t source_input_change : 1;
+        uint32_t ovp : 1;
+        uint32_t extended : 1;
+    };
+};
+
 
 //
 // [rev3.2] 6.4.1.1 Power Data Objects
