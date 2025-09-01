@@ -67,8 +67,10 @@ operations, use RTOS events to decouple processing.
 By default, logging is disabled. To use it:
 
 - Add `jetlog` to project dependencies.
-- Create a simple wrapper.
+- Create a simple wrapper (see examples).
 - Set variables in the config to enable desired levels and modules.
+- For PlatformIO, with enabled logging, add `-D PD_USE_JETLOG` to help LDF find
+  path to logger when it builds library (as dependency).
 
 See the examples for details.
 

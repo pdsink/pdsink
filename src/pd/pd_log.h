@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(PD_USE_JETLOG)
+#include <jetlog/jetlog.hpp>
+#endif
+
 #include "pd_conf.h"
 
 #define _PD_LOG_LVL_NONE   0
