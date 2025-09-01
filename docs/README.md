@@ -2,8 +2,6 @@ USB PD stack usage <!-- omit in toc -->
 ==================
 
 - [Base](#base)
-  - [pd\_config.h](#pd_configh)
-  - [Built-in drivers](#built-in-drivers)
 - [Customization](#customization)
   - [Drivers](#drivers)
   - [Device Policy Manager](#device-policy-manager)
@@ -13,28 +11,22 @@ USB PD stack usage <!-- omit in toc -->
 
 <img src="./images/intro2.jpg" width="40%">
 
-This document covers the basics. Check the
-[examples](../examples/) folder before getting started.
+This document covers the basics. **Check the [examples](../examples/) folder
+before getting started.**
 
 ## Base
 
-### pd_config.h
+**-D PD_CONFIG_FILE="\<path_to_your_config.h>"**
 
-Create `pd_config.h` in a searchable path of your project. It will be
-loaded automatically to configure the library. Alternatively, you can set
-all variables via the `-D` option, but that's more tedious.
+Create config file in a searchable path of your project (or use absolute path).
+It will be loaded to configure the library. Alternatively, you can set
+all variables via the `-D` option, but that's more tedious if you use logging.
 
-Configuration controls:
-
-- Built-in driver selection
-- Log mapping and module log levels. See examples and
-  [pd_log.h](../src/pd_log.h) for available options.
-
-### Built-in drivers
+**Built-in drivers**
 
 The library contains some built-in drivers for popular hardware, which are
-disabled by default. See the [src/drivers/](../src/drivers/) folder and
-`src/pd_include.h` for available options.
+disabled by default. See the [src/drivers/](../src/drivers/) folder,
+`src/pd_include.h` and examples for available options.
 
 ## Customization
 
