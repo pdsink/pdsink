@@ -25,8 +25,27 @@ all variables via the `-D` option, but that's more tedious if you use logging.
 **Built-in drivers**
 
 The library contains some built-in drivers for popular hardware, which are
-disabled by default. See the [src/drivers/](../src/drivers/) folder,
-`src/pd_include.h` and examples for available options.
+disabled by default. See the [drivers](../src/pd/drivers/) folder,
+[pd_include.h](../src/pd/pd_include.h) and [examples](../examples/) for
+available options.
+
+**For Platform IO**
+
+Application `platformio.ini` build options:
+
+```
+lib_deps =
+   https://github.com/pdsink/pdsink#<tag_or_hash>
+
+build_flags =
+   -D PD_CONFIG_FILE=$PROJECT_DIR/<path_to_file.h>
+```
+
+**For other build systems**
+
+- For the project, add pdsink `src/` folder to searchable path.
+- If logs enabled, add `jetlog` path to pdsink library build options.
+
 
 ## Customization
 
@@ -56,7 +75,7 @@ You may wish to modify the DPM for:
 - Alert listening
 - Controlling PD handshake status
 
-See `MsgToDpm_*` in [messages.h](../src/messages.h), examples, and the `DPM`
+See `MsgToDpm_*` in [messages.h](../src/pd/messages.h), examples, and the `DPM`
 class.
 
 NOTE: When you handle DPM events, handlers should be non-blocking. For heavy
@@ -69,8 +88,8 @@ By default, logging is disabled. To use it:
 - Add `jetlog` to project dependencies.
 - Create a simple wrapper (see examples).
 - Set variables in the config to enable desired levels and modules.
-- For PlatformIO, with enabled logging, add `-D PD_USE_JETLOG` to help LDF find
-  path to logger when it builds library (as dependency).
+- For PlatformIO, with enabled logging, if you see `jetlog.hpp` include errors -
+  add `-D PD_USE_JETLOG` to build flags.
 
 See the examples for details.
 
