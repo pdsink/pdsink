@@ -16,9 +16,9 @@ before getting started.**
 
 ## Base
 
-**-D PD_CONFIG_FILE="\<path_to_your_config.h>"**
+**-D PD_USE_CONFIG_FILE**
 
-Create config file in a searchable path of your project (or use absolute path).
+Create `pd_config.h` file in a searchable path of your project.
 It will be loaded to configure the library. Alternatively, you can set
 all variables via the `-D` option, but that's more tedious if you use logging.
 
@@ -35,16 +35,19 @@ Application `platformio.ini` build options:
 
 ```
 lib_deps =
-   https://github.com/pdsink/pdsink#<tag_or_hash>
+  https://github.com/pdsink/pdsink#<tag_or_hash>
 
 build_flags =
-   -D PD_CONFIG_FILE=$PROJECT_DIR/<path_to_file.h>
+  -I $PROJECT_DIR/<path_to_config_folder>
+  -D PD_USE_CONFIG_FILE
 ```
 
 **For other build systems**
 
 - For the project, add pdsink `src/` folder to searchable path.
 - If logs enabled, add `jetlog` path to pdsink library build options.
+- I using `pd_config.h` - make it's foldder searchable for the project and the
+  library.
 
 
 ## Customization

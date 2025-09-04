@@ -9,6 +9,8 @@
     #include PD_CONFIG_FILE_STR
 #elif defined(PD_CONFIG_FILE)
     #include PD_QUOTE_STR(PD_CONFIG_FILE)
+#elif defined(PD_USE_CONFIG_FILE)
+    #include "pd_config.h"
 #endif
 
 
