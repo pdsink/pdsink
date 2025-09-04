@@ -61,11 +61,11 @@ bool Fusb302Rtos::fusb_setup() {
     DRV_LOGI("SW (full) reset");
     Reset rst{0};
     rst.SW_RES = 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Reset::reg, rst.raw_value));
 
     // Read ID to check connection
     DeviceID id;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(DeviceID::addr, id.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, DeviceID::reg, id.raw_value));
     DRV_LOGI("FUSB302 ID: PROD={}, VER={}, REV={}",
         id.PRODUCT_ID, id.VERSION_ID, id.REVISION_ID);
 
@@ -73,26 +73,26 @@ bool Fusb302Rtos::fusb_setup() {
     DRV_LOGI("Power up all blocks");
     Power pwr{0};
     pwr.PWR = 0xF;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Power::addr, pwr.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Power::reg, pwr.raw_value));
 
     // By default disable all interrupts except VBUSOK.
     DRV_LOGI("Disable all interrupts except VBUSOK");
     Mask1 mask{0xFF};
     mask.M_VBUSOK = 0;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maska::addr, 0xFF));
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maskb::addr, 0xFF));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, 0xFF));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maskb::reg, 0xFF));
     // ...and remove global interrupt mask
     Control0 ctl0;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctl0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctl0.raw_value));
     ctl0.INT_MASK = 0;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctl0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctl0.raw_value));
 
     // Sync VBUSOK
     auto delay = pdMS_TO_TICKS(2);
     vTaskDelay(delay ? delay : 1); // instead of 250uS
     Status0 status0;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
     DRV_LOGI("Read initial VBUSOK: {}", vbus_ok.load());
 
@@ -117,22 +117,22 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     // exist.
     //
     Mask1 mask;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Mask1::addr, mask.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Mask1::reg, mask.raw_value));
     mask.M_COLLISION = enable ? 0 : 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Mask1::addr, mask.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
 
     Maska maska;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Maska::addr, maska.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Maska::reg, maska.raw_value));
     maska.M_HARDRST = enable ? 0 : 1;
     maska.M_TXSENT = enable ? 0 : 1;
     maska.M_HARDSENT = enable ? 0 : 1;
     maska.M_RETRYFAIL = enable ? 0 : 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maska::addr, maska.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, maska.raw_value));
 
     Maskb maskb;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Maskb::addr, maskb.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Maskb::reg, maskb.raw_value));
     maskb.M_GCRCSENT = enable ? 0 : 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Maskb::addr, maskb.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maskb::reg, maskb.raw_value));
 
     return true;
 }
@@ -140,35 +140,35 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
 bool Fusb302Rtos::fusb_set_auto_goodcrc(bool enable) {
     DRV_LOGI("Set auto good crc {}", enable ? "ON" : "OFF");
     Switches1 sw1;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches1::reg, sw1.raw_value));
     sw1.AUTO_CRC = enable ? 1 : 0;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches1::reg, sw1.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_set_tx_auto_retries(uint8_t count) {
     DRV_LOGI("Set TX auto retries  to {}", count);
     Control3 ctl3;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control3::reg, ctl3.raw_value));
     ctl3.N_RETRIES = count & 3; // 0-3 retries
     ctl3.AUTO_RETRY = count > 0 ? 1 : 0;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control3::reg, ctl3.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_flush_rx_fifo() {
     Control1 ctrl1{0};
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control1::reg, ctrl1.raw_value));
     ctrl1.RX_FLUSH = 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control1::reg, ctrl1.raw_value));
     return true;
 }
 
 bool Fusb302Rtos::fusb_flush_tx_fifo() {
     Control0 ctrl0{0};
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctrl0.raw_value));
     ctrl0.TX_FLUSH = 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctrl0.raw_value));
     return true;
 }
 
@@ -176,7 +176,7 @@ bool Fusb302Rtos::fusb_pd_reset() {
     DRV_LOGI("PD reset");
     Reset rst{0};
     rst.PD_RESET = 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Reset::addr, rst.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Reset::reg, rst.raw_value));
     return true;
 }
 
@@ -188,25 +188,25 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     // Attach comparator
     //
     Switches0 sw0;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
     sw0.MEAS_CC1 = 0;
     sw0.MEAS_CC2 = 0;
 
     if (polarity == TCPC_POLARITY::CC1) { sw0.MEAS_CC1 = 1; }
     if (polarity == TCPC_POLARITY::CC2) { sw0.MEAS_CC2 = 1; }
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
     //
     // Attach BMC
     //
     Switches1 sw1;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches1::addr, sw1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches1::reg, sw1.raw_value));
     sw1.TXCC1 = 0;
     sw1.TXCC2 = 0;
 
     if (polarity == TCPC_POLARITY::CC1) { sw1.TXCC1 = 1; }
     if (polarity == TCPC_POLARITY::CC2) { sw1.TXCC2 = 1; }
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches1::addr, sw1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches1::reg, sw1.raw_value));
 
     if (polarity == TCPC_POLARITY::NONE) {
         DRV_RET_FALSE_ON_ERROR(fusb_set_rx_enable(false));
@@ -306,7 +306,7 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     fifo_buf.push_back(TX_TKN::TX_OFF);
     fifo_buf.push_back(TX_TKN::TXON);
 
-    DRV_RET_FALSE_ON_ERROR(hal.write_block(FIFOs::addr, fifo_buf.data(), fifo_buf.size()));
+    DRV_RET_FALSE_ON_ERROR(hal.write_block(i2c_addr, FIFOs::reg, fifo_buf.data(), fifo_buf.size()));
     return true;
 }
 
@@ -317,7 +317,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     ETL_MAYBE_UNUSED uint8_t crc_junk[4];
 
     Status1 status1{};
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status1::reg, status1.raw_value));
 
     if (status1.RX_EMPTY) {
         DRV_LOGI("Can't read from empty FIFO");
@@ -329,9 +329,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
     // NOTE: We can get mixture of chunks and GoodCRC. That's why we read in
     // cycle all available packets and skip GoodCRC.
     while (!status1.RX_EMPTY) {
-        DRV_RET_FALSE_ON_ERROR(hal.read_reg(FIFOs::addr, sop));
+        DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, FIFOs::reg, sop));
 
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, hdr, 2));
+        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, hdr, 2));
         pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
 
         // Chunked extended messages have non-zero data_obj_count
@@ -347,9 +347,9 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         // size data_obj_count*4 bytes. data_obj_count has 3 bits - means
         // max 28 bytes in total. That guarantees `pkt` has enough size.
         pkt.resize_by_data_obj_count();
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, pkt.get_data().data(), pkt.data_size()));
+        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, pkt.get_data().data(), pkt.data_size()));
 
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(FIFOs::addr, crc_junk, 4));
+        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, crc_junk, 4));
 
         // Process all but GoodCRC, coming after TX. Processing of TX was
         // already scheduled, and here we just ignore GoodCRC as garbage.
@@ -360,7 +360,7 @@ bool Fusb302Rtos::fusb_rx_pkt() {
             has_deferred_wakeup = true;
         }
 
-        DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status1::addr, status1.raw_value));
+        DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status1::reg, status1.raw_value));
     }
     return true;
 }
@@ -369,9 +369,9 @@ bool Fusb302Rtos::fusb_hr_send() {
     DRV_LOGI("Send hard reset");
 
     Control3 ctrl3;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control3::reg, ctrl3.raw_value));
     ctrl3.SEND_HARD_RESET = 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control3::reg, ctrl3.raw_value));
 
     return true;
 }
@@ -392,8 +392,8 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
     Control1 ctrl1;
     Control3 ctrl3;
 
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control1::addr, ctrl1.raw_value));
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control3::addr, ctrl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control1::reg, ctrl1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control3::reg, ctrl3.raw_value));
     ctrl1.BIST_MODE2 = 0;
     ctrl3.BIST_TMODE = 0;
 
@@ -408,14 +408,14 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
             break;
     }
 
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control1::addr, ctrl1.raw_value));
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control3::addr, ctrl3.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control1::reg, ctrl1.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control3::reg, ctrl3.raw_value));
 
     if (mode == TCPC_BIST_MODE::Carrier) {
         Control0 ctrl0;
-        DRV_RET_FALSE_ON_ERROR(hal.read_reg(Control0::addr, ctrl0.raw_value));
+        DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctrl0.raw_value));
         ctrl0.TX_START = 1;
-        DRV_RET_FALSE_ON_ERROR(hal.write_reg(Control0::addr, ctrl0.raw_value));
+        DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctrl0.raw_value));
     }
 
     return true;
@@ -432,13 +432,13 @@ void Fusb302Rtos::handle_interrupt() {
         Interruptb interruptb;
 
         // TODO: Consider 5-bytes block read (0x3E-0x42) with single call.
-        DRV_LOG_ON_ERROR(hal.read_reg(Interrupt::addr, interrupt.raw_value));
-        DRV_LOG_ON_ERROR(hal.read_reg(Interrupta::addr, interrupta.raw_value));
-        DRV_LOG_ON_ERROR(hal.read_reg(Interruptb::addr, interruptb.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interrupt::reg, interrupt.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interrupta::reg, interrupta.raw_value));
+        DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interruptb::reg, interruptb.raw_value));
 
         if (interrupt.I_VBUSOK) {
             Status0 status0;
-            DRV_LOG_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
             vbus_ok.store(status0.VBUSOK);
             DRV_LOGI("IRQ: VBUS changed");
             has_deferred_wakeup = true;
@@ -530,7 +530,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             // Note, CC activity can make a noise, but since we are waiting
             // SinkTxOK, false negatives are acceptable - those will only cause
             // small transfer delay.
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
 
             if (polarity.load() == TCPC_POLARITY::NONE) {
                 DRV_LOGE("Can't measure active CC without polarity set");
@@ -549,14 +549,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             break;
 
         case MeterState::SCAN_CC_BEGIN:
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
             // save MEAS_CC1/MEAS_CC2
             meter_sw0_backup = sw0;
 
             // Measure CC1
             sw0.MEAS_CC1 = 1;
             sw0.MEAS_CC2 = 0;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
             // Technically, 250 µs is OK, but a precise match would be platform-dependent
             // and probably blocking. We rely on FreeRTOS ticks instead.
@@ -569,14 +569,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::SCAN_CC1_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
             cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Measure CC2
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
             sw0.MEAS_CC1 = 0;
             sw0.MEAS_CC2 = 1;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
             meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
             meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
             repeat = true;
@@ -586,14 +586,14 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::SCAN_CC2_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Status0::addr, status0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
             cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
             // Restore previous state
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
             sw0.MEAS_CC1 = meter_sw0_backup.MEAS_CC1;
             sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(Switches0::addr, sw0.raw_value));
+            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
             DRV_LOGV("Scan CC2/CC1 end");
             sync_scan_cc.job_finish();

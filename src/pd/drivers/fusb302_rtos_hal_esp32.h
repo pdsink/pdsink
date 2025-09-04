@@ -3,7 +3,6 @@
 #include <driver/gpio.h>
 #include <driver/i2c.h>
 #include <esp_timer.h>
-#include "fusb302_regs.h"
 #include "fusb302_rtos.h"
 
 namespace pd {
@@ -15,11 +14,15 @@ public:
     void set_event_handler(const hal_event_handler_t& handler) override { event_cb = handler; }
     void setup() override;
     ITimer::TimeFunc get_time_func() const override;
-    bool read_reg(uint8_t reg, uint8_t& data) override;
-    bool write_reg(uint8_t reg, uint8_t data) override;
-    bool read_block(uint8_t reg, uint8_t *data, uint32_t size) override;
-    bool write_block(uint8_t reg, const uint8_t *data, uint32_t size) override;
     bool is_interrupt_active() override;
+
+    // I2C API, can be used from other application modules independently,
+    // when the bus is shared between multiple devices.
+    virtual void init_i2c();
+    bool read_reg(uint8_t i2c_addr, uint8_t reg, uint8_t& data) override;
+    bool write_reg(uint8_t i2c_addr, uint8_t reg, uint8_t data) override;
+    bool read_block(uint8_t i2c_addr, uint8_t reg, uint8_t *data, uint32_t size) override;
+    bool write_block(uint8_t i2c_addr, uint8_t reg, const uint8_t *data, uint32_t size) override;
 
     ~Fusb302RtosHalEsp32();
 
@@ -37,14 +40,14 @@ protected:
     gpio_num_t int_io_pin{GPIO_NUM_7};
     i2c_port_t i2c_num{I2C_NUM_0};
     uint32_t i2c_freq{400000}; // 400kHz
-    uint8_t i2c_address{ChipAddress::FUSB302B};
 
     hal_event_handler_t event_cb;
     esp_timer_handle_t timer_handle;
     bool started{false};
+    bool i2c_initialized{false};
 
     virtual void init_timer();
-    virtual void init_pins();
+    virtual void init_fusb_interrupt();
 };
 
 } // namespace fusb302

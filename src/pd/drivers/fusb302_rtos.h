@@ -32,10 +32,10 @@ public:
     virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
     virtual ITimer::TimeFunc get_time_func() const = 0;
 
-    virtual bool read_reg(uint8_t reg, uint8_t& data) = 0;
-    virtual bool write_reg(uint8_t reg, uint8_t data) = 0;
-    virtual bool read_block(uint8_t reg, uint8_t *data, uint32_t size) = 0;
-    virtual bool write_block(uint8_t reg, const uint8_t *data, uint32_t size) = 0;
+    virtual bool read_reg(uint8_t i2c_addr, uint8_t reg, uint8_t& data) = 0;
+    virtual bool write_reg(uint8_t i2c_addr, uint8_t reg, uint8_t data) = 0;
+    virtual bool read_block(uint8_t i2c_addr, uint8_t reg, uint8_t *data, uint32_t size) = 0;
+    virtual bool write_block(uint8_t i2c_addr, uint8_t reg, const uint8_t *data, uint32_t size) = 0;
     virtual bool is_interrupt_active() = 0;
 };
 
@@ -151,6 +151,7 @@ protected:
     // Clear internal states after hard reset received or sent.
     bool hr_cleanup();
 
+    uint8_t i2c_addr{ChipAddress::FUSB302B};
     Port& port;
     IFusb302RtosHal& hal;
     ITimer::TimeFunc get_timestamp;

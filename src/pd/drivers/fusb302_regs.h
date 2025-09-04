@@ -21,7 +21,7 @@ union DeviceID {
         uint8_t PRODUCT_ID : 2;
         uint8_t VERSION_ID : 4;
     };
-    enum { addr = 0x01 };
+    enum { reg = 0x01 };
 };
 
 union Switches0 {
@@ -36,7 +36,7 @@ union Switches0 {
         uint8_t PU_EN1 : 1;
         uint8_t PU_EN2 : 1;
     };
-    enum { addr = 0x02 };
+    enum { reg = 0x02 };
 };
 
 union Switches1 {
@@ -50,7 +50,7 @@ union Switches1 {
         uint8_t SPECREV : 2;
         uint8_t POWERROLE : 1;
     };
-    enum { addr = 0x03 };
+    enum { reg = 0x03 };
 };
 
 union Measure {
@@ -60,7 +60,7 @@ union Measure {
         uint8_t MEAS_VBUS : 1;
         uint8_t : 1;
     };
-    enum { addr = 0x04 };
+    enum { reg = 0x04 };
 };
 
 union Slice {
@@ -69,7 +69,7 @@ union Slice {
         uint8_t SDAC : 6;
         uint8_t SDAC_HYS : 2;
     };
-    enum { addr = 0x05 };
+    enum { reg = 0x05 };
 };
 
 union Control0 {
@@ -83,7 +83,7 @@ union Control0 {
         uint8_t TX_FLUSH : 1;
         uint8_t : 1;
     };
-    enum { addr = 0x06 };
+    enum { reg = 0x06 };
 };
 
 union Control1 {
@@ -98,7 +98,7 @@ union Control1 {
         uint8_t ENSOP2DB : 1;
         uint8_t : 1;
     };
-    enum { addr = 0x07 };
+    enum { reg = 0x07 };
 };
 
 union Control2 {
@@ -111,7 +111,7 @@ union Control2 {
         uint8_t TOG_RD_ONLY : 1;
         uint8_t TOG_SAVE_PWR : 2;
     };
-    enum { addr = 0x08 };
+    enum { reg = 0x08 };
 };
 
 union Control3 {
@@ -125,7 +125,7 @@ union Control3 {
         uint8_t SEND_HARD_RESET : 1;
         uint8_t : 1;
     };
-    enum { addr = 0x09 };
+    enum { reg = 0x09 };
 };
 
 union Mask1 {
@@ -140,7 +140,7 @@ union Mask1 {
         uint8_t M_ACTIVITY : 1;
         uint8_t M_VBUSOK : 1;
     };
-    enum { addr = 0x0A };
+    enum { reg = 0x0A };
 };
 
 union Power {
@@ -149,7 +149,7 @@ union Power {
         uint8_t PWR : 4;
         uint8_t : 4;
     };
-    enum { addr = 0x0B };
+    enum { reg = 0x0B };
 };
 
 union Reset {
@@ -159,7 +159,7 @@ union Reset {
         uint8_t PD_RESET : 1;
         uint8_t : 6;
     };
-    enum { addr = 0x0C };
+    enum { reg = 0x0C };
 };
 
 union OCPreg {
@@ -169,7 +169,7 @@ union OCPreg {
         uint8_t OCP_RANGE : 1;
         uint8_t : 4;
     };
-    enum { addr = 0x0D };
+    enum { reg = 0x0D };
 };
 
 union Maska {
@@ -184,7 +184,7 @@ union Maska {
         uint8_t M_TOGDONE : 1;
         uint8_t M_OCP_TEMP : 1;
     };
-    enum { addr = 0x0E };
+    enum { reg = 0x0E };
 };
 
 union Maskb {
@@ -193,7 +193,7 @@ union Maskb {
         uint8_t M_GCRCSENT : 1;
         uint8_t : 7;
     };
-    enum { addr = 0x0F };
+    enum { reg = 0x0F };
 };
 
 union Control4 {
@@ -202,7 +202,7 @@ union Control4 {
         uint8_t TOG_EXIT_AUD : 1;
         uint8_t : 7;
     };
-    enum { addr = 0x10 };
+    enum { reg = 0x10 };
 };
 
 union Status0a {
@@ -215,7 +215,7 @@ union Status0a {
         uint8_t SOFTFAIL : 1;
         uint8_t : 2;
     };
-    enum { addr = 0x3C };
+    enum { reg = 0x3C };
 };
 
 union Status1a {
@@ -227,7 +227,7 @@ union Status1a {
         uint8_t TOGSS : 3;
         uint8_t : 2;
     };
-    enum { addr = 0x3D };
+    enum { reg = 0x3D };
 };
 
 union Interrupta {
@@ -242,7 +242,7 @@ union Interrupta {
         uint8_t I_TOGDONE : 1;
         uint8_t I_OCP_TEMP : 1;
     };
-    enum { addr = 0x3E };
+    enum { reg = 0x3E };
 };
 
 union Interruptb {
@@ -251,7 +251,7 @@ union Interruptb {
         uint8_t I_GCRCSENT : 1;
         uint8_t : 7;
     };
-    enum { addr = 0x3F };
+    enum { reg = 0x3F };
 };
 
 union Status0 {
@@ -265,7 +265,7 @@ union Status0 {
         uint8_t ACTIVITY : 1;
         uint8_t VBUSOK : 1;
     };
-    enum { addr = 0x40 };
+    enum { reg = 0x40 };
 };
 
 union Status1 {
@@ -280,7 +280,7 @@ union Status1 {
         uint8_t RXSOP1 : 1;
         uint8_t RXSOP2 : 1;
     };
-    enum { addr = 0x41 };
+    enum { reg = 0x41 };
 };
 
 union Interrupt {
@@ -295,11 +295,11 @@ union Interrupt {
         uint8_t I_ACTIVITY : 1;
         uint8_t I_VBUSOK : 1;
     };
-    enum { addr = 0x42 };
+    enum { reg = 0x42 };
 };
 
 namespace FIFOs {
-    enum { addr = 0x43 };
+    enum { reg = 0x43 };
 };
 
 } // namespace fusb302
