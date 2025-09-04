@@ -14,9 +14,8 @@
 // #define PD_LOG_PE INFO
 // #define PD_LOG_PRL INFO
 #define PD_LOG_TC INFO
-#define PD_LOG_DPM VERBOSE
-//#define PD_LOG_DPM INFO
-
+//#define PD_LOG_DPM VERBOSE
+#define PD_LOG_DPM INFO
 
 #define USE_FUSB302_RTOS
 #define USE_FUSB302_RTOS_HAL_ESP32
