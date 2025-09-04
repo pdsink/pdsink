@@ -1,6 +1,6 @@
 #pragma once
 
-#include "jetlog/jetlog.hpp"
+#include <jetlog/jetlog.hpp>
 
 //
 // Here we create simple jetlog wrappers to use in project.
