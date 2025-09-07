@@ -47,7 +47,7 @@ public:
 
 using PRL_EventListener_Base = etl::message_router<class PRL_EventListener,
     MsgSysUpdate,
-    MsgToPrl_EnquireRestart,
+    MsgToPrl_EnqueueRestart,
     MsgToPrl_HardResetFromPe,
     MsgToPrl_PEHardResetDone,
     MsgToPrl_TcpcHardReset,
@@ -60,7 +60,7 @@ class PRL_EventListener : public PRL_EventListener_Base {
 public:
     PRL_EventListener(PRL& prl) : prl(prl) {}
     void on_receive(const MsgSysUpdate& msg);
-    void on_receive(const MsgToPrl_EnquireRestart& msg);
+    void on_receive(const MsgToPrl_EnqueueRestart& msg);
     void on_receive(const MsgToPrl_HardResetFromPe& msg);
     void on_receive(const MsgToPrl_PEHardResetDone& msg);
     void on_receive(const MsgToPrl_TcpcHardReset& msg);
@@ -91,7 +91,7 @@ public:
     void reset_msg_counters();
 
     // Mark TX chunk for sending (+ cleanup status flags from prev operations)
-    void prl_tx_enquire_chunk();
+    void prl_tx_enqueue_chunk();
 
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING

@@ -9,7 +9,7 @@ enum class PRL_ERROR {
     RCH_SEQUENCE_DISCARDED, // new message interrupted sequence
     RCH_SEQUENCE_TIMEOUT,   // no response for chunk request
 
-    TCH_ENQUIRE_DISCARDED,  // RCH busy, TCH can't accept new message
+    TCH_ENQUEUE_DISCARDED,  // RCH busy, TCH can't accept new message
     TCH_BAD_SEQUENCE,
     TCH_SEND_FAIL,
     TCH_DISCARDED,

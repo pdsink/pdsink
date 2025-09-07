@@ -71,13 +71,13 @@ public:
     // TCPC
     //
     void req_scan_cc() override {
-        sync_scan_cc.enquire();
+        sync_scan_cc.enqueue();
         kick_task(MSK_API_CALL);
     };
     bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) override;
 
     void req_active_cc() override {
-        sync_active_cc.enquire();
+        sync_active_cc.enqueue();
         kick_task(MSK_API_CALL);
     };
     bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) override;
@@ -85,13 +85,13 @@ public:
     bool is_vbus_ok() override;
 
     void req_set_polarity(TCPC_POLARITY active_cc) override {
-        sync_set_polarity.enquire(active_cc);
+        sync_set_polarity.enqueue(active_cc);
         kick_task(MSK_API_CALL);
     };
     bool is_set_polarity_done() override { return sync_set_polarity.is_idle(); };
 
     void req_rx_enable(bool enable) override {
-        sync_rx_enable.enquire(enable);
+        sync_rx_enable.enqueue(enable);
         kick_task(MSK_API_CALL);
     };
     bool is_rx_enable_done() override { return sync_rx_enable.is_idle(); };
@@ -101,13 +101,13 @@ public:
     void req_transmit() override;
 
     void req_set_bist(TCPC_BIST_MODE mode) override {
-        sync_set_bist.enquire(mode);
+        sync_set_bist.enqueue(mode);
         kick_task(MSK_API_CALL);
     };
     bool is_set_bist_done() override { return sync_set_bist.is_idle(); };
 
     void req_hr_send() override {
-        sync_hr_send.enquire();
+        sync_hr_send.enqueue();
         kick_task(MSK_API_CALL);
     };
     bool is_hr_send_done() override { return sync_hr_send.is_idle(); };
@@ -182,7 +182,7 @@ protected:
     LeapSync<TCPC_BIST_MODE> sync_set_bist;
     LeapSync<> sync_hr_send;
 
-    PD_CHUNK enquired_tx_chunk{};
+    PD_CHUNK enqueued_tx_chunk{};
 
     enum class MeterState {
         IDLE,

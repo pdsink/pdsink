@@ -42,7 +42,7 @@ enum class TCPC_TRANSMIT_STATUS {
     // No operation
     UNSET = 0,
     // PRL prepared data for PHY
-    ENQUIRED = 1,
+    ENQUEUED = 1,
     // PHY accepted data and started sending
     SENDING = 2,
     // Transmission is completed (and GoodCRC received, if supported)
@@ -52,7 +52,7 @@ enum class TCPC_TRANSMIT_STATUS {
 };
 
 static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
-    return status == TCPC_TRANSMIT_STATUS::ENQUIRED ||
+    return status == TCPC_TRANSMIT_STATUS::ENQUEUED ||
            status == TCPC_TRANSMIT_STATUS::SENDING;
 }
 

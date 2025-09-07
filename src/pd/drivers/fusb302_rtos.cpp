@@ -655,9 +655,9 @@ void Fusb302Rtos::handle_tcpc_calls() {
         has_deferred_wakeup = true;
     }
 
-    auto expected = TCPC_TRANSMIT_STATUS::ENQUIRED;
+    auto expected = TCPC_TRANSMIT_STATUS::ENQUEUED;
     if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
-        if (!fusb_tx_pkt_begin(enquired_tx_chunk)) {
+        if (!fusb_tx_pkt_begin(enqueued_tx_chunk)) {
             fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
         }
     }
@@ -800,8 +800,8 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 
 void Fusb302Rtos::req_transmit() {
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-    enquired_tx_chunk = port.tx_chunk;
-    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUIRED);
+    enqueued_tx_chunk = port.tx_chunk;
+    port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUEUED);
     kick_task(MSK_API_CALL);
 }
 

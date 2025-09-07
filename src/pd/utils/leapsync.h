@@ -1,7 +1,7 @@
 /**
  * LeapSync — single-frame synchronizer.
  * Allows the producer to “leap over” unfinished consumer operations:
- * new calls to enquire() overwrite previous parameters if they have not yet
+ * new calls to enqueue() overwrite previous parameters if they have not yet
  * been accepted or processed. Intended for scenarios where only the most
  * recent request matters.
  */
@@ -19,7 +19,7 @@ private:
 
     enum class STATE{
         IDLE,
-        ENQUIRED,
+        ENQUEUED,
         WORKING
     };
 
@@ -36,21 +36,21 @@ public:
     // Producer methods
     //
 
-    // enquire for non-void types
+    // enqueue for non-void types
     template<typename T = ParamType>
     typename etl::enable_if<!etl::is_void<T>::value>::type
-    enquire(const T& params) {
+    enqueue(const T& params) {
         // 2-phase commit
         state.store(STATE::IDLE);
         storage.value = params;
-        state.store(STATE::ENQUIRED);
+        state.store(STATE::ENQUEUED);
     }
 
-    // enquire for void
+    // enqueue for void
     template<typename T = ParamType>
     typename etl::enable_if<etl::is_void<T>::value>::type
-    enquire() {
-        state.store(STATE::ENQUIRED);
+    enqueue() {
+        state.store(STATE::ENQUEUED);
     }
 
     bool is_idle() const { return state.load() == STATE::IDLE; }
@@ -66,7 +66,7 @@ public:
     template<typename T = ParamType>
     typename etl::enable_if<!etl::is_void<T>::value, bool>::type
     get_job(T& params) {
-        auto expected = STATE::ENQUIRED;
+        auto expected = STATE::ENQUEUED;
         if (!state.compare_exchange_strong(expected, STATE::WORKING)) {
             return false; // No job to fetch
         }
@@ -84,7 +84,7 @@ public:
     template<typename T = ParamType>
     typename etl::enable_if<etl::is_void<T>::value, bool>::type
     get_job() {
-        auto expected = STATE::ENQUIRED;
+        auto expected = STATE::ENQUEUED;
         return state.compare_exchange_strong(expected, STATE::WORKING);
     }
 

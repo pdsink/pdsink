@@ -283,7 +283,7 @@ public:
         chunk.append16(0); // Placeholder, align to 32 bit (data object size)
 
         // Mark chunk for send
-        rch.prl.prl_tx_enquire_chunk();
+        rch.prl.prl_tx_enqueue_chunk();
         return No_State_Change;
     }
 
@@ -441,7 +441,7 @@ public:
         port.tx_chunk = port.tx_emsg;
         port.tx_chunk.header.data_obj_count = port.tx_emsg.size_to_pdo_count();
 
-        tch.prl.prl_tx_enquire_chunk();
+        tch.prl.prl_tx_enqueue_chunk();
         return TCH_Wait_For_Transmission_Complete;
     }
 
@@ -549,7 +549,7 @@ public:
         // single data object size is 4 bytes
         port.tx_chunk.header.data_obj_count = port.tx_chunk.size_to_pdo_count();
 
-        tch.prl.prl_tx_enquire_chunk();
+        tch.prl.prl_tx_enqueue_chunk();
         return TCH_Sending_Chunked_Message;
     }
 
@@ -1469,7 +1469,7 @@ void PRL::reset_msg_counters() {
     port.tx_msg_id_counter = 0;
 }
 
-void PRL::prl_tx_enquire_chunk() {
+void PRL::prl_tx_enqueue_chunk() {
     // Ensure to prohibit accepting statuses from driver
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
@@ -1650,7 +1650,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
     }
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_EnquireRestart&) {
+void PRL_EventListener::on_receive(const MsgToPrl_EnqueueRestart&) {
     prl.local_state = PRL::LOCAL_STATE::INIT;
 }
 

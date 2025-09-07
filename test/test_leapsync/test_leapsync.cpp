@@ -5,8 +5,8 @@ TEST(LeapSyncTest, BasicWorkflow) {
     LeapSync<int> sync;
     EXPECT_TRUE(sync.is_idle());
 
-    // Producer enquires
-    sync.enquire(42);
+    // Producer enqueues
+    sync.enqueue(42);
     EXPECT_FALSE(sync.is_idle());
 
     // Consumer gets job
@@ -23,7 +23,7 @@ TEST(LeapSyncTest, VoidParamsWorkflow) {
     LeapSync<> sync;
     EXPECT_TRUE(sync.is_idle());
 
-    sync.enquire();
+    sync.enqueue();
     EXPECT_FALSE(sync.is_idle());
 
     EXPECT_TRUE(sync.get_job());
@@ -31,13 +31,13 @@ TEST(LeapSyncTest, VoidParamsWorkflow) {
     EXPECT_TRUE(sync.is_idle());
 }
 
-TEST(LeapSyncTest, EnquireCoalescing) {
+TEST(LeapSyncTest, EnqueueCoalescing) {
     LeapSync<int> sync;
 
-    // Multiple enquires - only last one matters
-    sync.enquire(100);
-    sync.enquire(200);
-    sync.enquire(300);
+    // Multiple enqueues - only last one matters
+    sync.enqueue(100);
+    sync.enqueue(200);
+    sync.enqueue(300);
 
     int param;
     EXPECT_TRUE(sync.get_job(param));
@@ -57,7 +57,7 @@ TEST(LeapSyncTest, NoJobWhenIdle) {
 
 TEST(LeapSyncTest, NoJobWhenWorking) {
     LeapSync<int> sync;
-    sync.enquire(123);
+    sync.enqueue(123);
 
     int param1, param2;
     EXPECT_TRUE(sync.get_job(param1));   // First get_job succeeds
@@ -67,20 +67,20 @@ TEST(LeapSyncTest, NoJobWhenWorking) {
     EXPECT_TRUE(sync.is_idle());
 }
 
-TEST(LeapSyncTest, EnquireDuringWork) {
+TEST(LeapSyncTest, EnqueueDuringWork) {
     LeapSync<int> sync;
-    sync.enquire(111);
+    sync.enqueue(111);
 
     int param;
     EXPECT_TRUE(sync.get_job(param));
     EXPECT_EQ(param, 111);
 
-    // New enquire while working
-    sync.enquire(222);
-    EXPECT_FALSE(sync.is_idle());  // Should be ENQUIRED now
+    // New enqueue while working
+    sync.enqueue(222);
+    EXPECT_FALSE(sync.is_idle());  // Should be ENQUEUED now
 
     sync.job_finish();
-    // job_finish saw ENQUIRED state, so CAS failed - stays ENQUIRED
+    // job_finish saw ENQUEUED state, so CAS failed - stays ENQUEUED
     EXPECT_FALSE(sync.is_idle());
 
     // Can get the new job
@@ -93,7 +93,7 @@ TEST(LeapSyncTest, EnquireDuringWork) {
 
 TEST(LeapSyncTest, ResetFunctionality) {
     LeapSync<int> sync;
-    sync.enquire(999);
+    sync.enqueue(999);
 
     int param;
     EXPECT_TRUE(sync.get_job(param));
@@ -110,7 +110,7 @@ TEST(LeapSyncTest, EnumParams) {
     enum class Mode { FAST, SLOW, AUTO };
     LeapSync<Mode> sync;
 
-    sync.enquire(Mode::AUTO);
+    sync.enqueue(Mode::AUTO);
 
     Mode mode;
     EXPECT_TRUE(sync.get_job(mode));
