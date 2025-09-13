@@ -36,7 +36,7 @@ void etl_error_log(const etl::exception& e) {
         e.what(), e.file_name(), e.line_number());
 }
 
-void setup() {
+void initialize() {
     logger_start();
     blinker.start();
 
@@ -71,6 +71,16 @@ void setup() {
 #endif
 
     APP_LOGI("Setup complete");
+
 }
 
+#ifdef ARDUINO
+void setup() { initialize(); }
 void loop() {}
+#else
+extern "C" void app_main(void) {
+    initialize();
+    // Main task no longer needed once initialization completes.
+    vTaskDelete(nullptr);
+}
+#endif

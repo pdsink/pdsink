@@ -7,3 +7,5 @@
 **/.vscode/settings.json
 coverage
 *.code-workspace
+CMakeLists.txt
+sdkconfig.example-fusb302_rtos_esp32c3_espidf
