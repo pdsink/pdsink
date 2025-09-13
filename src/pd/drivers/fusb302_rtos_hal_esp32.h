@@ -1,8 +1,26 @@
 #pragma once
 
 #include <driver/gpio.h>
-#include <driver/i2c.h>
 #include <esp_timer.h>
+#include <esp_idf_version.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
+#ifndef PD_ESP32_USE_NEW_I2C_MASTER_API
+#  if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#    define PD_ESP32_USE_NEW_I2C_MASTER_API 1
+#  else
+#    define PD_ESP32_USE_NEW_I2C_MASTER_API 0
+#  endif
+#endif
+
+#if PD_ESP32_USE_NEW_I2C_MASTER_API
+#  include <driver/i2c_master.h>
+#  include <etl/flat_map.h>
+#  include <etl/utility.h>
+#else
+#  include <driver/i2c.h>
+#endif
 #include "fusb302_rtos.h"
 
 namespace pd {
@@ -32,7 +50,7 @@ public:
     Fusb302RtosHalEsp32& operator=(const Fusb302RtosHalEsp32&) = delete;
     Fusb302RtosHalEsp32(Fusb302RtosHalEsp32&&) = delete;
     Fusb302RtosHalEsp32& operator=(Fusb302RtosHalEsp32&&) = delete;
-    Fusb302RtosHalEsp32() = default;
+    Fusb302RtosHalEsp32();
 
 protected:
     gpio_num_t sda_io_pin{GPIO_NUM_5};
@@ -45,6 +63,16 @@ protected:
     esp_timer_handle_t timer_handle;
     bool started{false};
     bool i2c_initialized{false};
+
+#if PD_ESP32_USE_NEW_I2C_MASTER_API
+    i2c_master_bus_handle_t i2c_bus{nullptr};
+    // Max total count of devices on I2C bus, if this driver is reused in multiple places.
+    // Should be enough for most applications.
+    static constexpr size_t MAX_I2C_DEV_CACHE = 5;
+    etl::flat_map<uint8_t, i2c_master_dev_handle_t, MAX_I2C_DEV_CACHE> i2c_dev_cache{};
+    SemaphoreHandle_t i2c_dev_cache_mutex{nullptr};
+    auto ensure_i2c_master_dev(uint8_t addr) -> i2c_master_dev_handle_t;
+#endif
 
     virtual void init_timer();
     virtual void init_fusb_interrupt();
