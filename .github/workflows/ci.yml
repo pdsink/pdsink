@@ -26,6 +26,10 @@ jobs:
         run: |
           platformio test --environment test-desktop
 
-      - name: Check examples build
+      - name: Check examples build (arduino)
         run: |
           platformio run --environment example-fusb302_rtos_esp32c3_arduino
+
+      - name: Check examples build (espidf)
+        run: |
+          platformio run --environment example-fusb302_rtos_esp32c3_espidf
