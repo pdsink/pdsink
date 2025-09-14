@@ -11,6 +11,8 @@ using DPM_EventListener_Base = etl::message_router<class DPM_EventListener,
     pd::MsgToDpm_Alert,
     pd::MsgToDpm_EPREntryFailed,
     pd::MsgToDpm_SnkReady,
+    pd::MsgToDpm_CableAttached,
+    pd::MsgToDpm_CableDetached,
     pd::MsgToDpm_HandshakeDone,
     pd::MsgToDpm_NewPowerLevelRejected,
     pd::MsgToDpm_NewPowerLevelAccepted
@@ -27,6 +29,8 @@ public:
     void on_receive(const pd::MsgToDpm_Alert& msg);
     void on_receive(const pd::MsgToDpm_EPREntryFailed& msg);
     void on_receive(const pd::MsgToDpm_SnkReady& msg);
+    void on_receive(const pd::MsgToDpm_CableAttached& msg);
+    void on_receive(const pd::MsgToDpm_CableDetached& msg);
     void on_receive(const pd::MsgToDpm_HandshakeDone& msg);
     void on_receive(const pd::MsgToDpm_NewPowerLevelRejected& msg);
     void on_receive(const pd::MsgToDpm_NewPowerLevelAccepted& msg);

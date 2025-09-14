@@ -36,6 +36,7 @@ public:
         tc.log_state();
 
         port.is_attached = false;
+        port.notify_dpm(MsgToDpm_CableDetached{});
         port.timers.stop(PD_TIMEOUT::TC_VBUS_DEBOUNCE);
         tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
@@ -131,6 +132,7 @@ public:
         if (!port.is_attached) {
             if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
             port.is_attached = true;
+            port.notify_dpm(MsgToDpm_CableAttached{});
         }
 
         // TODO: Actually, we should check Safe0v. Check, if we should be more

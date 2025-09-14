@@ -9,12 +9,13 @@
 #define PD_LOG_FN_LVL_VERBOSE   jetlog::level::verbose
 
 // Use for debugging
-// #define PD_LOG_DEFAULT DEBUG
+#define PD_LOG_DEFAULT ERR
 
 // #define PD_LOG_PE INFO
 // #define PD_LOG_PRL INFO
-#define PD_LOG_TC INFO
-//#define PD_LOG_DPM VERBOSE
+// #define PD_LOG_DRV INFO
+// #define PD_LOG_TC INFO
+// #define PD_LOG_DPM VERBOSE
 #define PD_LOG_DPM INFO
 
 #define USE_FUSB302_RTOS

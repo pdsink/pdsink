@@ -51,6 +51,9 @@ enum msg_dpm_id {
     MSG_TO_DPM__ALERT,
     MSG_TO_DPM__EPR_ENTRY_FAILED,
     MSG_TO_DPM__SNK_READY,
+    // Global
+    MSG_TO_DPM__CABLE_ATTACHED,
+    MSG_TO_DPM__CABLE_DETACHED,
     // Sugar
     MSG_TO_DPM__HANDSHAKE_DONE, // Contracted and upgraded to EPR if possible.
     // Results of DPM requests
@@ -65,10 +68,12 @@ DEFINE_SIMPLE_MSG(MsgToDpm_SelectCapDone, MSG_TO_DPM__SELECT_CAP_DONE);
 DEFINE_SIMPLE_MSG(MsgToDpm_SrcDisabled, MSG_TO_DPM__SRC_DISABLED);
 DEFINE_PARAM_MSG(MsgToDpm_Alert, MSG_TO_DPM__ALERT, uint32_t, value);
 DEFINE_PARAM_MSG(MsgToDpm_EPREntryFailed, MSG_TO_DPM__EPR_ENTRY_FAILED, uint32_t, reason);
+DEFINE_SIMPLE_MSG(MsgToDpm_SnkReady, MSG_TO_DPM__SNK_READY);
+DEFINE_SIMPLE_MSG(MsgToDpm_CableAttached, MSG_TO_DPM__CABLE_ATTACHED);
+DEFINE_SIMPLE_MSG(MsgToDpm_CableDetached, MSG_TO_DPM__CABLE_DETACHED);
 DEFINE_SIMPLE_MSG(MsgToDpm_HandshakeDone, MSG_TO_DPM__HANDSHAKE_DONE);
 DEFINE_SIMPLE_MSG(MsgToDpm_NewPowerLevelRejected, MSG_TO_DPM__NEW_POWER_LEVEL_REJECTED);
 DEFINE_SIMPLE_MSG(MsgToDpm_NewPowerLevelAccepted, MSG_TO_DPM__NEW_POWER_LEVEL_ACCEPTED);
-DEFINE_SIMPLE_MSG(MsgToDpm_SnkReady, MSG_TO_DPM__SNK_READY);
 
 //
 // PE incoming messates

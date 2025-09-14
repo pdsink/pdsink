@@ -89,6 +89,14 @@ void DPM_EventListener::on_receive(const MsgToDpm_SnkReady& msg) {
     DPM_LOGI("Sink ready");
 }
 
+void DPM_EventListener::on_receive(const MsgToDpm_CableAttached& msg) {
+    DPM_LOGI("Cable attached");
+}
+
+void DPM_EventListener::on_receive(const MsgToDpm_CableDetached& msg) {
+    DPM_LOGI("Cable detached");
+}
+
 void DPM_EventListener::on_receive(const MsgToDpm_HandshakeDone& msg) {
     // Main event to detect successful handshake. That means:
     // - PD communication is established
