@@ -394,7 +394,11 @@ public:
 };
 
 
-class PE_SNK_Transition_Sink_State : public afsm::state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink> {
+class PE_SNK_Transition_Sink_State :
+    public afsm::state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink>,
+    // Any PRL error at this stage should cause a hard reset.
+    public afsm::interceptor_pack<InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
@@ -409,8 +413,6 @@ public:
             port.timers.start(PD_TIMEOUT::tPSTransition_SPR);
         }
 
-        // Any PRL error at this stage should cause a hard reset.
-        port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
@@ -434,7 +436,6 @@ public:
 
     static void on_exit_state(PE& pe) {
         auto& port = pe.port;
-        port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
         port.timers.stop(PD_TIMEOUT::tPSTransition_SPR);
     }
 };
@@ -828,14 +829,15 @@ public:
 
 
 // Come here when a Soft Reset is received from the SRC
-class PE_SNK_Soft_Reset_State : public afsm::state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset> {
+class PE_SNK_Soft_Reset_State :
+    public afsm::state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset>,
+    public afsm::interceptor_pack<InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
         pe.send_ctrl_msg(PD_CTRL_MSGT::Accept);
-
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
         return No_State_Change;
     }
 
@@ -852,9 +854,7 @@ public:
         return No_State_Change;
     }
 
-    static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-    }
+    static void on_exit_state(PE&) {}
 };
 
 
@@ -1224,23 +1224,23 @@ public:
 };
 
 
-class PE_Src_Disabled_State : public afsm::state<PE, PE_Src_Disabled_State, PE_Src_Disabled> {
+class PE_Src_Disabled_State :
+    public afsm::state<PE, PE_Src_Disabled_State, PE_Src_Disabled>,
+    // Don't leave state on error. Only allow exit via Hard Reset from
+    // partner, if cable stays connected.
+    public afsm::interceptor_pack<InterceptorForwardErrors>
+{
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
-
-        // Don't leave state on error. Only allow exit via Hard Reset from
-        // partner, if cable stays connected.
-        pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
 
         pe.port.notify_dpm(MsgToDpm_SrcDisabled());
         return No_State_Change;
     }
 
     static state_id_t on_run_state(PE&) { return No_State_Change; }
-    static void on_exit_state(PE& pe) {
-        pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
-    }
+
+    static void on_exit_state(PE&) {}
 };
 
 
