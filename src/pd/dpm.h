@@ -61,14 +61,23 @@ public:
         trigger(PDO_VARIANT::UNKNOWN, mv, ma);
     }
 
+    // `mv` is ignored for FIXED PDO. If non-zero, both `mv` and `ma` clamped to
+    // profile limits (position has priority over the rest).
+    void trigger_by_position(uint8_t position, uint32_t mv=0, uint32_t ma = 0);
+
 protected:
     Port& port;
 
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};
-
     PDO_VARIANT trigger_pdo_variant{PDO_VARIANT::UNKNOWN};
-    bool trigger_any_pdo{false}; // try to use any suitable PDO type
+    uint32_t trigger_position{0};
+
+    enum class TRIGGER_MATCH_TYPE {
+        USE_ANY,
+        BY_PDO_VARIANT,
+        BY_POSITION
+    } trigger_match_type{TRIGGER_MATCH_TYPE::USE_ANY};
 
     // Basic value for source with EPR. Update for your needs.
     uint32_t epr_watts{140};

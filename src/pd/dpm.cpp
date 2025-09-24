@@ -1,3 +1,5 @@
+#include <etl/algorithm.h>
+
 #include "dpm.h"
 #include "pd_log.h"
 #include "port.h"
@@ -138,11 +140,23 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         // Skip padded positions
         if (pdo == 0) { continue; }
 
-        auto id = get_src_pdo_variant(pdo);
+        const auto id = get_src_pdo_variant(pdo);
+        // Skip unsupported PDO variants
         if (id == PDO_VARIANT::UNKNOWN) { continue; }
-        if (!trigger_any_pdo && id != trigger_pdo_variant) { continue; }
 
-        if (!match_limits(pdo, trigger_mv, trigger_ma)) { continue; }
+        if (trigger_match_type == TRIGGER_MATCH_TYPE::BY_POSITION)
+        {
+            // If position matches, we can use it. Don't check ma/mv limits,
+            // because user asked for this position explicitly.
+            if ((i + 1) != trigger_position) { continue; } // position is 1-based
+        }
+        else
+        {
+            if (trigger_match_type == TRIGGER_MATCH_TYPE::BY_PDO_VARIANT &&
+                id != trigger_pdo_variant) { continue;}
+
+            if (!match_limits(pdo, trigger_mv, trigger_ma)) { continue; }
+        }
 
         // Create RDO
         RDO_ANY rdo{};
@@ -152,32 +166,36 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         // fill PDO-specific fields (volts/current/watts)
         auto limits = get_src_pdo_limits(pdo);
 
-        if (id == PDO_VARIANT::FIXED) {
-            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
-            set_rdo_limits_fixed(rdo.raw_value, ma, ma);
-            return {rdo.raw_value, pdo};
-        }
+        uint32_t mv = trigger_mv ? trigger_mv : limits.mv_min;
+        mv = etl::clamp(mv, limits.mv_min, limits.mv_max);
 
-        if (id == PDO_VARIANT::APDO_PPS) {
-            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
-            set_rdo_limits_pps(rdo.raw_value, trigger_mv, ma);
-            return {rdo.raw_value, pdo};
-        }
+        uint32_t ma_limit = limits.ma ? limits.ma : (limits.pdp * 1000U / mv);
+        if (ma_limit > 5000) { ma_limit = 5000; } // clamp to 5A max PD limit
 
-        if (id == PDO_VARIANT::APDO_SPR_AVS) {
-            uint32_t ma = trigger_ma ? trigger_ma : limits.ma;
-            set_rdo_limits_avs(rdo.raw_value, trigger_mv, ma);
-            return {rdo.raw_value, pdo};
-        }
+        uint32_t ma = trigger_ma ? trigger_ma : ma_limit;
+        ma = etl::clamp(ma, 0ul, ma_limit);
 
-        if (id == PDO_VARIANT::APDO_EPR_AVS) {
-            uint32_t ma = trigger_ma;
-            if (ma == 0) {
-                ma = limits.pdp * 1000U / trigger_mv;
-                if (ma > 5000) { ma = 5000; }
-            }
-            set_rdo_limits_avs(rdo.raw_value, trigger_mv, ma);
-            return {rdo.raw_value, pdo};
+        switch (id) {
+            case PDO_VARIANT::FIXED:
+                // `mv` is always exact for FIXED PDO
+                set_rdo_limits_fixed(rdo.raw_value, ma, ma);
+                return {rdo.raw_value, pdo};
+
+            case PDO_VARIANT::APDO_PPS:
+                set_rdo_limits_pps(rdo.raw_value, mv, ma);
+                return {rdo.raw_value, pdo};
+
+            case PDO_VARIANT::APDO_SPR_AVS:
+                set_rdo_limits_avs(rdo.raw_value, mv, ma);
+                return {rdo.raw_value, pdo};
+
+            case PDO_VARIANT::APDO_EPR_AVS:
+                set_rdo_limits_avs(rdo.raw_value, mv, ma);
+                return {rdo.raw_value, pdo};
+
+            default:
+                DPM_LOGE("get_request_data_object: unsupported PDO variant");
+                break;
         }
     }
 
@@ -206,7 +224,19 @@ void DPM::trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma) {
     trigger_mv = mv;
     trigger_ma = ma;
     trigger_pdo_variant = pdo_variant;
-    trigger_any_pdo = (pdo_variant == PDO_VARIANT::UNKNOWN);
+    trigger_position = 0;
+    trigger_match_type = (pdo_variant == PDO_VARIANT::UNKNOWN)
+        ? TRIGGER_MATCH_TYPE::USE_ANY
+        : TRIGGER_MATCH_TYPE::BY_PDO_VARIANT;
+    request_new_power_level();
+}
+
+void DPM::trigger_by_position(uint8_t position, uint32_t mv, uint32_t ma) {
+    trigger_mv = mv;
+    trigger_ma = ma;
+    trigger_match_type = TRIGGER_MATCH_TYPE::BY_POSITION;
+    trigger_position = position;
+    trigger_pdo_variant = PDO_VARIANT::UNKNOWN; // not used in this mode
     request_new_power_level();
 }
 
