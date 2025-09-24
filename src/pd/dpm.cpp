@@ -135,7 +135,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         return {0, 0};
     }
 
-    for (int i = 0, max = src_caps.size(); i < max; i++) {
+    for (uint32_t i = 0, max = src_caps.size(); i < max; i++) {
         const auto pdo = src_caps[i];
         // Skip padded positions
         if (pdo == 0) { continue; }
@@ -148,7 +148,8 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         {
             // If position matches, we can use it. Don't check ma/mv limits,
             // because user asked for this position explicitly.
-            if ((i + 1) != trigger_position) { continue; } // position is 1-based
+            // Note: position is 1-based
+            if ((i + 1) != trigger_position) { continue; }
         }
         else
         {
@@ -167,13 +168,13 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         auto limits = get_src_pdo_limits(pdo);
 
         uint32_t mv = trigger_mv ? trigger_mv : limits.mv_min;
-        mv = etl::clamp(mv, limits.mv_min, limits.mv_max);
+        mv = etl::clamp<uint32_t>(mv, limits.mv_min, limits.mv_max);
 
         uint32_t ma_limit = limits.ma ? limits.ma : (limits.pdp * 1000U / mv);
         if (ma_limit > 5000) { ma_limit = 5000; } // clamp to 5A max PD limit
 
         uint32_t ma = trigger_ma ? trigger_ma : ma_limit;
-        ma = etl::clamp(ma, 0ul, ma_limit);
+        ma = etl::clamp<uint32_t>(ma, 0, ma_limit);
 
         switch (id) {
             case PDO_VARIANT::FIXED:
