@@ -55,12 +55,18 @@ public:
     // current not available in profile directly, use watts instead, to
     // calculate (and clamp to 5A if above).
     //
-    void trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma = 0);
 
+    // The most simple trigger, without diving into details.
     void trigger_any(uint32_t mv, uint32_t ma = 0) {
-        trigger(PDO_VARIANT::UNKNOWN, mv, ma);
+        trigger_variant(PDO_VARIANT::UNKNOWN, mv, ma);
     }
 
+    // Trigger the selected PDO variant. May be useful, if you wish to work with
+    // APDO and use fast mv/ma update.
+    void trigger_variant(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma = 0);
+
+    // Trigger specific PDO by position in SRC Capabilities list. For
+    // complicated scenarios, you may need to implement additional logic.
     // `mv` is ignored for FIXED PDO. If non-zero, both `mv` and `ma` clamped to
     // profile limits (position has priority over the rest).
     void trigger_by_position(uint8_t position, uint32_t mv=0, uint32_t ma = 0);

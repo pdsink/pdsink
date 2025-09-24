@@ -220,7 +220,7 @@ void DPM::request_new_power_level() {
     }
 }
 
-void DPM::trigger(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma) {
+void DPM::trigger_variant(PDO_VARIANT pdo_variant, uint32_t mv, uint32_t ma) {
     trigger_mv = mv;
     trigger_ma = ma;
     trigger_pdo_variant = pdo_variant;
