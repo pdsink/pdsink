@@ -174,7 +174,7 @@ static constexpr int I2C_TIMEOUT_MS = 20;
 static_assert(pdMS_TO_TICKS(I2C_TIMEOUT_MS) > 0, "Too slow FreeRTOS tick rate, should be 1000Hz or faster");
 
 bool Fusb302RtosHalEsp32::read_block(uint8_t i2c_addr, uint8_t reg, uint8_t *data, uint32_t size) {
-    if (!started) { return false; }
+    if (!i2c_initialized) { return false; }
     if (!size) { return true; } // nothing to read
 
 #if PD_ESP32_USE_NEW_I2C_MASTER_API
@@ -206,7 +206,7 @@ bool Fusb302RtosHalEsp32::read_block(uint8_t i2c_addr, uint8_t reg, uint8_t *dat
 }
 
 bool Fusb302RtosHalEsp32::write_block(uint8_t i2c_addr, uint8_t reg, const uint8_t *data, uint32_t size) {
-    if (!started) { return false; }
+    if (!i2c_initialized) { return false; }
     if (!size) { return true; } // nothing to write
 
 #if PD_ESP32_USE_NEW_I2C_MASTER_API
