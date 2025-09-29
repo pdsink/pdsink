@@ -685,6 +685,11 @@ void Fusb302Rtos::handle_tcpc_calls() {
 void Fusb302Rtos::task() {
     uint32_t event_mask{0};
 
+    // Allow setup to complete before continueing. In other case,
+    // early VBUS_OK interrupt can cause kick_task failures. That's not
+    // critical, but just to avoid unnecessary errors in log.
+    xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
+
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
         hal.setup();
         fusb_setup();
@@ -727,7 +732,7 @@ void Fusb302Rtos::task() {
 
 void Fusb302Rtos::kick_task(uint32_t event_mask, bool from_isr) {
     if (!started) {
-        DRV_LOGE("Driver not started, can't notify");
+        DRV_LOGE("Driver not started, can't notify [event mask: {}]", event_mask);
         return;
     }
     if (!xWaitingTaskHandle) {
@@ -778,6 +783,10 @@ void Fusb302Rtos::setup() {
     }
 
     started = true;
+
+    // Activate task
+    kick_task(0);
+
 }
 
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
