@@ -4,6 +4,7 @@ namespace pd {
 namespace dobj_utils {
 
 PDO_VARIANT get_src_pdo_variant(uint32_t src_pdo) {
+    if (src_pdo == 0) { return PDO_VARIANT::UNKNOWN; }
     PDO_EPR_AVS pdo{src_pdo}; // Use this type to just access high bits
     if (pdo.pdo_type == PDO_TYPE::FIXED) { return PDO_VARIANT::FIXED; }
     if (pdo.pdo_type == PDO_TYPE::AUGMENTED) {
