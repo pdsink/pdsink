@@ -171,7 +171,7 @@ protected:
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_auto_goodcrc_send = true,
         .tx_auto_goodcrc_check = true,
-        .tx_auto_retry = false
+        .tx_auto_retry = true
     };
 
     // Call sync  + param store primitives
