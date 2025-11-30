@@ -305,6 +305,7 @@ public:
             pe.send_data_msg(PD_DATA_MSGT::Request);
         }
 
+        // Cleanup postponed retry if existed
         port.timers.stop(PD_TIMEOUT::tSinkRequest);
         return No_State_Change;
     }
@@ -594,16 +595,24 @@ public:
             return No_State_Change;
         }
 
-        // Special case: process a postponed Source Capabilities request.
-        // If pending, don't try the DPM requests queue.
+        // Special case: SRC postponed Request (Select Capability) via `Wait`.
+        // pause and don't try to bomb SRC with pending DPM requests.
         if (!port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
             if (port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
                 port.timers.stop(PD_TIMEOUT::tSinkRequest);
+
+                // Note, if postponed Request was initialized by DPM, such
+                // simplified state change will cause duplicated command.
+                // But since `Wait` scenario is very rare, that's acceptable.
+                // Let's keep things simple for now.
                 return PE_SNK_Select_Capability;
             }
         }
-        else
+
+        // If SRC requested Wait before, we should not process DPM requests
+        // until timeout compleete.
+        if (port.timers.is_disabled(PD_TIMEOUT::tSinkRequest))
         {
             //
             // Process DPM requests
