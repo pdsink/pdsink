@@ -498,17 +498,25 @@ public:
                 switch (hdr.message_type)
                 {
                 case PD_EXT_MSGT::EPR_Source_Capabilities:
-                    // If not in EPR mode, ignore this message
-                    if (pe.is_in_epr_mode()) { return PE_SNK_Evaluate_Capability; }
-                    break;
+                    if (!pe.is_in_epr_mode()) {
+                        // NOTE: This case is NOT specified explicitly in the spec.
+                        PE_LOGE("Got EPR_Source_Capabilities in SPR mode, ignoring");
+                        break;
+                    }
+                    return PE_SNK_Evaluate_Capability;
 
                 case PD_EXT_MSGT::Extended_Control:
                     if (msg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_Get_Sink_Cap)) {
                         return PE_SNK_Give_Sink_Cap;
                     }
+                    {
+                        ETL_MAYBE_UNUSED ECDB ecdb{msg.read16(0)};
+                        PE_LOGE("Unsupported PD_EXT_MSGT::Extended_Control type: {}", ecdb.type);
+                    }
                     return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
 
                 default:
+                    PE_LOGE("Unexpected PD_EXT_MSGT: {}", hdr.message_type);
                     return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
             }
@@ -519,7 +527,10 @@ public:
                 switch (hdr.message_type)
                 {
                 case PD_DATA_MSGT::Source_Capabilities:
-                    if (pe.is_in_epr_mode()) { return PE_SNK_Hard_Reset;}
+                    if (pe.is_in_epr_mode()) {
+                        PE_LOGE("Got SPR Source_Capabilities in EPR mode => Hard Reset");
+                        return PE_SNK_Hard_Reset;
+                    }
                     return PE_SNK_Evaluate_Capability;
 
                 case PD_DATA_MSGT::Vendor_Defined:
@@ -540,10 +551,12 @@ public:
                     if (eprmdo.action == EPR_MODE_ACTION::EXIT) {
                         return PE_SNK_EPR_Mode_Exit_Received;
                     }
+                    PE_LOGE("Unsupported PD_DATA_MSGT::EPR_Mode Action: {}", eprmdo.action);
                     return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
 
                 default:
+                    PE_LOGE("Unexpected PD_DATA_MSGT: {}", hdr.message_type);
                     return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
             } else {
@@ -561,12 +574,14 @@ public:
                 // Unexpected => soft reset
                 case PD_CTRL_MSGT::Accept:
                 case PD_CTRL_MSGT::Reject:
+                    PE_LOGE("Unexpected Accept/Reject => Soft Reset");
                     return PE_SNK_Send_Soft_Reset;
 
                 case PD_CTRL_MSGT::Ping: // Deprecated as "ignored"
                     break;
 
                 case PD_CTRL_MSGT::PS_RDY: // Unexpected => soft reset
+                    PE_LOGE("Unexpected PD_CTRL_MSGT::PS_RDY => Soft Reset");
                     return PE_SNK_Send_Soft_Reset;
 
                 case PD_CTRL_MSGT::Get_Sink_Cap:
@@ -585,6 +600,7 @@ public:
                     return PE_Give_Revision;
 
                 default:
+                    PE_LOGE("Unexpected PD_CTRL_MSGT: {}", hdr.message_type);
                     return sr_on_unsupported ? PE_SNK_Send_Soft_Reset : PE_SNK_Send_Not_Supported;
                 }
             }
@@ -1499,17 +1515,19 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
-    PE_LOGD("Message discarded (PRL notification to PE)");
+    PE_LOGI("=> Message discarded (from PRL)");
     pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
+    PE_LOGI("=> Soft Reset from port partner");
     if (pe.is_uninitialized()) { return; }
     if (pe.get_state_id() == PE_Src_Disabled) { return; }
     pe.change_state(PE_SNK_Soft_Reset);
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {
+    PE_LOGI("=> Hard Reset from port partner");
     if (pe.is_uninitialized()) { return; }
     pe.change_state(PE_SNK_Transition_to_default);
 }
