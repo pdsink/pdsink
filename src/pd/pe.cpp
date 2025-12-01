@@ -831,7 +831,7 @@ public:
         pe.log_state();
 
         if (port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
-            port.hard_reset_counter >= nHardResetCount)
+            port.hard_reset_counter > nHardResetCount)
         {
             return PE_Src_Disabled;
         }
