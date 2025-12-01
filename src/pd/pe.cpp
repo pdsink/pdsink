@@ -1215,7 +1215,7 @@ public:
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
 
         if (port.timers.is_disabled(PD_TIMEOUT::tBISTCarrierMode)) {
-            return PE_SNK_Ready;
+            return PE_SNK_Transition_to_default;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
