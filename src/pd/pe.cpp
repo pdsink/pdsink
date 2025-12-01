@@ -233,14 +233,46 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        port.hard_reset_counter = 0;
-        port.revision = static_cast<PD_REVISION::Type>(
-            etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
-
         port.source_caps.clear();
         for (int i = 0; i < port.rx_emsg.size_to_pdo_count(); i++) {
             port.source_caps.push_back(port.rx_emsg.read32(i*4));
         }
+
+        //
+        // Do minimal validation, required by spec
+        //
+
+        if (port.source_caps.empty()) {
+            PE_LOGE("SRC Capabilities can't be empty");
+            return PE_SNK_Hard_Reset;
+        }
+
+        // First PDO must be Safe5v
+        PDO_FIXED first_pdo{port.source_caps[0]};
+        if (first_pdo.pdo_type != PDO_TYPE::FIXED ||
+            first_pdo.voltage != 100 /* in 50mv steps */)
+        {
+            // 100 = 5000mV / 50mV
+            PE_LOGE("Firset PDO MUST be Safe5v FIXED");
+            return PE_SNK_Hard_Reset;
+        }
+
+        // EPR PDOs are prohibited at SPR positions (1-7, counted from 1)
+        for (int i = 0; i < etl::min<int>(port.source_caps.size(), MaxPdoObjects_SPR); i++) {
+            auto pdo = port.source_caps[i];
+            auto pdo_variant = dobj_utils::get_src_pdo_variant(pdo);
+            if (pdo_variant == PDO_VARIANT::APDO_EPR_AVS ||
+                (pdo_variant == PDO_VARIANT::FIXED && PDO_FIXED{pdo}.voltage > 400 /* >20V  in 50mv steps */))
+            {
+                PE_LOGE("EPR PDO prohibited at SPR position {}", i + 1);
+                return PE_SNK_Hard_Reset;
+            }
+        }
+
+        // Continue after all validation checks passed
+        port.hard_reset_counter = 0;
+        port.revision = static_cast<PD_REVISION::Type>(
+            etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
 
         port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
