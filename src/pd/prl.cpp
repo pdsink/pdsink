@@ -660,6 +660,13 @@ public:
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderRequest)) {
+            // [rev3.2] 6.12.2.1.3.8 If no Chunk Request for the very first
+            // chunk arrived, treat the transfer as completed. That's required
+            // for compatibility with devices without chunking support.
+            if (port.tch_chunk_number_to_send == 1) {
+                return TCH_Message_Sent;
+            }
+
             port.tch_error = PRL_ERROR::TCH_SEQUENCE_TIMEOUT;
             return TCH_Report_Error;
         }
