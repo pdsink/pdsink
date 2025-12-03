@@ -1440,6 +1440,11 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
         return false;
     }
 
+    if (src_caps.size() > MaxPdoObjects) {
+        PE_LOGE("SRC Capabilities max count is {}, got {}", MaxPdoObjects, src_caps.size());
+        return false;
+    }
+
     // First PDO must be Safe5v
     if (get_src_pdo_variant(src_caps[0]) != PDO_VARIANT::FIXED ||
         PDO_FIXED{src_caps[0]}.voltage != 100 /* 5000mV in 50mv steps */)
@@ -1448,15 +1453,72 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
         return false;
     }
 
-    // EPR PDOs are prohibited at SPR positions (1-7, counted from 1)
-    for (int i = 0; i < etl::min<int>(src_caps.size(), MaxPdoObjects_SPR); i++) {
+    // EPR PDOs are prohibited at SPR positions (1-7, counted from 1),
+    // and SPR PDOs are prohibited at EPR positions (8+).
+    for (int i = 0; i < etl::min<int>(src_caps.size(), MaxPdoObjects); i++) {
         auto pdo = src_caps[i];
         auto pdo_variant = get_src_pdo_variant(pdo);
         if (pdo_variant == PDO_VARIANT::APDO_EPR_AVS ||
             (pdo_variant == PDO_VARIANT::FIXED && PDO_FIXED{pdo}.voltage > 400 /* >20V  in 50mv steps */))
         {
-            PE_LOGE("EPR PDO prohibited at SPR position {}", i + 1);
-            return false;
+            if (i < MaxPdoObjects_SPR) {
+                PE_LOGE("EPR PDO prohibited at SPR position {}", i + 1);
+                return false;
+            }
+        } else {
+            if (i >= MaxPdoObjects_SPR) {
+                PE_LOGE("SPR PDO prohibited at EPR position {}", i + 1);
+                return false;
+            }
+        }
+    }
+
+    // Count AVS APDOs: max 1 SPR AVS and max 1 EPR AVS
+    int spr_avs_count = 0;
+    int epr_avs_count = 0;
+
+    for (size_t i = 0; i < src_caps.size(); i++) {
+        auto pdo_variant = get_src_pdo_variant(src_caps[i]);
+        if (pdo_variant == PDO_VARIANT::APDO_SPR_AVS) {
+            spr_avs_count++;
+            if (spr_avs_count > 1) {
+                PE_LOGE("Only one SPR AVS APDO allowed");
+                return false;
+            }
+        } else if (pdo_variant == PDO_VARIANT::APDO_EPR_AVS) {
+            epr_avs_count++;
+            if (epr_avs_count > 1) {
+                PE_LOGE("Only one EPR AVS APDO allowed");
+                return false;
+            }
+        }
+    }
+
+    // Check Fixed PDO voltages are strictly ascending (no duplicates)
+    uint32_t prev_fixed_voltage = 0;
+    for (size_t i = 0; i < src_caps.size(); i++) {
+        auto pdo_variant = get_src_pdo_variant(src_caps[i]);
+        if (pdo_variant == PDO_VARIANT::FIXED) {
+            uint32_t voltage = PDO_FIXED{src_caps[i]}.voltage;
+            if (voltage <= prev_fixed_voltage) {
+                PE_LOGE("Fixed PDO voltages must be strictly ascending");
+                return false;
+            }
+            prev_fixed_voltage = voltage;
+        }
+    }
+
+    // Check PPS APDO max_voltage is ascending (not strictly - duplicates allowed)
+    uint32_t prev_pps_max_voltage = 0;
+    for (size_t i = 0; i < src_caps.size(); i++) {
+        auto pdo_variant = get_src_pdo_variant(src_caps[i]);
+        if (pdo_variant == PDO_VARIANT::APDO_PPS) {
+            uint32_t max_voltage = PDO_SPR_PPS{src_caps[i]}.max_voltage;
+            if (max_voltage < prev_pps_max_voltage) {
+                PE_LOGE("PPS APDO max_voltage must be in ascending order");
+                return false;
+            }
+            prev_pps_max_voltage = max_voltage;
         }
     }
 

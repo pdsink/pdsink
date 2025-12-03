@@ -70,7 +70,7 @@ public:
     bool is_in_spr_contract() const;
     bool is_in_pps_contract() const;
     bool is_epr_mode_available() const;
-    bool validate_source_caps(const etl::ivector<uint32_t>& src_caps);
+    static bool validate_source_caps(const etl::ivector<uint32_t>& src_caps);
 
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING
