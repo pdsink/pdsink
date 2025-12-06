@@ -463,7 +463,7 @@ public:
 
         if (pe.get_previous_state_id() == PE_SNK_EPR_Keep_Alive) {
             // Log returning from EPR Keep-Alive at debug level to reduce noise
-            PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
+            PE_LOGV("PE state => {}", pe_state_to_desc(pe.get_state_id()));
         } else {
             pe.log_state();
         }
@@ -760,7 +760,7 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         // Manually log as debug level, to reduce noise
-        PE_LOGD("PE state => {}", pe_state_to_desc(pe.get_state_id()));
+        PE_LOGV("PE state => {}", pe_state_to_desc(pe.get_state_id()));
 
 
         ECDB ecdb{};
@@ -1563,13 +1563,13 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlMessageReceived&) {
-    PE_LOGD("Message received (PRL notification to PE)");
+    PE_LOGV("Message received (PRL notification to PE)");
 
     pe.port.pe_flags.set(PE_FLAG::MSG_RECEIVED);
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
-    PE_LOGD("Message transferred (PRL notification to PE)");
+    PE_LOGV("Message transferred (PRL notification to PE)");
 
     // Any successful send inside AMS means the first message was sent
     if (pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
