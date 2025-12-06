@@ -250,6 +250,15 @@ public:
         port.revision = static_cast<PD_REVISION::Type>(
             etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
 
+        if (port.source_caps.size() > MaxPdoObjects_SPR && !pe.is_in_epr_mode()) {
+            // NOTE: For unknown reasons, spec does NOT say EPR_Source_Capabilities
+            // is the fuckup in SPR mode, when received in Ready state.
+            // So, process it as valid, but cut the size.
+            PE_LOGE("Source sent too many PDOs for SPR mode ({}), cutting to {}",
+                port.source_caps.size(), MaxPdoObjects_SPR);
+            port.source_caps.resize(MaxPdoObjects_SPR);
+        }
+
         port.notify_dpm(MsgToDpm_SrcCapsReceived());
         return PE_SNK_Select_Capability;
     }
@@ -505,9 +514,10 @@ public:
                 {
                 case PD_EXT_MSGT::EPR_Source_Capabilities:
                     if (!pe.is_in_epr_mode()) {
-                        // NOTE: This case is NOT specified explicitly in the spec.
-                        PE_LOGE("Got EPR_Source_Capabilities in SPR mode, ignoring");
-                        break;
+                        // NOTE: This case is NOT specified explicitly in the
+                        // spec. Just log but cut the size in the evaluation
+                        // state.
+                        PE_LOGE("Got EPR_Source_Capabilities in SPR mode. Will take only SPR part.");
                     }
                     return PE_SNK_Evaluate_Capability;
 
