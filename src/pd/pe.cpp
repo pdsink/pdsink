@@ -238,6 +238,8 @@ public:
             port.source_caps.push_back(port.rx_emsg.read32(i*4));
         }
 
+        pe.log_source_caps();
+
         if (!pe.validate_source_caps(port.source_caps)) {
             PE_LOGE("Source_Capabilities validation failed");
             return PE_SNK_Send_Not_Supported;
@@ -282,8 +284,6 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
         pe.log_state();
-
-        pe.log_source_caps();
 
         auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
 
