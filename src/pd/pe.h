@@ -25,7 +25,6 @@ using PE_EventListener_Base = etl::message_router<class PE_EventListener,
     MsgToPe_PrlMessageSent,
     MsgToPe_PrlReportError,
     MsgToPe_PrlReportDiscard,
-    MsgToPe_PrlSoftResetFromPartner,
     MsgToPe_PrlHardResetFromPartner,
     MsgToPe_PrlHardResetSent>;
 
@@ -37,7 +36,6 @@ public:
     void on_receive(const MsgToPe_PrlMessageSent& msg);
     void on_receive(const MsgToPe_PrlReportError& msg);
     void on_receive(const MsgToPe_PrlReportDiscard& msg);
-    void on_receive(const MsgToPe_PrlSoftResetFromPartner& msg);
     void on_receive(const MsgToPe_PrlHardResetFromPartner& msg);
     void on_receive(const MsgToPe_PrlHardResetSent& msg);
     void on_receive_unknown(const etl::imessage& msg);

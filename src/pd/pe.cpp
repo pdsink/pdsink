@@ -877,6 +877,11 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
+        // Cleanup pending flags for sure
+        pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+        pe.port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
+        pe.port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
+
         pe.send_ctrl_msg(PD_CTRL_MSGT::Accept);
         return No_State_Change;
     }
@@ -887,10 +892,13 @@ public:
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Wait_for_Capabilities;
         }
-        if (port.pe_flags.test_and_clear(PE_FLAG::MSG_DISCARDED) ||
-            port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+
+        // Spec does not require discard check here. That will be handled by
+        // repeated Soft Reset or Hard Reset.
+        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_SNK_Hard_Reset;
         }
+
         return No_State_Change;
     }
 
@@ -1552,6 +1560,23 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
                 pe.change_state(afsm::Uninitialized);
                 break;
             }
+
+            if (pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED) &&
+                pe.port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset))
+            {
+                PE_LOGI("=> Soft Reset from port partner");
+                if (pe.is_uninitialized() ||
+                    pe.get_state_id() == PE_Src_Disabled)
+                {
+                    // This should not happen, but just in case...
+                    PE_LOGE("=> PE inactive, ignoring Soft Reset");
+                    pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
+                } else {
+                    // Change state and force reenter if already there
+                    pe.change_state(PE_SNK_Soft_Reset, true);
+                }
+            }
+
             pe.run();
             break;
     }
@@ -1626,13 +1651,6 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
 void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
     PE_LOGI("=> Message discarded (from PRL)");
     pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
-}
-
-void PE_EventListener::on_receive(const MsgToPe_PrlSoftResetFromPartner&) {
-    PE_LOGI("=> Soft Reset from port partner");
-    if (pe.is_uninitialized()) { return; }
-    if (pe.get_state_id() == PE_Src_Disabled) { return; }
-    pe.change_state(PE_SNK_Soft_Reset);
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {

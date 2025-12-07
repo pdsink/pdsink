@@ -1127,6 +1127,7 @@ public:
         port.prl_tx_flags.clear_all();
         port.prl_rch_flags.clear_all();
         port.prl_tch_flags.clear_all();
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
         prl.reset_msg_counters();
 
@@ -1134,7 +1135,6 @@ public:
         prl.prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
         prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
 
-        prl.report_pe(MsgToPe_PrlSoftResetFromPartner{});
         return PRL_Rx_Send_GoodCRC;
     }
 
@@ -1145,7 +1145,11 @@ public:
 class PRL_Rx_Send_GoodCRC_State : public afsm::state<PRL_Rx, PRL_Rx_Send_GoodCRC_State, PRL_Rx_Send_GoodCRC> {
 public:
     // All modern hardware sends CRC automatically. This state exists
-    // to match spec and for potential extensions.
+    // to match spec only.
+    //
+    // NOTE: PRL_Rx_Layer_Reset_for_Receive relies on come to PRL_Rx_Store_MessageID
+    // immediately, PE should not enquire new message in the middle. In other
+    // case Soft Reset notification should be reworked for proper `Accept` flow.
     static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         prl_rx.log_state();
         return PRL_Rx_Check_MessageID;
@@ -1194,6 +1198,14 @@ public:
         // Don't discard if sending succeeded. Let it finish as usual, because
         // this status can arrive together with new incoming message.
         //
+
+        // Safety cleanup for smooth Soft Reset flow.
+        // Seems needed but added for sure.
+        if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+            port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+            port.prl_tch_flags.clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
+        }
+
         auto status = port.tcpc_tx_status.load();
         if ((status != TCPC_TRANSMIT_STATUS::UNSET && status != TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
             port.prl_tx_flags.test(PRL_TX_FLAG::TX_CHUNK_ENQUEUED))
