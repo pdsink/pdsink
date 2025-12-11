@@ -51,6 +51,9 @@ void Fusb302RtosHalEsp32::init_i2c() {
         // this is expected use case. But report all other errors.
         ESP_ERROR_CHECK(err);
     }
+
+    // Enable i2c SDA/SCL lines filter with defaults to suppress spikes
+    ESP_ERROR_CHECK(i2c_filter_enable(i2c_num, 7));
 }
 
 void Fusb302RtosHalEsp32::init_timer() {
