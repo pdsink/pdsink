@@ -1,8 +1,8 @@
 #pragma once
 
 enum class PRL_ERROR {
-    // Spec has too poor description of PE reactions on errors. Let's keep all
-    // details in report, to have more flexibility in error handler.
+    // The spec describes PE reactions to errors poorly. Let's keep all
+    // details in the report to have more flexibility in the error handler.
 
     RCH_BAD_SEQUENCE,       // wrong input chunk (for chunked messages)
     RCH_SEND_FAIL,          // failed to request next chunk (no GoodCRC)
@@ -31,7 +31,7 @@ enum class PRL_TX_FLAG {
     START_OF_AMS_DETECTED,
     // Input signal from RCH/TCH
     TX_CHUNK_ENQUEUED,
-    // Ourput signal for RCH/TCH
+    // Output signal for RCH/TCH
     TX_COMPLETED,
     TX_ERROR,
     _Count

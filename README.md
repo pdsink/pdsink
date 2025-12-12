@@ -23,12 +23,12 @@ Not supported:
 
 See [docs](./docs) and [examples](./examples).
 
-For real world complex scenario see heater-related classes in
+For a real-world complex scenario, see the heater-related classes in the
 [Reflow Micro Table](https://github.com/puzrin/reflow_micro/tree/master/firmware/src/heater)
 project.
 
 Note that this package uses [ETL](https://www.etlcpp.com/) but does not pin a
-specific version, to avoid conflicts with your application. Set a specific
+specific version to avoid conflicts with your application. Pin a specific
 dependency version in your application to keep the configuration stable.
 
 

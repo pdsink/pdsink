@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 static_assert(etl::endianness::value() == etl::endian::little,
-    "Only little-endian targets supported");
+    "Only little-endian targets are supported");
 
 namespace pd {
 
@@ -31,7 +31,7 @@ namespace PD_REVISION {
     };
 }; // namespace PD_REVISION
 
-// NOTE: redefine if implement option to build without full PRL support.
+// NOTE: Redefine if you implement an option to build without full PRL support.
 constexpr auto MaxSupportedRevision = PD_REVISION::REV30;
 
 using PDO_LIST = etl::vector<uint32_t, MaxPdoObjects>;
@@ -186,15 +186,15 @@ union PD_ALERT {
 //
 // [rev3.2] 6.4.1.1 Power Data Objects
 //
-// Only actually useable ones defined below
+// Only actually usable ones defined below
 //
 
 // Bits 30..31
 namespace PDO_TYPE {
     enum {
         FIXED = 0,
-        // NOTE: VARIABLE and BATTERY IDs seems swapped in SNK PDO,
-        // spec 3.2 rev 1.1. Be careful if decide to add support.
+        // NOTE: VARIABLE and BATTERY IDs seem swapped in SNK PDO,
+        // spec 3.2 rev 1.1. Be careful if you decide to add support.
         AUGMENTED = 3
     };
 }; // namespace PDO_TYPE
@@ -287,7 +287,7 @@ union PDO_EPR_AVS {
 //
 // Request Data Objects ([rev3.2] 6.4.2 Request Message)
 //
-// Only actually useable ones defined below
+// Only actually usable ones defined below
 //
 
 // [rev3.2] Table 6.23 Fixed and Variable Request Data Object
@@ -326,7 +326,7 @@ union RDO_PPS {
 };
 
 // [rev3.2] Table 6.26 AVS Request Data Object
-// Exactly the same as RDO_PPS in spec 3.2, but `output voltage` a bit different
+// Exactly the same as RDO_PPS in spec 3.2, but `output voltage` is a bit different
 union RDO_AVS {
     uint32_t raw_value;
     struct {

@@ -18,9 +18,9 @@ before getting started.**
 
 **-D PD_USE_CONFIG_FILE**
 
-Create `pd_config.h` file in a searchable path of your project.
+Create a `pd_config.h` file in a searchable path in your project.
 It will be loaded to configure the library. Alternatively, you can set
-all variables via the `-D` option, but that's more tedious if you use logging.
+all variables via the `-D` option, but that's more tedious when logging is enabled.
 
 **Built-in drivers**
 
@@ -29,7 +29,7 @@ disabled by default. See the [drivers](../src/pd/drivers/) folder,
 [pd_include.h](../src/pd/pd_include.h) and [examples](../examples/) for
 available options.
 
-**For Platform IO**
+**For PlatformIO**
 
 Application `platformio.ini` build options:
 
@@ -44,10 +44,10 @@ build_flags =
 
 **For other build systems**
 
-- For the project, add pdsink `src/` folder to searchable path.
-- If logs enabled, add `jetlog` path to pdsink library build options.
-- I using `pd_config.h` - make it's foldder searchable for the project and the
-  library.
+- Add the pdsink `src/` folder to the project search path.
+- If logs are enabled, add the `jetlog` path to the pdsink library build options.
+- If you are using `pd_config.h`, make its folder searchable for both the project
+  and the library.
 
 
 ## Customization
@@ -69,9 +69,9 @@ welcome.
 ### Device Policy Manager
 
 The USB PD specification does not provide any information about the DPM
-architecture. We provide a simple DPM, suitable for basic operation:
+architecture. We provide a simple DPM suitable for basic operation:
 
-- Automatic PD profile selection, based on desired voltage and current.
+- Automatic PD profile selection, based on the desired voltage and current.
 
 You may wish to modify the DPM for:
 - Advanced PD profile selection strategies
@@ -81,7 +81,7 @@ You may wish to modify the DPM for:
 See `MsgToDpm_*` in [messages.h](../src/pd/messages.h), examples, and the `DPM`
 class.
 
-NOTE: When you handle DPM events, handlers should be non-blocking. For heavy
+NOTE: When handling DPM events, keep handlers non-blocking. For heavy
 operations, use RTOS events to decouple processing.
 
 ### Logging
@@ -90,9 +90,9 @@ By default, logging is disabled. To use it:
 
 - Add `jetlog` to project dependencies.
 - Create a simple wrapper (see examples).
-- Set variables in the config to enable desired levels and modules.
-- For PlatformIO, with enabled logging, if you see `jetlog.hpp` include errors -
-  add `-D PD_USE_JETLOG` to build flags.
+- Set variables in the config to enable the desired levels and modules.
+- For PlatformIO, if logging is enabled and you see `jetlog.hpp` include errors,
+  add `-D PD_USE_JETLOG` to the build flags.
 
 See the examples for details.
 
@@ -104,9 +104,9 @@ threaded and interrupt contexts.
 
 You may wish to decouple events from interrupts in several cases:
 
-1. If you use a driver without RTOS, but wish to run the PD Stack in a high
+1. If you use a driver without RTOS, but want to run the PD stack in a high
    priority task.
-2. If your platform runs without RTOS at all, and you wish to call the
+2. If your platform runs without RTOS at all, and you want to call the
    dispatcher from the application main loop.
 
 In this case, override `Task.set_event()` and `Task.dispatch()` to suit your
@@ -122,8 +122,8 @@ examples on how to do that.
 
 **PD logs**
 
-Start by enabling debug logs in all modules. Then reduce to the desired
-level/location.
+Start by enabling debug logs in all modules. Then reduce them to the desired
+level or location.
 
 NOTE: EPR chargers (28 V and above) can be noisy with full logs due to EPR pings
 every 0.5 s. If that’s not critical for you, use an SPR charger to reduce
@@ -138,12 +138,12 @@ show recursive (improper) FSM calls, for example.
 
 This library uses `jetlog`, specifically optimized for fast writes from any
 context, including interrupts. Log reading and output to the console happen in a
-background thread, to avoid blocking important tasks.
+background thread to avoid blocking important tasks.
 
-In very specific cases, if you suspect a PD thread crash that blocks low
-priority tasks, increase the logger priority to the same as the PD priority.
-This will allow the log reader to continue doing its job and show you all log
-buffer content before the crash happened.
+In very specific cases, if you suspect a PD thread crash that blocks
+low-priority tasks, increase the logger priority to the same as the PD
+priority. This will allow the log reader to continue doing its job and show you
+all log buffer content before the crash happens.
 
 Recommended: set the log-writer record size to 256 bytes, and have
 an extra 512 bytes of stack in all places where the log writer is invoked. The

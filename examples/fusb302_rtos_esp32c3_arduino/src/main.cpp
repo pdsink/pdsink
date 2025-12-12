@@ -12,8 +12,8 @@
 class Driver : public pd::fusb302::Fusb302Rtos {
 public:
     Driver(pd::Port& port, pd::fusb302::Fusb302RtosHalEsp32& hal) : Fusb302Rtos(port, hal) {
-        // Example of default settings override. You can do the same
-        // for HAL class to reassign IO pins and so on.
+        // Example of overriding default settings. You can do the same
+        // for the HAL class to reassign IO pins and so on.
         task_stack_size_bytes = 1024 * 6;
         task_priority = 7;
     }

@@ -251,9 +251,9 @@ public:
             etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
 
         if (port.source_caps.size() > MaxPdoObjects_SPR && !pe.is_in_epr_mode()) {
-            // NOTE: For unknown reasons, spec does NOT say EPR_Source_Capabilities
-            // is the fuckup in SPR mode, when received in Ready state.
-            // So, process it as valid, but cut the size.
+            // NOTE: For unknown reasons, the spec does NOT say
+            // EPR_Source_Capabilities is an error in SPR mode when received in
+            // the Ready state. Process it as valid, but trim the size.
             PE_LOGE("Source sent too many PDOs for SPR mode ({}), cutting to {}",
                 port.source_caps.size(), MaxPdoObjects_SPR);
             port.source_caps.resize(MaxPdoObjects_SPR);
@@ -941,7 +941,7 @@ public:
             return No_State_Change;
         }
 
-        // NOTE: here was the right place for status check before using
+        // NOTE: This was the right place for a status check before using
         // interceptors.
 
         if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
@@ -1079,7 +1079,7 @@ public:
     static void on_exit_state(PE& pe) {
         auto& port = pe.port;
 
-        // On protocol fuckup free `tEnterEPR` timer. In other case
+        // On a protocol error, free the `tEnterEPR` timer. Otherwise
         // it will continue in PE_SNK_EPR_Mode_Entry_Wait_For_Response
         if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
             port.timers.stop(PD_TIMEOUT::tEnterEPR);
@@ -1615,8 +1615,8 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
 
     if (pe.is_uninitialized()) { return; }
 
-    // Always arm this flag, even for not forwarded errors). This allow
-    // optional resource free in `on_exit()`, when some are shared between state.
+    // Always arm this flag, even for errors that are not forwarded. This allows
+    // optional resource cleanup in `on_exit()` when some are shared between states.
     //
     // Since only 2 target states possible, ensure both
     // clear this flag in `on_exit()`.

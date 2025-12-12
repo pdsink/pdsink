@@ -22,7 +22,7 @@ public:
     ITimer::TimeFunc get_time_func() const override;
     bool is_interrupt_active() override;
 
-    // I2C API, can be used from other application modules independently,
+    // The I2C API can be used by other application modules independently
     // when the bus is shared between multiple devices.
     virtual void init_i2c();
     bool read_reg(uint8_t i2c_addr, uint8_t reg, uint8_t& data) override;
@@ -32,7 +32,7 @@ public:
 
     ~Fusb302RtosHalEsp32();
 
-    // Prohibit copy/move because class have interrupt callbacks
+    // Prohibit copy/move because the class has interrupt callbacks
     // and manages hardware resources.
     Fusb302RtosHalEsp32(const Fusb302RtosHalEsp32&) = delete;
     Fusb302RtosHalEsp32& operator=(const Fusb302RtosHalEsp32&) = delete;

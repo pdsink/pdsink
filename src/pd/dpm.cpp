@@ -18,12 +18,12 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     if (sink_pdo_list.size() > 0) { return sink_pdo_list; }
 
     //
-    // By default demand as much as possible. In other case SRC can
-    // hide some capabilities. This list does NOT depend on SRC and
+    // By default, demand as much as possible. Otherwise the SRC can
+    // hide some capabilities. This list does NOT depend on the SRC and
     // exists to describe SNK needs.
     //
-    // NOTE: this can be just a list of uint32_t constants, but for better
-    // readability we use PDO structures to fill data.
+    // NOTE: This can be just a list of uint32_t constants, but for better
+    // readability we use PDO structures to fill the data.
     //
 
     //
@@ -46,7 +46,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     sink_pdo_list.push_back(pdo1.raw_value);
 
     //
-    // Fill the rest SRP PDOs, 2...7
+    // Fill the rest of the SPR PDOs, 2...7
     //
     SNK_PDO_FIXED pdo2{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
     set_snk_pdo_limits(pdo2.raw_value, PDO_LIMITS().set_mv(9000).set_ma(3000));
@@ -64,7 +64,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     set_snk_pdo_limits(pdo5.raw_value, PDO_LIMITS().set_mv(20000).set_ma(5000));
     sink_pdo_list.push_back(pdo5.raw_value);
 
-    // Before rev3.2 min PPS voltage was 3.3v, then updated to 5v.
+    // Before rev3.2, the minimum PPS voltage was 3.3 V, then updated to 5 V.
     SNK_PDO_SPR_PPS pdo6{create_pdo_variant_bits(PDO_VARIANT::APDO_PPS)};
     set_snk_pdo_limits(pdo6.raw_value,
         PDO_LIMITS().set_mv_min(5000).set_mv_max(11000).set_ma(3000));
@@ -76,8 +76,8 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     sink_pdo_list.push_back(pdo7.raw_value);
 
     //
-    // EPR PDOs. MUST start from 8. If SPR PDOs count < 7, the gap MUST be
-    // padded with zeros. EPR block can have up to 3 Fixed PDOs + 1 AVS.
+    // EPR PDOs. MUST start from 8. If the SPR PDO count is < 7, the gap MUST be
+    // padded with zeros. The EPR block can have up to 3 Fixed PDOs + 1 AVS.
     //
 
     SNK_PDO_FIXED pdo8{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
@@ -101,15 +101,15 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
 }
 
 void DPM::fill_rdo_flags(uint32_t &rdo) {
-    // Fill common RDO flags here
-    // This is default implementation. You can override it if required.
+    // Fill common RDO flags here.
+    // This is the default implementation. You can override it if required.
 
     RDO_ANY rdo_bits{rdo};
 
     rdo_bits.epr_capable = 1;
     // Unchunked extended messages (long transfers) are NOT supported (and not
     // needed, because chunking is enough).
-    // DON'T try to set this bit, it will fuckup everything!
+    // DON'T try to set this bit; it will break everything!
     rdo_bits.unchunked_ext_msg_supported = 0;
     rdo_bits.no_usb_suspend = 1;
     rdo_bits.usb_comm_capable = has_usb_comm() ? 1 : 0;
@@ -117,15 +117,15 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
     rdo = rdo_bits.raw_value;
 }
 
-// This one is called when `SRC Capabilities` and `EPR SRC Capabilities`
-// are received from power source. Returns RDO and appropriate PDO as pair
+// This is called when `SRC Capabilities` and `EPR SRC Capabilities`
+// are received from the power source. Returns the RDO and appropriate PDO as a pair
 auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl::pair<uint32_t, uint32_t> {
-    // This is default stub implementation, with simple trigger support.
+    // This is the default stub implementation, with simple trigger support.
     // Customize if required.
 
     //
-    // NOTE: Here we indirectly check EPR mode. At the start we go to SRP, where
-    // EPR voltage will not be available, and fallback to vSafe5V will be used.
+    // NOTE: Here we indirectly check EPR mode. At the start we go to SPR, where
+    // the EPR voltage will not be available, and we fall back to vSafe5V.
     // Then, PE will automatically upgrade to EPR (with new EPR Caps) and this
     // function will be called again.
     //
@@ -146,9 +146,9 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
 
         if (trigger_match_type == TRIGGER_MATCH_TYPE::BY_POSITION)
         {
-            // If position matches, we can use it. Don't check ma/mv limits,
-            // because user asked for this position explicitly.
-            // Note: position is 1-based
+            // If the position matches, we can use it. Don't check ma/mv limits,
+            // because the user asked for this position explicitly.
+            // Note: position is 1-based.
             if ((i + 1) != trigger_position) { continue; }
         }
         else
@@ -164,7 +164,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         fill_rdo_flags(rdo.raw_value);
         rdo.obj_position = i + 1; // zero-based index + 1
 
-        // fill PDO-specific fields (volts/current/watts)
+        // Fill PDO-specific fields (volts/current/watts)
         auto limits = get_src_pdo_limits(pdo);
 
         uint32_t mv = trigger_mv ? trigger_mv : limits.mv_min;
@@ -200,7 +200,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         }
     }
 
-    // By default return vSafe5V, based on first entry in SRC capabilities
+    // By default, return vSafe5V based on the first entry in the SRC capabilities
     const auto pdo = src_caps[0];
     RDO_FIXED rdo{};
     fill_rdo_flags(rdo.raw_value);
@@ -212,12 +212,12 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
 }
 
 void DPM::request_new_power_level() {
-    // Only if explicit contract exists.
-    // If not - data will be used at handshake.
+    // Only if an explicit contract exists.
+    // If not, the data will be used at the handshake.
     if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
-        // Don't call wakeup() to keep execution context in driver's "thread".
-        // Rely on timer's periodic tick to catch the request.
+        // Don't call wakeup(); keep execution in the driver's "thread".
+        // Rely on the timer's periodic tick to catch the request.
     }
 }
 

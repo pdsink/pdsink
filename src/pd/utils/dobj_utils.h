@@ -25,7 +25,7 @@ PDO_VARIANT get_src_pdo_variant(uint32_t src_pdo);
 
 inline PDO_VARIANT get_snk_pdo_variant(uint32_t snk_pdo) {
     // WARNING: in spec rev3.2 v1.1, SNK BATTERY/VARIABLE IDs seem swapped
-    // Be careful if decide to add support.
+    // Be careful if you decide to add support.
     return get_src_pdo_variant(snk_pdo);
 };
 

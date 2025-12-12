@@ -45,8 +45,8 @@ enum class DRV_FLAG {
     _Count
 };
 
-// This class implements generic FUSB302B logic, and relies on FreeRTOS
-// to make i2c calls sync.
+// This class implements generic FUSB302B logic and relies on FreeRTOS
+// to make I2C calls synchronous.
 class Fusb302Rtos : public IDriver {
     static constexpr uint32_t MSK_PD_INTERRUPT = (1u << 0);
     static constexpr uint32_t MSK_TIMER = (1u << 1);
@@ -148,7 +148,7 @@ protected:
     bool fusb_rx_pkt();
     bool fusb_hr_send();
     bool fusb_set_bist(TCPC_BIST_MODE mode);
-    // Clear internal states after hard reset received or sent.
+    // Clear internal states after a hard reset is received or sent.
     bool hr_cleanup();
 
     uint8_t i2c_addr{ChipAddress::FUSB302B};
@@ -174,7 +174,7 @@ protected:
         .tx_auto_retry = true
     };
 
-    // Call sync  + param store primitives
+    // Call sync + param store primitives
     LeapSync<> sync_scan_cc;
     LeapSync<> sync_active_cc;
     LeapSync<TCPC_POLARITY> sync_set_polarity;
@@ -196,7 +196,7 @@ protected:
     uint32_t meter_wait_until_ts{0};
     Switches0 meter_sw0_backup{0};
 
-    // Overwrite in inherited class if needed.
+    // Override in an inherited class if needed.
     uint32_t task_stack_size_bytes{1024*4}; // 4K
     uint32_t task_priority{10};
 };

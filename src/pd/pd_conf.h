@@ -1,6 +1,6 @@
 #pragma once
 
-// Optionally, all settings can be defined in single external file,
+// Optionally, all settings can be defined in a single external file,
 // instead of build flags.
 #define PD_QUOTE_STR1(x)    #x
 #define PD_QUOTE_STR(x)     PD_QUOTE_STR1(x)

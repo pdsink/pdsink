@@ -8,7 +8,7 @@
 #define PD_LOG_FN_LVL_DEBUG     jetlog::level::debug
 #define PD_LOG_FN_LVL_VERBOSE   jetlog::level::verbose
 
-// Use for debugging
+// Use for debugging.
 #define PD_LOG_DEFAULT ERROR
 
 // #define PD_LOG_PE INFO

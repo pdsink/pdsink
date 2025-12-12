@@ -76,7 +76,7 @@ DEFINE_SIMPLE_MSG(MsgToDpm_NewPowerLevelRejected, MSG_TO_DPM__NEW_POWER_LEVEL_RE
 DEFINE_SIMPLE_MSG(MsgToDpm_NewPowerLevelAccepted, MSG_TO_DPM__NEW_POWER_LEVEL_ACCEPTED);
 
 //
-// PE incoming messates
+// PE incoming messages
 //
 enum msg_pe_id {
     MSG_TO_PE__PRL_MESSAGE_RECEIVED = 100,

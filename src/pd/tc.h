@@ -1,8 +1,8 @@
 //
 // Type-C port manager.
 //
-// For our case - used only for monitoring CC0/CC1/VBUS states, to
-// activate/deactivate PD protocol stack.
+// In our case, used only for monitoring CC0/CC1/VBUS states to
+// activate/deactivate the PD protocol stack.
 //
 #pragma once
 

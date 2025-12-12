@@ -299,9 +299,9 @@ public:
             return RCH_Report_Error;
         }
 
-        // Catch simultaneous RX/TX + discard. Suppose tx was successful,
-        // and decide what really happened at next states.
-        // Here we can have new message from PRL_RX before PRL_TX called
+        // Catch simultaneous RX/TX and discards. Assume TX was successful,
+        // and decide what really happened in the next states.
+        // A new message from PRL_RX can arrive before PRL_TX is called.
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
             return RCH_Waiting_Chunk;
         }
@@ -401,20 +401,20 @@ public:
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             if (tch.prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) {
                 //
-                // This may happen when
-                // - PRL was NOT busy
-                // - PE started DPM request
-                // - Got message from partner and RCH started to process it
+                // This may happen when:
+                // - PRL was not busy
+                // - PE started a DPM request
+                // - A message from the partner arrived and RCH started to process it
                 //
                 // The spec says the reaction depends on the implementation of
-                // the optional ABORT flag. Since there are no clear ideas on
+                // the optional ABORT flag. Since there is no clear guidance on
                 // how to use that ABORT flag in the real world, it is not
-                // implemented. So, according to the spec, we just discard
+                // implemented. According to the spec, we just discard the
                 // PE request and stay in the same state.
                 //
                 // In the context of RCH/TCH transparency for PE, this behavior
                 // looks more consistent than error reporting (the same as
-                // discarding TX by RX).
+                // discarding TX because of RX).
                 //
                 tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
                 return No_State_Change;
@@ -468,19 +468,19 @@ public:
             return TCH_Report_Error;
         }
 
-        // Catch message discard (indirectly). This happens when new message
-        // routed to TCH.
+        // Catch message discard indirectly. This happens when a new message
+        // is routed to TCH.
 
-        // First, care about case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
-        // That means driver did transfer, but PRL_TX has not been called yet.
-        // This is possible, because TX and RX events can arrive in the same
-        // time. In this case just wait until PRL_TX called.
+        // First, consider the case when driver status is TCPC_TRANSMIT_STATUS::SUCCESS.
+        // That means the driver transferred the packet, but PRL_TX has not been
+        // called yet. This is possible because TX and RX events can arrive at the
+        // same time. In this case, just wait until PRL_TX is called.
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED) {
             tch.prl.request_wakeup(); // Probably not needed, but just in case.
             return No_State_Change;
         }
 
-        // At this point, if not finished TX but RX exists => discard happened
+        // At this point, if TX is not finished but RX exists, a discard happened
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             // At this point, discard already reported by PRL_TX
             return TCH_Message_Received;
@@ -572,9 +572,9 @@ public:
             return TCH_Report_Error;
         }
 
-        // The same approach as in TCH_Wait_For_Transmission_Complete_State
-        // If transfer completed, but PRL_TX not yet executed before
-        // TCH called - just allow it to happen.
+        // The same approach as in TCH_Wait_For_Transmission_Complete_State.
+        // If the transfer completed but PRL_TX has not yet executed before
+        // TCH was called, just allow it to happen.
         if (port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED &&
             !port.prl_tx_flags.test(PRL_TX_FLAG::TX_COMPLETED))
         {
@@ -596,11 +596,11 @@ public:
             return TCH_Wait_Chunk_Request;
         }
 
-        // Not completed, but has an incoming message instead => a discard
-        // happened on PRL_TX layer (most probable) OR at chunking layer
-        // (partner stopped requesting sequence). For second case - report
-        // discard. Duplicated discard reporting is not a problem (those are
-        // merged).
+        // Not completed but an incoming message exists => a discard happened
+        // in the PRL_TX layer (most likely) or at the chunking layer (the
+        // partner stopped requesting the sequence). In the second case,
+        // report a discard. Duplicate discard reporting is not a problem
+        // (those are merged).
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
@@ -622,8 +622,8 @@ public:
         port.tch_chunk_number_to_send++;
         port.timers.start(PD_TIMEOUT::tChunkSenderRequest);
 
-        // In edge case we could come here with RX already enqueued.
-        // Then force loop wakeup() to ensure we continue processing.
+        // In an edge case we could come here with RX already enqueued.
+        // Force a loop wakeup() to ensure we continue processing.
         if (port.prl_tch_flags.test(TCH_FLAG::CHUNK_FROM_RX)) {
             tch.prl.request_wakeup();
         }
@@ -652,9 +652,9 @@ public:
             // [rev3.2] 6.12.2.1.3.8 TCH_Wait_Chunk_Request State
             // Any other Message than Chunk Request is received.
 
-            // TODO: It's not clear why error/discard is not reported
-            // when chunked sending was interrupted instead of consuming next
-            // chunks. Let's add discard for sure.
+            // TODO: It's not clear why an error/discard is not reported
+            // when chunked sending is interrupted instead of consuming the next
+            // chunks. Let's add discard to be safe.
             tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
@@ -689,7 +689,7 @@ public:
         port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
         tch.prl.request_wakeup();
 
-        // Drop incoming TCH request from PE if any
+        // Drop any incoming TCH request from PE
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
         }
@@ -721,13 +721,13 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// This is low level layer for packet rx/tx.
+// This is the low-level layer for packet rx/tx.
 //
-// - Only discards are reported to PE from here
+// - Only discards are reported to PE from here.
 // - Success/errors are forwarded to RCH/TCH via flags.
-// - Some room is reserved for CRC processing, to stay close to spec. But
-//   currently only branches for hardware-supported GoodCRC are actual.
-//   This should be revisited and cleaned if software CRC support is not actual.
+// - Some room is reserved for CRC processing to stay close to the spec, but
+//   currently only the branches for hardware-supported GoodCRC are active.
+//   This should be revisited and cleaned if software CRC support is not needed.
 
 class PRL_Tx_PHY_Layer_Reset_State : public afsm::state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset> {
 public:
@@ -800,12 +800,12 @@ public:
         prl_tx.log_state();
 
         // NOTE: The spec says to reset only `msg_id_counter` here, and reset
-        // `msg_id_stored` via RX state change. But etl::fsm does not re-run
-        // `on_enter` if we come from current state to itself.
+        // `msg_id_stored` via an RX state change. But etl::fsm does not re-run
+        // `on_enter` if we come from the current state to itself.
         // So, reset both here.
         prl.reset_msg_counters();
         // This will not make sense, because we do not send GoodCRC in software,
-        // and every input packet causes returns to initial state immediately.
+        // and every input packet causes a return to the initial state immediately.
         // But this is left for consistency with the spec.
         prl.prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message);
 
@@ -855,7 +855,7 @@ public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
-        // Timer should be used ONLY when hardware confirmation not supported
+        // Timer should be used ONLY when hardware confirmation is not supported
         // if (!prl_tx.prl.tcpc.get_hw_features().tx_auto_goodcrc_check) {
         //    prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
         // }
@@ -912,7 +912,7 @@ public:
         port.tx_msg_id_counter++;
         port.prl_tx_flags.set(PRL_TX_FLAG::TX_COMPLETED);
 
-        // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
+        // Ensure one more loop run to invoke RCH/TCH after PRL_TX completes
         // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
         prl_tx.prl.request_wakeup();
 
@@ -939,7 +939,7 @@ public:
         // no extra checks are needed. Always use retries if supported by hardware.
 
         if (prl_tx.prl.tcpc.get_hw_features().tx_auto_retry) {
-            // Don't try to retransmit if supported by hardware.
+            // Don't try to retransmit manually if hardware supports it.
             return PRL_Tx_Transmission_Error;
         }
 
@@ -967,7 +967,7 @@ public:
         // Don't report PE about error here, allow RCH/TCH to handle & care.
         port.prl_tx_flags.set(PRL_TX_FLAG::TX_ERROR);
 
-        // Ensure one more loop run, to invoke RCH/TCH after PRL_TX completed
+        // Ensure one more loop run to invoke RCH/TCH after PRL_TX completes
         // TODO: can be removed if RCH/TCH FSMs are invoked after PRL_TX.
         prl_tx.prl.request_wakeup();
 
@@ -988,9 +988,9 @@ public:
     static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
 
-        // Do discard, if any TX chunk processing:
+        // Discard if any TX chunk is being processed:
         // - input queued to send
-        // - passed to driver, and sending in progress
+        // - passed to the driver and sending in progress
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
             is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
         {
@@ -1090,9 +1090,9 @@ public:
         auto& port = prl.port;
 
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
-            // In theory, we can have pending packet in RCH, re-routed by
-            // discard in TCH. Postpone processing of new one to next cycle,
-            // to allow RCH to finish.
+            // In theory, we can have a pending packet in RCH, re-routed by
+            // a discard in TCH. Postpone processing of the new one to the next
+            // cycle to allow RCH to finish.
             //
             // This is not expected to happen, because we do multiple RCH/TCH
             // calls.
@@ -1119,7 +1119,7 @@ public:
         auto& port = prl.port;
         prl_rx.log_state();
 
-        // Similar to init, but skip RX and (?) revision clear.
+        // Similar to init, but skip RX and revision clearing.
         prl.prl_rch.change_state(afsm::Uninitialized);
         prl.prl_tch.change_state(afsm::Uninitialized);
         prl.prl_tx.change_state(afsm::Uninitialized);
@@ -1145,11 +1145,12 @@ public:
 class PRL_Rx_Send_GoodCRC_State : public afsm::state<PRL_Rx, PRL_Rx_Send_GoodCRC_State, PRL_Rx_Send_GoodCRC> {
 public:
     // All modern hardware sends CRC automatically. This state exists
-    // to match spec only.
+    // only to match the spec.
     //
-    // NOTE: PRL_Rx_Layer_Reset_for_Receive relies on come to PRL_Rx_Store_MessageID
-    // immediately, PE should not enquire new message in the middle. In other
-    // case Soft Reset notification should be reworked for proper `Accept` flow.
+    // NOTE: PRL_Rx_Layer_Reset_for_Receive relies on reaching
+    // PRL_Rx_Store_MessageID immediately; PE should not request a new message
+    // in the middle. Otherwise the Soft Reset notification should be reworked
+    // for a proper `Accept` flow.
     static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         prl_rx.log_state();
         return PRL_Rx_Check_MessageID;
@@ -1166,7 +1167,7 @@ public:
         prl_rx.log_state();
 
         if (port.rx_msg_id_stored == port.rx_chunk.header.message_id) {
-            // Ignore duplicated
+            // Ignore duplicates
             return PRL_Rx_Wait_for_PHY_Message;
         }
         return PRL_Rx_Store_MessageID;
@@ -1199,8 +1200,8 @@ public:
         // this status can arrive together with new incoming message.
         //
 
-        // Safety cleanup for smooth Soft Reset flow.
-        // Seems needed but added for sure.
+        // Safety cleanup for a smooth Soft Reset flow.
+        // This seems needed, so it is added here just in case.
         if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
             port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
             port.prl_tch_flags.clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
@@ -1215,14 +1216,14 @@ public:
 
         // [rev3.2] 6.12.2.1.4 Chunked Message Router State Diagram
         //
-        // Route message to RCH/TCH. Since RTR has no stored states, it is
-        // more simple to embed its logic here.
+        // Route the message to RCH/TCH. Since RTR has no stored states, it is
+        // simpler to embed its logic here.
 
         // Spec describes TCH doing chunking as
         // "Not in TCH_Wait_For_Message_Request_From_Policy_Engine state".
         // But PE sending requests are not executed immediately; those just
-        // raise a flag. So, having that flag set means "not waiting" too.
-        // Because TCH will leave waiting state on nearest call.
+        // raise a flag. Having that flag set means "not waiting" too,
+        // because TCH will leave the waiting state on the nearest call.
         if (port.prl_tch_flags.test(TCH_FLAG::MSG_FROM_PE_ENQUEUED) ||
             prl_rx.prl.prl_tch.get_state_id() != TCH_Wait_For_Message_Request_From_Policy_Engine)
         {
@@ -1233,7 +1234,7 @@ public:
             port.prl_rch_flags.set(RCH_FLAG::RX_ENQUEUED);
         }
 
-        // Return back to waiting.
+        // Return to waiting.
         return PRL_Rx_Wait_for_PHY_Message;
 
     }
@@ -1278,7 +1279,7 @@ public:
 
         hr.prl.port.revision = MaxSupportedRevision;
 
-        // Start with RX path disable (and FIFO clear).
+        // Start by disabling the RX path (and clearing the FIFO).
         hr.prl.tcpc.req_rx_enable(false);
 
         return No_State_Change;
@@ -1287,10 +1288,10 @@ public:
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& prl = hr.prl;
 
-        // Wait for TCPC operation complete
+        // Wait for the TCPC operation to complete
         if (!prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
-        // Route state, depending on hard reset type requested
+        // Route the state depending on the requested hard reset type
         if (prl.port.prl_hr_flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER)) {
             return PRL_HR_Indicate_Hard_Reset;
         }
@@ -1325,10 +1326,10 @@ public:
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
         auto& prl = hr.prl;
 
-        // Wait for TCPC call to complete. This does NOT mean transfer ended.
-        // This means driver accepted request and commanded chip to send HR.
-        // Final result is available via `port.tcpc_tx_status` (as for ordinary
-        // transfer)
+        // Wait for the TCPC call to complete. This does NOT mean the transfer
+        // ended. This means the driver accepted the request and commanded the
+        // chip to send HR. The final result is available via
+        // `port.tcpc_tx_status` (as for an ordinary transfer).
         if (!prl.tcpc.is_hr_send_done()) { return No_State_Change; }
 
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
@@ -1400,8 +1401,8 @@ public:
         // this Shall be cleared and not sent
         //
         // TODO: fusb302 has no way to interrupt pending HR. We rely on
-        // chip/timer timeouts. May be, driver API should be extended
-        // for another hardware.
+        // chip/timer timeouts. Maybe the driver API should be extended
+        // for other hardware.
         //
 
         if (hr.prl.port.prl_hr_flags.test_and_clear(PRL_HR_FLAG::PE_HARD_RESET_COMPLETE)) {
@@ -1472,7 +1473,7 @@ void PRL::init() {
     prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message);
     // Reset TX last, because it does driver call on init.
     prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
-    // Ensure loop repeat to continue PE States, which wait for PRL run.
+    // Ensure the loop repeats to continue PE states that wait for PRL to run.
     request_wakeup();
 
     PRL_LOGI("PRL init end");
@@ -1489,7 +1490,7 @@ void PRL::reset_msg_counters() {
 }
 
 void PRL::prl_tx_enqueue_chunk() {
-    // Ensure to prohibit accepting statuses from driver
+    // Ensure we prohibit accepting statuses from the driver
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
     // Clear PRL_TX "output"
@@ -1625,8 +1626,8 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
 
             if (prl.prl_hr.get_state_id() != PRL_HR_IDLE) { break; }
 
-            // In theory, if RTOS with slow reaction used, it's possible to get
-            // both TX Complete and RX updates when transmission was requested
+            // In theory, if an RTOS with a slow reaction is used, it's possible
+            // to get both TX Complete and RX updates when transmission was requested
 
             if (prl.port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED)
             {
@@ -1636,8 +1637,8 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
                 // - Skip TCPC fail here, because it can start retry.
                 // - Skip TCPC discard here, to expose by RX
                 //
-                // May be software CRC handling needs more care. But for
-                // hardware CRC this looks ok.
+                // Maybe software CRC handling needs more care, but for
+                // hardware CRC this looks OK.
                 prl.prl_tx.run();
             }
 

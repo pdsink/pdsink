@@ -80,11 +80,11 @@ public:
 
             T tmp = buf[t & MASK]; // read data
 
-            // Check data not overwritten during read (tail not moved)
+            // Check that data was not overwritten during the read (tail not moved)
             hf.raw = head_fields.load(etl::memory_order_acquire);
             if (get_adjusted_tail(hf) != t) { continue; }
 
-            // Check data not discarded by new reset
+            // Check that data was not discarded by a new reset
             if (check_reset()) { continue; }
 
             out = tmp;

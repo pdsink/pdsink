@@ -128,16 +128,16 @@ public:
     static auto on_run_state(TC& tc) -> state_id_t {
         auto& port = tc.port;
 
-        // If just entered - wait polarity set complete and then set attached status.
+        // If just entered, wait for polarity set to complete and then set the attached status.
         if (!port.is_attached) {
             if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
             port.is_attached = true;
             port.notify_dpm(MsgToDpm_CableAttached{});
         }
 
-        // TODO: Actually, we should check Safe0v. Check, if we should be more
-        // strict here. In theory, active CC also could be used, but it has
-        // lot of zeroes during BMC transfers to filter out.
+        // TODO: Actually, we should check Safe0v. Check if we should be more
+        // strict here. In theory, active CC could also be used, but it has
+        // a lot of zeros during BMC transfers to filter out.
         if (!tc.tcpc.is_vbus_ok()) {
             return TC_DETACHED;
         }

@@ -103,7 +103,7 @@ bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
     auto limits = get_src_pdo_limits(pdo);
     // Voltage check is the same for all PDO kinds
     if (mv < limits.mv_min || mv > limits.mv_max) { return false; }
-    // If no current limit - not more checks
+    // If there is no current limit, no more checks
     if (ma == 0) { return true; }
 
     if (id == PDO_VARIANT::FIXED ||
@@ -114,7 +114,7 @@ bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
     }
 
     if (id == PDO_VARIANT::APDO_EPR_AVS) {
-        // For EPR_AVS current is not specified, only PDP
+        // For EPR_AVS the current is not specified, only PDP
         if (limits.pdp == 0) { return true; }
         // Calculate implied current from PDP and voltage
         auto implied_ma = (limits.pdp * 1000u) / mv;
@@ -129,7 +129,7 @@ bool match_limits(uint32_t pdo, uint32_t mv, uint32_t ma) {
 
 uint32_t create_pdo_variant_bits(PDO_VARIANT id) {
     // WARNING: in spec rev3.2 v1.1, SNK BATTERY/VARIABLE IDs seem swapped
-    // Be careful if decide to add support.
+    // Be careful if you decide to add support.
     PDO_SPR_PPS pdo{};
 
     switch (id) {

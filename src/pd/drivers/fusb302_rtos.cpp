@@ -90,7 +90,7 @@ bool Fusb302Rtos::fusb_setup() {
 
     // Sync VBUSOK
     auto delay = pdMS_TO_TICKS(2);
-    vTaskDelay(delay ? delay : 1); // instead of 250uS
+    vTaskDelay(delay ? delay : 1); // instead of 250 us
     Status0 status0;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
     vbus_ok.store(static_cast<bool>(status0.VBUSOK));
@@ -102,9 +102,9 @@ bool Fusb302Rtos::fusb_setup() {
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_rxtx_interrupts(true));
 
-    // NOTE: we don't touch data/power role bits.
-    // - defaults are ok for sink/ufp
-    // - driver API has no appropriate methods.
+    // NOTE: We don't touch data/power role bits.
+    // - defaults are OK for sink/UFP
+    // - the driver API has no appropriate methods.
     DRV_LOGI("Setup done.");
     return true;
 }
@@ -112,9 +112,8 @@ bool Fusb302Rtos::fusb_setup() {
 bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     DRV_LOGI("Set RX/TX interrupts {}", enable ? "ON" : "OFF");
     //
-    // NOTE: I_BC_LVL interrupts usage should be restricted, due lot of false
-    // positives on BMC exchange. Usually, in all scenarios better alternatives
-    // exist.
+    // NOTE: Use I_BC_LVL interrupts sparingly because there are many false
+    // positives on BMC exchange. In most scenarios, better alternatives exist.
     //
     Mask1 mask;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Mask1::reg, mask.raw_value));
@@ -220,9 +219,9 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
 bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     //
     // NOTE:
-    // - Clearing TX FIFO is important to interrupt any ongoing TX
+    // - Clearing the TX FIFO is important to interrupt any ongoing TX
     //   on TX discard.
-    // - Seems clearing everything is safe
+    // - Clearing everything seems safe.
     //
 
     DRV_LOGI("Set RX enable {}", enable ? "ON" : "OFF");
@@ -271,12 +270,12 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
         4 + 1 + 2 + PD_CHUNK::MAX_SIZE + 4,
         "TX buffer too small to fit all possible data");
 
-    // Ensure only "legacy" packets allowed. We do NOT support unchunked extended
-    // packets and long vendor packets (that's really useless for sink mode).
+    // Ensure only "legacy" packets are allowed. We do NOT support unchunked
+    // extended packets or long vendor packets (they are not useful in sink mode).
     static_assert(PD_CHUNK::MAX_SIZE <= 28,
         "Packet size should not exceed 28 bytes in this implementation");
 
-    // Hardcode Msg SOP, since library supports only sink mode
+    // Hardcode the message SOP, since the library supports only sink mode
     fifo_buf.push_back(TX_TKN::SOP1);
     fifo_buf.push_back(TX_TKN::SOP1);
     fifo_buf.push_back(TX_TKN::SOP1);
@@ -326,8 +325,8 @@ bool Fusb302Rtos::fusb_rx_pkt() {
 
     // Pick all pending packets from RX FIFO.
     //
-    // NOTE: We can get mixture of chunks and GoodCRC. That's why we read in
-    // cycle all available packets and skip GoodCRC.
+    // NOTE: We can get a mixture of chunks and GoodCRC. That's why we read
+    // all available packets in a loop and skip GoodCRC.
     while (!status1.RX_EMPTY) {
         DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, FIFOs::reg, sop));
 
@@ -337,15 +336,15 @@ bool Fusb302Rtos::fusb_rx_pkt() {
         // Chunked extended messages have non-zero data_obj_count
         if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
             // Unchunked extended packets are not supported. This is an abnormal
-            // situation, and all we can do - wipe out RX FIFO.
+            // situation, and all we can do is wipe out the RX FIFO.
             DRV_LOGE("Unchunked extended packet received, ignoring");
             fusb_flush_rx_fifo();
             return false;
         }
 
-        // After extended unchunked messages are filtered out, the rest have
-        // size data_obj_count*4 bytes. data_obj_count has 3 bits - means
-        // max 28 bytes in total. That guarantees `pkt` has enough size.
+        // After unchunked extended messages are filtered out, the rest have
+        // size data_obj_count*4 bytes. data_obj_count has 3 bits, which means
+        // at most 28 bytes in total. That guarantees `pkt` has enough space.
         pkt.resize_by_data_obj_count();
         DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, pkt.get_data().data(), pkt.data_size()));
 
@@ -484,7 +483,7 @@ void Fusb302Rtos::handle_interrupt() {
 
         if (!hal.is_interrupt_active()) { break; }
 
-        DRV_LOGD("Interrupt handled, but still active. Repeat proceeding...");
+        DRV_LOGD("Interrupt handled, but still active. Repeat processing...");
     }
 
     return;
@@ -498,7 +497,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
     Status0 status0;
     Switches0 sw0;
 
-    // Should be 250uS, but FreeRTOS does not allow that precise timing.
+    // Should be 250 us, but FreeRTOS does not allow that precise timing.
     // Use 2 timer ticks (2ms) to guarantee at least 1ms after jitter.
     static constexpr uint32_t MEASURE_DELAY_MS = 2;
 
@@ -527,9 +526,9 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
         case MeterState::CC_ACTIVE_MEASURE_WAIT:
             if (get_timestamp() < meter_wait_until_ts) { break; }
 
-            // Note, CC activity can make a noise, but since we are waiting
-            // SinkTxOK, false negatives are acceptable - those will only cause
-            // small transfer delay.
+            // Note, CC activity can introduce noise, but since we are waiting
+            // for SinkTxOK, false negatives are acceptable; those will only
+            // cause a small transfer delay.
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
 
             if (polarity.load() == TCPC_POLARITY::NONE) {
@@ -558,9 +557,10 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = 0;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
-            // Technically, 250 µs is OK, but a precise match would be platform-dependent
-            // and probably blocking. We rely on FreeRTOS ticks instead.
-            // Minimal value is 1, and we add one more to guard against jitter.
+            // Technically, 250 us is OK, but a precise match would be
+            // platform-dependent and probably blocking. We rely on FreeRTOS
+            // ticks instead. The minimal value is 1, and we add one more to
+            // guard against jitter.
             meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
             meter_state = MeterState::SCAN_CC1_MEASURE_WAIT;
             repeat = true;
@@ -626,14 +626,14 @@ void Fusb302Rtos::handle_timer() {
 void Fusb302Rtos::handle_tcpc_calls() {
 
     TCPC_POLARITY _polarity{};
-    if (sync_set_polarity.get_job(_polarity)) {
-        // "Drop" tx for sure
-        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-        // Since polarity reconfigures comparator - terminate measurer
-        // to prohibit restore old config from backup
-        sync_scan_cc.reset();
-        sync_active_cc.reset();
-        meter_state = MeterState::IDLE;
+        if (sync_set_polarity.get_job(_polarity)) {
+            // "Drop" tx for sure
+            port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+            // Since polarity reconfigures the comparator, terminate the
+            // measurer to prevent restoring old config from backup
+            sync_scan_cc.reset();
+            sync_active_cc.reset();
+            meter_state = MeterState::IDLE;
 
         DRV_LOG_ON_ERROR(fusb_set_polarity(_polarity));
         sync_set_polarity.job_finish();
@@ -685,9 +685,9 @@ void Fusb302Rtos::handle_tcpc_calls() {
 void Fusb302Rtos::task() {
     uint32_t event_mask{0};
 
-    // Allow setup to complete before continueing. In other case,
-    // early VBUS_OK interrupt can cause kick_task failures. That's not
-    // critical, but just to avoid unnecessary errors in log.
+    // Allow setup to complete before continuing. Otherwise, an early VBUS_OK
+    // interrupt can cause kick_task failures. That's not critical, but this
+    // avoids unnecessary errors in the log.
     xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
 
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
@@ -832,9 +832,9 @@ bool Fusb302Rtos::try_active_cc_result(TCPC_CC_LEVEL::Type& cc) {
     else if (_polarity == TCPC_POLARITY::CC2) {
         cc = cc2_value.load();
     } else {
-        // Since this function is used only to wait SinkTxOK prior to first
-        // AMS packet transfer, result for unselected polarity does not matter.
-        // Any value not causing false positive is acceptable.
+        // Since this function is used only to wait for SinkTxOK before the first
+        // AMS packet transfer, the result for an unselected polarity does not matter.
+        // Any value that avoids false positives is acceptable.
         DRV_LOGE("try_active_cc_result: Polarity not selected, returning TCPC_CC_LEVEL::NONE");
         cc = TCPC_CC_LEVEL::NONE;
     }

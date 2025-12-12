@@ -53,15 +53,15 @@ public:
         return is_inactive(timer_id);
     };
 
-    // A kind of gc - deactivates expired timers to reduce regular checks
+    // A simple GC step that deactivates expired timers to reduce regular checks
     void cleanup() {
         for (size_t i = 0; i < TIMER_COUNT; i++) {
             if (active.test(i)) { is_expired(i); } // Deactivate
         }
     };
 
-    // May be used for precise timer management. If regular 1ms interrupts are
-    // used, that's not needed.
+    // Can be used for precise timer management. If regular 1 ms interrupts are
+    // used, this is not needed.
     int32_t get_next_expiration() const {
         constexpr int32_t MAX_EXPIRE = etl::numeric_limits<int32_t>::max();
 

@@ -6,7 +6,7 @@ extern PE pe;
 extern Port port;
 
 void DPM_EventListener::on_receive(const MsgToDpm_Startup& msg) {
-    // Happens after cable insert or Hard Reset
+    // Happens after a cable is inserted or after a Hard Reset
     DPM_LOGI("Policy Engine started");
 }
 
@@ -66,13 +66,13 @@ void DPM_EventListener::on_receive(const MsgToDpm_SelectCapDone& msg) {
 }
 
 void DPM_EventListener::on_receive(const MsgToDpm_SrcDisabled& msg) {
-    // PD not available, failed to handshake
+    // PD not available; the handshake failed
     DPM_LOGI("Source disabled [USB PD not supported]");
 }
 
 void DPM_EventListener::on_receive(const MsgToDpm_Alert& msg) {
-    // May be useful to control overheating, if you can reduce the load
-    // If overheating ignored, charger will reset the power.
+    // Can be useful to control overheating if you can reduce the load.
+    // If overheating is ignored, the charger will reset the power.
     DPM_LOGI("Alert received, value 0x{:08X}", msg.value);
 
     PD_ALERT alert{msg.value};
@@ -80,8 +80,8 @@ void DPM_EventListener::on_receive(const MsgToDpm_Alert& msg) {
 }
 
 void DPM_EventListener::on_receive(const MsgToDpm_EPREntryFailed& msg) {
-    // When charger has EPR mode, but entry declined
-    // Abnormal situation, this should not happen
+    // When the charger supports EPR mode but entry is declined
+    // Abnormal situation; this should not happen
     DPM_LOGI("EPR entry failed, reason: 0x{:08X}, stay in SPR", msg.reason);
 }
 
@@ -98,10 +98,10 @@ void DPM_EventListener::on_receive(const MsgToDpm_CableDetached& msg) {
 }
 
 void DPM_EventListener::on_receive(const MsgToDpm_HandshakeDone& msg) {
-    // Main event to detect successful handshake. That means:
+    // Main event to detect a successful handshake. That means:
     // - PD communication is established
     // - Upgraded to EPR mode if available
-    // - From this moment we can change available PD profiles anyhow
+    // - From this moment we can change the available PD profiles as needed
     DPM_LOGI("Handshake done");
 }
 
@@ -114,7 +114,7 @@ void DPM_EventListener::on_receive(const MsgToDpm_NewPowerLevelAccepted& msg) {
 }
 
 void DPM_EventListener::on_receive_unknown(const etl::imessage& msg) {
-    // When you listen events partially, this one handles the rest.
-    // Usually do nothing.
+    // If you subscribe to only some events, this one handles the rest.
+    // Usually do nothing here.
     DPM_LOGI("Unknown message received, ID: {}", msg.get_message_id());
 }

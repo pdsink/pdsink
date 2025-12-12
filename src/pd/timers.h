@@ -48,8 +48,8 @@ struct PD_TIMERS_RANGE {
 // 6.6.22 Time Values and Timers
 // {Timer ID, Timeout in us}
 //
-// Some timeouts can use the same timer. PD components operate with PD_TIMEOUT-s
-// to hide those details.
+// Some timeouts can reuse the same timer. PD components operate with
+// PD_TIMEOUT values to hide those details.
 struct PD_TIMEOUT {
     using Type = etl::pair<PD_TIMER::Type, uint32_t>;
 
@@ -72,8 +72,8 @@ struct PD_TIMEOUT {
     static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27 * ms_mult}; // 24-30 ms
     static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, 27 * ms_mult}; // 24-30 ms
 
-    // This should be 1.0ms, but if timer precision is 1ms only,
-    // we use 2ms to be sure AT LEAST 1ms passed. Anyway, that's not critical,
+    // This should be 1.0 ms, but if timer precision is only 1 ms,
+    // we use 2 ms to be sure AT LEAST 1 ms passed. That is not critical,
     // because modern TCPCs process GoodCRC in hardware. We should probably
     // remove this logic entirely when the drivers architecture is clearer.
     // #if PD_TIMER_RESOLUTION_US != 0
@@ -82,7 +82,7 @@ struct PD_TIMEOUT {
     //     static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 2 * ms_mult}; // 0.9-1.1 ms
     // #endif
 
-    // CC polling timeout for waiting SnkTxOK level before AMS transfer.
+    // CC polling timeout while waiting for the SnkTxOK level before AMS transfer.
     static constexpr Type tActiveCcPollingDebounce {PD_TIMER::PRL_ActiveCcPollingDebounce, 20 * ms_mult}; // 20 ms
 };
 

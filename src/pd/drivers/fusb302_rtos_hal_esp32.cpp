@@ -47,8 +47,8 @@ void Fusb302RtosHalEsp32::init_i2c() {
 
     esp_err_t err = i2c_driver_install(i2c_num, conf.mode, 0, 0, 0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        // Ignore error, if someone already called i2c_driver_install,
-        // this is expected use case. But report all other errors.
+        // Ignore the error if someone already called i2c_driver_install;
+        // this is an expected use case. Report all other errors.
         ESP_ERROR_CHECK(err);
     }
 
@@ -92,8 +92,8 @@ void Fusb302RtosHalEsp32::init_fusb_interrupt() {
 
     esp_err_t err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        // Ignore error, if someone already called gpio_install_isr_service,
-        // this is expected use case. But report all other errors.
+        // Ignore the error if someone already called gpio_install_isr_service;
+        // this is an expected use case. Report all other errors.
         ESP_ERROR_CHECK(err);
     }
     ESP_ERROR_CHECK(gpio_isr_handler_add(int_io_pin, handler, this));

@@ -43,7 +43,7 @@ public:
 
         T tempBuffer = buffer;
 
-        // Re-read version to make sure data not changed
+        // Re-read the version to make sure the data has not changed
         uint32_t versionAfter = versionCounter.load(std::memory_order_acquire);
         if (versionAfter != versionBefore) { return false; }
 
@@ -122,7 +122,7 @@ public:
             const auto& action = sequence.actions[currentActionIdx];
             actionProgress = std::min(actionProgress + elapsed, action.period);
 
-            // Calculate & set led value
+            // Calculate and set the LED value
             if (action.isAnimated) {
                 typename Driver::DataType value;
                 for (int i = 0; i < Driver::ChannelsCount; i++) {
@@ -136,13 +136,13 @@ public:
                 driver.set(action.value);
             }
 
-            // If action end reached, prepare next step
+            // If the action end is reached, prepare the next step
             if (actionProgress >= action.period) {
                 prevActionValue = action.value;
                 currentActionIdx++;
                 actionProgress = 0;
 
-                // If sequence end reached...
+                // If the sequence end is reached...
                 if (currentActionIdx >= sequence.length) {
                     working = false;
                     // If looping, start over

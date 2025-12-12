@@ -2,7 +2,7 @@
 
 namespace pd {
 
-// Boolean flags to organize  simple DPM requests queue
+// Boolean flags to organize a simple DPM request queue
 enum class DPM_REQUEST_FLAG {
     NONE, // Skip 0 to simplify active request checks
     NEW_POWER_LEVEL,
@@ -17,9 +17,9 @@ enum class PE_FLAG {
     MSG_DISCARDED, // Outgoing message discarded by new incoming one
     MSG_RECEIVED,  // Got reply OR new message (which discarded outgoing transfer)
 
-    // By default PRL error usually causes soft reset (or return to ready state).
-    // This flag can be set at state entry when custom handling needed.
-    // Then control will continue in the current state.
+    // By default, a PRL error usually causes a soft reset (or a return to the
+    // ready state). This flag can be set at state entry when custom handling is
+    // needed. Control will then continue in the current state.
     FORWARD_PRL_ERROR,
     PROTOCOL_ERROR,
 
@@ -28,8 +28,8 @@ enum class PE_FLAG {
     AMS_ACTIVE,
     AMS_FIRST_MSG_SENT,
     EPR_AUTO_ENTER_DISABLED,
-    // Used to mark complete entry sequence at start. When SNK become ready to
-    // accept DPM requests.
+    // Used to mark the complete entry sequence at start, when the sink becomes
+    // ready to accept DPM requests.
     // - [SELECT CAPABILITIES, [EPR ENTER, SELECT CAPABILITIES]]
     // The tail is optional, for EPR chargers only.
     HANDSHAKE_REPORTED,

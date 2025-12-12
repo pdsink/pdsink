@@ -3,7 +3,7 @@
 #include <jetlog/jetlog.hpp>
 
 //
-// Here we create simple jetlog wrappers to use in project.
+// Here we create simple jetlog wrappers to use in the project.
 //
 
 using Logger = jetlog::Writer<512>;

@@ -11,11 +11,11 @@ Logger logger(ringBuffer);
 jetlog::Reader<> logReader(ringBuffer);
 
 static etl::string<1024> outputBuffer{};
-// Join multiple records to batch. That significantly improves
+// Join multiple records into a batch. That significantly improves
 // USB VCOM throughput.
 static etl::string<4096> batchBuffer{};
 
-// Use idf api for output. Its connection detector is more robust for re-uploads.
+// Use the IDF API for output; its connection detector is more robust for re-uploads.
 void logger_start() {
     xTaskCreate([](void* pvParameters) {
         (void)pvParameters;
@@ -27,7 +27,7 @@ void logger_start() {
             "Batch buffer must be larger than output buffer");
 
         while (true) {
-            // Wait until usb serial ready prior to write
+            // Wait until USB serial is ready before writing
             if (!usb_serial_jtag_ll_txfifo_writable()) {
                 vTaskDelay(pdMS_TO_TICKS(10));
                 continue;
@@ -44,7 +44,7 @@ void logger_start() {
                     continue;
                 }
 
-                // Force batch flush when available space ended
+                // Force a batch flush when available space ends
                 if (batchBuffer.size() > 0) {
                     printf("%s", batchBuffer.c_str());
                     batchBuffer.clear();
