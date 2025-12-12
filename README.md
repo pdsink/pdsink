@@ -21,15 +21,27 @@ Not supported:
 
 ## Usage
 
-See [docs](./docs) and [examples](./examples).
+See the [docs](./docs) and [examples](./examples).
 
 For a real-world complex scenario, see the heater-related classes in the
 [Reflow Micro Table](https://github.com/puzrin/reflow_micro/tree/master/firmware/src/heater)
 project.
 
-Note that this package uses [ETL](https://www.etlcpp.com/) but does not pin a
-specific version to avoid conflicts with your application. Pin a specific
-dependency version in your application to keep the configuration stable.
+This package uses [ETL](https://www.etlcpp.com/) but leaves the version
+unpinned to avoid conflicts with your application. Pin ETL in your project to
+keep the configuration stable.
+
+
+## When pdsink makes sense
+
+This project can help when:
+
+- you need dynamic power control at runtime (heaters, for example).
+- you want to use an MCU with an embedded UCPD and simplify external components.
+- you need “non-standard” voltages or current limits (via PPS/AVS profiles).
+
+If you only need a single fixed profile, a simple PD trigger (e.g., CH224 or an
+external one) can be a more rational choice.
 
 
 ## References
