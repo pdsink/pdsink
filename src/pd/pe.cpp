@@ -604,6 +604,7 @@ public:
                     return PE_SNK_Give_Sink_Cap;
 
                 case PD_CTRL_MSGT::Wait: // Unexpected => soft reset
+                    PE_LOGE("Unexpected PD_CTRL_MSGT::Wait => Soft Reset");
                     return PE_SNK_Send_Soft_Reset;
 
                 case PD_CTRL_MSGT::Not_Supported:
@@ -783,6 +784,7 @@ public:
         }
 
         if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
+            PE_LOGE("EPR_KeepAlive send failed => Soft Reset");
             return PE_SNK_Send_Soft_Reset;
         }
 
@@ -793,11 +795,13 @@ public:
                 return PE_SNK_Ready;
             }
 
-            PE_LOGE("Protocol error: unexpected message received [0x{:08X}]", port.rx_emsg.header.raw_value);
+            PE_LOGE("EPR_KeepAlive protocol error: unexpected message [0x{:08X}] => Soft Reset",
+                port.rx_emsg.header.raw_value);
             return PE_SNK_Send_Soft_Reset;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
+            PE_LOGE("EPR_KeepAlive response timeout => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
@@ -1614,6 +1618,8 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
     auto err = msg.error;
 
     if (pe.is_uninitialized()) { return; }
+
+    PE_LOGE("PRL error reported: {}", static_cast<int>(err));
 
     // Always arm this flag, even for errors that are not forwarded. This allows
     // optional resource cleanup in `on_exit()` when some are shared between states.
