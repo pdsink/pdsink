@@ -1666,7 +1666,9 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
 
     if (prl.has_deferred_wakeup_request) {
         prl.has_deferred_wakeup_request = false;
-        prl.request_wakeup();
+        // Protection from nested FSM calls. All requested wakeups are postponed
+        // until all the FSMs complete.
+        prl.port.wakeup();
     }
 }
 

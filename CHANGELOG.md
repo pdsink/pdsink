@@ -31,6 +31,8 @@
 - Clarified the hard reset counter check condition (was 1 less than required).
 - Fixed the target state after exiting PE_BIST_Carrier_Mode according to the
   spec.
+- Fixed deferred wakeups in PE/PRL. Nothing happened until the next timer tick,
+  instead of immediate event loop wakup.
 
 
 ## [0.1.0] - 2025-11-06

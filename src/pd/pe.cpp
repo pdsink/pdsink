@@ -1587,7 +1587,9 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
 
     if (pe.has_deferred_wakeup_request) {
         pe.has_deferred_wakeup_request = false;
-        pe.request_wakeup();
+        // Protection from nested FSM calls. All requested wakeups are postponed
+        // until the FSM completes.
+        pe.port.wakeup();
     }
 }
 
