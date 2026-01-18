@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.1] - 2026-01-19
 
 ### Added
 
@@ -46,5 +46,5 @@
 - Configurable logging (jetlog), `pd_config.h` build-time configuration, and
   starter documentation/tests.
 
-[Unreleased]: https://github.com/pdsink/pdsink/compare/0.1.0...HEAD
+[0.1.1]: https://github.com/pdsink/pdsink/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/pdsink/pdsink/releases/tag/0.1.0
