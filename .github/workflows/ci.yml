@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -26,10 +26,18 @@ jobs:
         run: |
           platformio test --environment test-desktop
 
-      - name: Check examples build (arduino)
+      - name: Check examples build from root (arduino)
         run: |
           platformio run --environment example-fusb302_rtos_esp32c3_arduino
 
-      - name: Check examples build (espidf)
+      - name: Check examples build from root (espidf)
         run: |
           platformio run --environment example-fusb302_rtos_esp32c3_espidf
+
+      - name: Check standalone example build (arduino)
+        run: |
+          platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_arduino
+
+      - name: Check standalone example build (espidf)
+        run: |
+          platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_espidf
