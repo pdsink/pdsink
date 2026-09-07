@@ -18,12 +18,12 @@ enum TC_State {
 };
 
 namespace {
-    constexpr auto tc_state_to_desc(int state) -> const char* {
+    constexpr auto tc_state_to_desc(int state) {
         switch (state) {
-            case TC_DETACHED: return "TC_DETACHED";
-            case TC_DETECTING: return "TC_DETECTING";
-            case TC_SINK_ATTACHED: return "TC_SINK_ATTACHED";
-            default: return "Unknown TC state";
+            case TC_DETACHED: return PD_LOG_ASSUME_STATIC_STR("TC_DETACHED");
+            case TC_DETECTING: return PD_LOG_ASSUME_STATIC_STR("TC_DETECTING");
+            case TC_SINK_ATTACHED: return PD_LOG_ASSUME_STATIC_STR("TC_SINK_ATTACHED");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown TC state");
         }
     }
 } // namespace

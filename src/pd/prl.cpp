@@ -24,15 +24,15 @@ enum PRL_RCH_State {
 };
 
 namespace {
-    constexpr auto prl_rch_state_to_desc(int state) -> const char* {
+    constexpr auto prl_rch_state_to_desc(int state) {
         switch (state) {
-            case RCH_Wait_For_Message_From_Protocol_Layer: return "RCH_Wait_For_Message_From_Protocol_Layer";
-            case RCH_Pass_Up_Message: return "RCH_Pass_Up_Message";
-            case RCH_Processing_Extended_Message: return "RCH_Processing_Extended_Message";
-            case RCH_Requesting_Chunk: return "RCH_Requesting_Chunk";
-            case RCH_Waiting_Chunk: return "RCH_Waiting_Chunk";
-            case RCH_Report_Error: return "RCH_Report_Error";
-            default: return "Unknown PRL_RCH state";
+            case RCH_Wait_For_Message_From_Protocol_Layer: return PD_LOG_ASSUME_STATIC_STR("RCH_Wait_For_Message_From_Protocol_Layer");
+            case RCH_Pass_Up_Message: return PD_LOG_ASSUME_STATIC_STR("RCH_Pass_Up_Message");
+            case RCH_Processing_Extended_Message: return PD_LOG_ASSUME_STATIC_STR("RCH_Processing_Extended_Message");
+            case RCH_Requesting_Chunk: return PD_LOG_ASSUME_STATIC_STR("RCH_Requesting_Chunk");
+            case RCH_Waiting_Chunk: return PD_LOG_ASSUME_STATIC_STR("RCH_Waiting_Chunk");
+            case RCH_Report_Error: return PD_LOG_ASSUME_STATIC_STR("RCH_Report_Error");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PRL_RCH state");
         }
     }
 } // namespace
@@ -54,19 +54,19 @@ enum PRL_TCH_State {
 };
 
 namespace {
-    constexpr auto prl_tch_state_to_desc(int state) -> const char* {
+    constexpr auto prl_tch_state_to_desc(int state) {
         switch (state) {
-            case TCH_Wait_For_Message_Request_From_Policy_Engine: return "TCH_Wait_For_Message_Request_From_Policy_Engine";
-            case TCH_Pass_Down_Message: return "TCH_Pass_Down_Message";
-            case TCH_Wait_For_Transmission_Complete: return "TCH_Wait_For_Transmission_Complete";
-            case TCH_Message_Sent: return "TCH_Message_Sent";
-            case TCH_Prepare_To_Send_Chunked_Message: return "TCH_Prepare_To_Send_Chunked_Message";
-            case TCH_Construct_Chunked_Message: return "TCH_Construct_Chunked_Message";
-            case TCH_Sending_Chunked_Message: return "TCH_Sending_Chunked_Message";
-            case TCH_Wait_Chunk_Request: return "TCH_Wait_Chunk_Request";
-            case TCH_Message_Received: return "TCH_Message_Received";
-            case TCH_Report_Error: return "TCH_Report_Error";
-            default: return "Unknown PRL_TCH state";
+            case TCH_Wait_For_Message_Request_From_Policy_Engine: return PD_LOG_ASSUME_STATIC_STR("TCH_Wait_For_Message_Request_From_Policy_Engine");
+            case TCH_Pass_Down_Message: return PD_LOG_ASSUME_STATIC_STR("TCH_Pass_Down_Message");
+            case TCH_Wait_For_Transmission_Complete: return PD_LOG_ASSUME_STATIC_STR("TCH_Wait_For_Transmission_Complete");
+            case TCH_Message_Sent: return PD_LOG_ASSUME_STATIC_STR("TCH_Message_Sent");
+            case TCH_Prepare_To_Send_Chunked_Message: return PD_LOG_ASSUME_STATIC_STR("TCH_Prepare_To_Send_Chunked_Message");
+            case TCH_Construct_Chunked_Message: return PD_LOG_ASSUME_STATIC_STR("TCH_Construct_Chunked_Message");
+            case TCH_Sending_Chunked_Message: return PD_LOG_ASSUME_STATIC_STR("TCH_Sending_Chunked_Message");
+            case TCH_Wait_Chunk_Request: return PD_LOG_ASSUME_STATIC_STR("TCH_Wait_Chunk_Request");
+            case TCH_Message_Received: return PD_LOG_ASSUME_STATIC_STR("TCH_Message_Received");
+            case TCH_Report_Error: return PD_LOG_ASSUME_STATIC_STR("TCH_Report_Error");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PRL_TCH state");
         }
     }
 } // namespace
@@ -88,21 +88,21 @@ enum PRL_Tx_State {
 };
 
 namespace {
-    constexpr auto prl_tx_state_to_desc(int state) -> const char* {
+    constexpr auto prl_tx_state_to_desc(int state) {
         switch (state) {
-            case PRL_Tx_PHY_Layer_Reset: return "PRL_Tx_PHY_Layer_Reset";
-            case PRL_Tx_Wait_for_Message_Request: return "PRL_Tx_Wait_for_Message_Request";
-            case PRL_Tx_Layer_Reset_for_Transmit: return "PRL_Tx_Layer_Reset_for_Transmit";
-            case PRL_Tx_Construct_Message: return "PRL_Tx_Construct_Message";
-            case PRL_Tx_Wait_for_PHY_Response: return "PRL_Tx_Wait_for_PHY_Response";
-            case PRL_Tx_Match_MessageID: return "PRL_Tx_Match_MessageID";
-            case PRL_Tx_Message_Sent: return "PRL_Tx_Message_Sent";
-            case PRL_Tx_Check_RetryCounter: return "PRL_Tx_Check_RetryCounter";
-            case PRL_Tx_Transmission_Error: return "PRL_Tx_Transmission_Error";
-            case PRL_Tx_Discard_Message: return "PRL_Tx_Discard_Message";
-            case PRL_Tx_Snk_Start_of_AMS: return "PRL_Tx_Snk_Start_of_AMS";
-            case PRL_Tx_Snk_Pending: return "PRL_Tx_Snk_Pending";
-            default: return "Unknown PRL_Tx state";
+            case PRL_Tx_PHY_Layer_Reset: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_PHY_Layer_Reset");
+            case PRL_Tx_Wait_for_Message_Request: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Wait_for_Message_Request");
+            case PRL_Tx_Layer_Reset_for_Transmit: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Layer_Reset_for_Transmit");
+            case PRL_Tx_Construct_Message: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Construct_Message");
+            case PRL_Tx_Wait_for_PHY_Response: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Wait_for_PHY_Response");
+            case PRL_Tx_Match_MessageID: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Match_MessageID");
+            case PRL_Tx_Message_Sent: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Message_Sent");
+            case PRL_Tx_Check_RetryCounter: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Check_RetryCounter");
+            case PRL_Tx_Transmission_Error: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Transmission_Error");
+            case PRL_Tx_Discard_Message: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Discard_Message");
+            case PRL_Tx_Snk_Start_of_AMS: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Snk_Start_of_AMS");
+            case PRL_Tx_Snk_Pending: return PD_LOG_ASSUME_STATIC_STR("PRL_Tx_Snk_Pending");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PRL_Tx state");
         }
     }
 } // namespace
@@ -117,14 +117,14 @@ enum PRL_Rx_State {
 };
 
 namespace {
-    constexpr auto prl_rx_state_to_desc(int state) -> const char* {
+    constexpr auto prl_rx_state_to_desc(int state) {
         switch (state) {
-            case PRL_Rx_Wait_for_PHY_Message: return "PRL_Rx_Wait_for_PHY_Message";
-            case PRL_Rx_Layer_Reset_for_Receive: return "PRL_Rx_Layer_Reset_for_Receive";
-            case PRL_Rx_Send_GoodCRC: return "PRL_Rx_Send_GoodCRC";
-            case PRL_Rx_Check_MessageID: return "PRL_Rx_Check_MessageID";
-            case PRL_Rx_Store_MessageID: return "PRL_Rx_Store_MessageID";
-            default: return "Unknown PRL_Rx state";
+            case PRL_Rx_Wait_for_PHY_Message: return PD_LOG_ASSUME_STATIC_STR("PRL_Rx_Wait_for_PHY_Message");
+            case PRL_Rx_Layer_Reset_for_Receive: return PD_LOG_ASSUME_STATIC_STR("PRL_Rx_Layer_Reset_for_Receive");
+            case PRL_Rx_Send_GoodCRC: return PD_LOG_ASSUME_STATIC_STR("PRL_Rx_Send_GoodCRC");
+            case PRL_Rx_Check_MessageID: return PD_LOG_ASSUME_STATIC_STR("PRL_Rx_Check_MessageID");
+            case PRL_Rx_Store_MessageID: return PD_LOG_ASSUME_STATIC_STR("PRL_Rx_Store_MessageID");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PRL_Rx state");
         }
     }
 } // namespace
@@ -142,17 +142,17 @@ enum PRL_HR_State {
 };
 
 namespace {
-    constexpr auto prl_hr_state_to_desc(int state) -> const char* {
+    constexpr auto prl_hr_state_to_desc(int state) {
         switch (state) {
-            case PRL_HR_IDLE: return "PRL_HR_IDLE";
-            case PRL_HR_Reset_Layer: return "PRL_HR_Reset_Layer";
-            case PRL_HR_Indicate_Hard_Reset: return "PRL_HR_Indicate_Hard_Reset";
-            case PRL_HR_Request_Hard_Reset: return "PRL_HR_Request_Hard_Reset";
-            case PRL_HR_Wait_for_PHY_Hard_Reset_Complete: return "PRL_HR_Wait_for_PHY_Hard_Reset_Complete";
-            case PRL_HR_PHY_Hard_Reset_Requested: return "PRL_HR_PHY_Hard_Reset_Requested";
-            case PRL_HR_Wait_for_PE_Hard_Reset_Complete: return "PRL_HR_Wait_for_PE_Hard_Reset_Complete";
-            case PRL_HR_PE_Hard_Reset_Complete: return "PRL_HR_PE_Hard_Reset_Complete";
-            default: return "Unknown PRL_HR state";
+            case PRL_HR_IDLE: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_IDLE");
+            case PRL_HR_Reset_Layer: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_Reset_Layer");
+            case PRL_HR_Indicate_Hard_Reset: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_Indicate_Hard_Reset");
+            case PRL_HR_Request_Hard_Reset: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_Request_Hard_Reset");
+            case PRL_HR_Wait_for_PHY_Hard_Reset_Complete: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_Wait_for_PHY_Hard_Reset_Complete");
+            case PRL_HR_PHY_Hard_Reset_Requested: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_PHY_Hard_Reset_Requested");
+            case PRL_HR_Wait_for_PE_Hard_Reset_Complete: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_Wait_for_PE_Hard_Reset_Complete");
+            case PRL_HR_PE_Hard_Reset_Complete: return PD_LOG_ASSUME_STATIC_STR("PRL_HR_PE_Hard_Reset_Complete");
+            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PRL_HR state");
         }
     }
 } // namespace

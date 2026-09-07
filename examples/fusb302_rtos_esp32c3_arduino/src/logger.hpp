@@ -6,9 +6,9 @@
 // Here we create simple jetlog wrappers to use in the project.
 //
 
-using Logger = jetlog::Writer<512>;
+using LogWriter = jetlog::Writer<>;
 
-extern Logger logger;
+extern LogWriter logger;
 
 // We do not use tags in this example, so we pass empty string.
 #define APP_LOGI(...) logger.push("APP", jetlog::level::info, __VA_ARGS__)

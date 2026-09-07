@@ -6,6 +6,10 @@
 
 #include "pd_conf.h"
 
+#ifndef PD_LOG_ASSUME_STATIC_STR
+#define PD_LOG_ASSUME_STATIC_STR(s) (s)
+#endif
+
 #define _PD_LOG_LVL_NONE   0
 #define _PD_LOG_LVL_ERROR  1
 #define _PD_LOG_LVL_INFO   2

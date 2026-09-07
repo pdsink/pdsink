@@ -8,6 +8,8 @@
 #define PD_LOG_FN_LVL_DEBUG     jetlog::level::debug
 #define PD_LOG_FN_LVL_VERBOSE   jetlog::level::verbose
 
+#define PD_LOG_ASSUME_STATIC_STR(s) jetlog::static_str((s))
+
 // Use for debugging.
 #define PD_LOG_DEFAULT ERROR
 

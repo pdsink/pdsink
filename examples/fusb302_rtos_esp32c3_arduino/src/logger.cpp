@@ -7,7 +7,7 @@
 
 static jetlog::RingBuffer<1024*40> ringBuffer;
 
-Logger logger(ringBuffer);
+LogWriter logger(ringBuffer);
 jetlog::Reader<> logReader(ringBuffer);
 
 static etl::string<1024> outputBuffer{};
