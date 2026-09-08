@@ -1,6 +1,6 @@
 {
     "name": "pdsink",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "description": "USB PD Sink stack.",
     "keywords": [ "USB", "Power Delivery", "Sink", "USB PD" ],
     "homepage": "https://github.com/pdsink/pdsink",

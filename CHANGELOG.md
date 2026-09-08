@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.1.1] - 2026-01-19
+## 0.1.2 - 2026-09-08
+
+- Added jetlog v2 optimizations.
+- Examples polish.
+
+
+## 0.1.1 - 2026-01-19
 
 ### Added
 
@@ -35,7 +41,7 @@
   instead of immediate event loop wakup.
 
 
-## [0.1.0] - 2025-11-06
+## 0.1.0 - 2025-11-06
 
 ### Added
 
@@ -45,6 +51,3 @@
   with a simple Device Policy Manager for automatic profile selection.
 - Configurable logging (jetlog), `pd_config.h` build-time configuration, and
   starter documentation/tests.
-
-[0.1.1]: https://github.com/pdsink/pdsink/compare/0.1.0...0.1.1
-[0.1.0]: https://github.com/pdsink/pdsink/releases/tag/0.1.0
