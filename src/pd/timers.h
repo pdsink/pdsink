@@ -45,7 +45,7 @@ struct PD_TIMERS_RANGE {
     static constexpr Type PRL{PD_TIMER::PRL_HardResetCompleteTimer, PD_TIMER::PRL_ChunkSenderRequest};
 };
 
-// 6.6.22 Time Values and Timers
+// [rev3.2 v1.2] 7.31.19 Time Values and Timers
 // {Timer ID, Timeout in us}
 //
 // Some timeouts can reuse the same timer. PD components operate with
@@ -58,9 +58,10 @@ struct PD_TIMEOUT {
     static constexpr Type TC_CC_POLL {PD_TIMER::TC_DEBOUNCE, 20 * ms_mult}; // 20 ms
 
     static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms_mult}; // 310-620 ms
-    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms_mult}; // 27-36 ms
+    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms_mult}; // 27-50 ms
     static constexpr Type tSinkRequest {PD_TIMER::PE_SinkRequestTimer, 100 * ms_mult}; // 100 ms before repeat
-    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000 * ms_mult}; // 10s max
+    // 10s max in [rev3.2 v1.1] Table 6.68; [rev3.2 v1.2] Table 7.9 omits this value.
+    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000 * ms_mult};
     // PS Transition timeout depends on mode
     static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, 500 * ms_mult}; // 450-550 ms
     static constexpr Type tPSTransition_EPR {PD_TIMER::PE_PSTransitionTimer, 925 * ms_mult}; // 830-1020 ms

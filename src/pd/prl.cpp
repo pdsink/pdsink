@@ -10,8 +10,7 @@ namespace pd {
 
 using afsm::state_id_t;
 
-// [rev3.2] 6.12.3 List of Protocol Layer States
-// Table 6.75 Protocol Layer States
+// [rev3.2 v1.2] 9.1 Protocol Layer State Diagrams
 
 // Chunked receive
 enum PRL_RCH_State {
@@ -41,7 +40,7 @@ namespace {
 enum PRL_TCH_State {
     TCH_Wait_For_Message_Request_From_Policy_Engine,
     TCH_Pass_Down_Message,
-    // NOTE: rev3.2 spec has obvious typo, naming it as
+    // NOTE: [rev3.2 v1.2] 9.1.2.1.3.3 has an obvious typo, naming it as
     // TCH_Wait_For_Transmision_Complete (with single 's')
     TCH_Wait_For_Transmission_Complete,
     TCH_Message_Sent,
@@ -159,7 +158,7 @@ namespace {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// [rev3.2] 6.12.2.1.2 Chunked Rx State Diagram
+// [rev3.2 v1.2] 9.1.2.1.2 Chunked Rx State Diagram
 
 class RCH_Wait_For_Message_From_Protocol_Layer_State : public afsm::state<PRL_RCH, RCH_Wait_For_Message_From_Protocol_Layer_State, RCH_Wait_For_Message_From_Protocol_Layer> {
 public:
@@ -392,7 +391,7 @@ public:
     static auto on_run_state(PRL_TCH& tch) -> state_id_t {
         auto& port = tch.prl.port;
 
-        // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
+        // [rev3.2 v1.2] 9.1.2.1.3 Chunked Tx State Diagram
         // Any Message Received and not in state TCH_Wait_Chunk_Request
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
@@ -500,7 +499,7 @@ public:
 
         tch.prl.report_pe(MsgToPe_PrlMessageSent{});
 
-        // [rev3.2] 6.12.2.1.3 Chunked Tx State Diagram
+        // [rev3.2 v1.2] 9.1.2.1.3 Chunked Tx State Diagram
         // Any Message Received and not in state TCH_Wait_Chunk_Request
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
@@ -649,7 +648,7 @@ public:
                 }
             }
 
-            // [rev3.2] 6.12.2.1.3.8 TCH_Wait_Chunk_Request State
+            // [rev3.2 v1.2] 9.1.2.1.3.8 TCH_Wait_Chunk_Request State
             // Any other Message than Chunk Request is received.
 
             // TODO: It's not clear why an error/discard is not reported
@@ -660,7 +659,7 @@ public:
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderRequest)) {
-            // [rev3.2] 6.12.2.1.3.8 If no Chunk Request for the very first
+            // [rev3.2 v1.2] 9.1.2.1.3.8 If no Chunk Request for the very first
             // chunk arrived, treat the transfer as completed. That's required
             // for compatibility with devices without chunking support.
             if (port.tch_chunk_number_to_send == 1) {
@@ -1076,7 +1075,7 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// [rev3.2] 6.12.2.3 Protocol Layer Message Reception
+// [rev3.2 v1.2] 9.1.2.3 Protocol Layer Message Reception
 
 class PRL_Rx_Wait_for_PHY_Message_State : public afsm::state<PRL_Rx, PRL_Rx_Wait_for_PHY_Message_State, PRL_Rx_Wait_for_PHY_Message> {
 public:
@@ -1186,7 +1185,7 @@ public:
 
         port.rx_msg_id_stored = port.rx_chunk.header.message_id;
 
-        // Rev 3.2 says ping is deprecated => Ignore it completely
+        // [rev3.2 v1.2] 6.3.5 Ping Message (Deprecated): ignore it completely
         // (it should not discard, affect chunking and so on).
         if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Ping)) { return PRL_Rx_Wait_for_PHY_Message; }
 
@@ -1214,7 +1213,7 @@ public:
             prl.prl_tx.change_state(PRL_Tx_Discard_Message);
         }
 
-        // [rev3.2] 6.12.2.1.4 Chunked Message Router State Diagram
+        // [rev3.2 v1.2] 9.1.2.1.4 Chunked Message Router State Diagram
         //
         // Route the message to RCH/TCH. Since RTR has no stored states, it is
         // simpler to embed its logic here.
@@ -1245,7 +1244,7 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// [rev3.2] 6.12.2.4 Hard Reset operation
+// [rev3.2 v1.2] 9.1.2.4 Hard Reset operation
 
 class PRL_HR_IDLE_State : public afsm::state<PRL_HR, PRL_HR_IDLE_State, PRL_HR_IDLE> {
 public:
@@ -1396,7 +1395,7 @@ public:
 
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
         //
-        // 6.12.2.4.7 PRL_HR_PE_Hard_Reset_Complete
+        // [rev3.2 v1.2] 9.1.2.4.7 PRL_HR_PE_Hard_Reset_Complete
         // If Hard Reset Signaling is still pending due to a non-Idle channel
         // this Shall be cleared and not sent
         //

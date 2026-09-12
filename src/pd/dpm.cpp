@@ -30,7 +30,7 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     // SPR PDOs first. Fixed ones first, ordered by voltage. Then PPS.
     //
 
-    // See [rev3.2] 6.4.1.3 Sink Power Data Objects
+    // See [rev3.2 v1.2] 6.4.1.3 Power Data Objects
     SNK_PDO_FIXED pdo1{create_pdo_variant_bits(PDO_VARIANT::FIXED)};
 
     // PDO 1 is always vSafe5V, with extra flags to describe demands.

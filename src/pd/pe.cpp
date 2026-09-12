@@ -13,7 +13,7 @@ namespace pd {
 using afsm::state_id_t;
 
 enum PE_State {
-    // 8.3.3.3 Policy Engine Sink Port State Diagram
+    // [rev3.2 v1.2] 9.2.4 Policy Engine Sink Port State Diagram
     PE_SNK_Startup,
     PE_SNK_Discovery,
     PE_SNK_Wait_for_Capabilities,
@@ -28,31 +28,31 @@ enum PE_State {
     PE_SNK_Hard_Reset,
     PE_SNK_Transition_to_default,
 
-    // [rev3.2] 8.3.3.4.2 SOP Sink Port Soft Reset and Protocol Error State Diagram
+    // [rev3.2 v1.2] 9.2.5.2 SOP Sink Port Soft Reset and Protocol Error State Diagram
     PE_SNK_Soft_Reset,
     PE_SNK_Send_Soft_Reset,
 
-    // [rev3.2] 8.3.3.6.2 Sink Port Not Supported Message State Diagram
+    // [rev3.2 v1.2] 9.2.7.2 Sink Port Not Supported Message State Diagram
     PE_SNK_Send_Not_Supported,
 
-    // [rev3.2] 8.3.3.7.2.1 PE_SNK_Source_Alert_Received State
+    // [rev3.2 v1.2] 9.2.8.2.1 PE_SNK_Source_Alert_Received State
     PE_SNK_Source_Alert_Received,
 
-    // [rev3.2] 8.3.3.26.2 Sink EPR Mode Entry State Diagram
+    // [rev3.2 v1.2] 9.2.26.3.2 Sink EPR Mode Entry State Diagram
     PE_SNK_Send_EPR_Mode_Entry,
     PE_SNK_EPR_Mode_Entry_Wait_For_Response,
-    // [rev3.2] 8.3.3.26.4 Sink EPR Mode Exit State Diagram
+    // [rev3.2 v1.2] 9.2.26.3.4 Sink EPR Mode Exit State Diagram
     PE_SNK_EPR_Mode_Exit_Received, // Manual exit not needed, only SRC-forced
 
-    // [rev3.2] 8.3.3.27 BIST State Diagrams
+    // [rev3.2 v1.2] 9.2.26.4 BIST State diagrams
     PE_BIST_Activate, // Not in spec, common entry point
     PE_BIST_Carrier_Mode,
     PE_BIST_Test_Mode,
 
-    // [rev3.2] 8.3.3.15.2 Give Revision State Diagram
+    // [rev3.2 v1.2] 9.2.16.2.1 PE_Give_Revision State
     PE_Give_Revision,
 
-    // 8.3.3.2.7 PE_SRC_Disabled State
+    // [rev3.2 v1.2] 9.2.3.7 PE_SRC_Disabled State
     PE_Src_Disabled,
 };
 
@@ -1611,7 +1611,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
 }
 
 //
-// 8.3.3.4 SOP Soft Reset and Protocol Error State Diagrams
+// [rev3.2 v1.2] 9.2.5 SOP Soft Reset and Protocol Error State Diagrams
 //
 // NOTE: Needs attention; the specification is unclear here
 //
