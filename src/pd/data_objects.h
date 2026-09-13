@@ -70,7 +70,7 @@ namespace PD_CTRL_MSGT {
         Data_Reset = 14,
         Data_Reset_Complete = 15,
         Not_Supported = 16,
-        Get_Source_Cap_Ext = 17,
+        Get_Source_Cap_Extended = 17,
         Get_Status = 18,
         FR_Swap = 19,
         Get_PPS_Status = 20,
@@ -421,7 +421,7 @@ union SNK_PDO_SPR_AVS {
 union SNK_PDO_EPR_AVS {
     uint32_t raw_value;
     struct {
-        uint32_t pdp: 8; // 1W step
+        uint32_t max_power: 8; // 1W step
         uint32_t min_voltage : 8; // 100mv step
         uint32_t : 1;
         uint32_t max_voltage : 9; // 100mv step
@@ -465,8 +465,8 @@ namespace PD_EXT_CTRL_MSGT {
     enum type {
         EPR_Get_Source_Cap = 1,
         EPR_Get_Sink_Cap = 2,
-        EPR_KeepAlive = 3,
-        EPR_KeepAlive_Ack = 4
+        EPR_Keep_Alive = 3,
+        EPR_Keep_Alive_Ack = 4
     };
 }; // namespace PD_EXT_CTRL_MSGT
 

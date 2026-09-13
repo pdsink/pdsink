@@ -53,7 +53,7 @@ enum PE_State {
     PE_Give_Revision,
 
     // [rev3.2 v1.2] 9.2.3.7 PE_SRC_Disabled State
-    PE_Src_Disabled,
+    PE_SRC_Disabled,
 };
 
 namespace {
@@ -81,7 +81,7 @@ namespace {
             case PE_BIST_Carrier_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Carrier_Mode");
             case PE_BIST_Test_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Test_Mode");
             case PE_Give_Revision: return PD_LOG_ASSUME_STATIC_STR("PE_Give_Revision");
-            case PE_Src_Disabled: return PD_LOG_ASSUME_STATIC_STR("PE_Src_Disabled");
+            case PE_SRC_Disabled: return PD_LOG_ASSUME_STATIC_STR("PE_SRC_Disabled");
             default: return PD_LOG_ASSUME_STATIC_STR("Unknown PE state");
         }
     }
@@ -765,7 +765,7 @@ public:
 
 
         ECDB ecdb{};
-        ecdb.type = PD_EXT_CTRL_MSGT::EPR_KeepAlive;
+        ecdb.type = PD_EXT_CTRL_MSGT::EPR_Keep_Alive;
 
         port.tx_emsg.clear();
         port.tx_emsg.append16(ecdb.raw_value);
@@ -784,24 +784,24 @@ public:
         }
 
         if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
-            PE_LOGE("EPR_KeepAlive send failed => Soft Reset");
+            PE_LOGE("EPR_Keep_Alive send failed => Soft Reset");
             return PE_SNK_Send_Soft_Reset;
         }
 
         if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
-            if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_KeepAlive_Ack)) {
+            if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_Keep_Alive_Ack)) {
                 return PE_SNK_Ready;
             }
 
-            PE_LOGE("EPR_KeepAlive protocol error: unexpected message [0x{:08X}] => Soft Reset",
+            PE_LOGE("EPR_Keep_Alive protocol error: unexpected message [0x{:08X}] => Soft Reset",
                 port.rx_emsg.header.raw_value);
             return PE_SNK_Send_Soft_Reset;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
-            PE_LOGE("EPR_KeepAlive response timeout => Hard Reset");
+            PE_LOGE("EPR_Keep_Alive response timeout => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
@@ -821,7 +821,7 @@ public:
         if (port.pe_flags.test_and_clear(PE_FLAG::HR_BY_CAPS_TIMEOUT) &&
             port.hard_reset_counter > nHardResetCount)
         {
-            return PE_Src_Disabled;
+            return PE_SRC_Disabled;
         }
 
         port.pe_flags.set(PE_FLAG::PRL_HARD_RESET_PENDING);
@@ -1276,8 +1276,8 @@ public:
 };
 
 
-class PE_Src_Disabled_State :
-    public afsm::state<PE, PE_Src_Disabled_State, PE_Src_Disabled>,
+class PE_SRC_Disabled_State :
+    public afsm::state<PE, PE_SRC_Disabled_State, PE_SRC_Disabled>,
     // Don't leave state on error. Only allow exit via Hard Reset from
     // partner, if cable stays connected.
     public afsm::interceptor_pack<InterceptorForwardErrors>
@@ -1319,7 +1319,7 @@ using PE_STATES = afsm::state_pack<
     PE_BIST_Carrier_Mode_State,
     PE_BIST_Test_Mode_State,
     PE_Give_Revision_State,
-    PE_Src_Disabled_State
+    PE_SRC_Disabled_State
 >;
 
 PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
@@ -1570,7 +1570,7 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
             {
                 PE_LOGI("=> Soft Reset from port partner");
                 if (pe.is_uninitialized() ||
-                    pe.get_state_id() == PE_Src_Disabled)
+                    pe.get_state_id() == PE_SRC_Disabled)
                 {
                     // This should not happen, but just in case...
                     PE_LOGE("=> PE inactive, ignoring Soft Reset");
