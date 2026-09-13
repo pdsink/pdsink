@@ -225,8 +225,3 @@ TEST(ValidateSourceCapsTest, ValidEprCapabilities) {
     caps.push_back(make_epr_avs_apdo(15000, 48000, 240)); // EPR AVS 15-48V, 240W
     EXPECT_TRUE(PE::validate_source_caps(caps));
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

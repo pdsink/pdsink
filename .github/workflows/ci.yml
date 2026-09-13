@@ -24,7 +24,7 @@ jobs:
 
       - name: Execute tests
         run: |
-          platformio test --environment test-desktop
+          platformio test --environment native
 
       - name: Check examples build from root (arduino)
         run: |

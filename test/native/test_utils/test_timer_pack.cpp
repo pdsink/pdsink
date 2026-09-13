@@ -203,8 +203,3 @@ TEST_F(TimerPackTest, EdgeTimeValues) {
     advance_time(1);
     EXPECT_TRUE(timers.is_expired(timer_id));
 }
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

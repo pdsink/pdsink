@@ -119,8 +119,3 @@ TEST(LeapSyncTest, EnumParams) {
     sync.job_finish();
     EXPECT_TRUE(sync.is_idle());
 }
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
