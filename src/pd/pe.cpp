@@ -1256,7 +1256,7 @@ public:
         rmdo.rev_major = 3;
         rmdo.rev_minor = 2;
         rmdo.ver_major = 1;
-        rmdo.ver_minor = 1;
+        rmdo.ver_minor = 2;
 
         port.tx_emsg.clear();
         port.tx_emsg.append32(rmdo.raw_value);
