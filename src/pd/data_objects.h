@@ -470,6 +470,78 @@ namespace PD_EXT_CTRL_MSGT {
     };
 }; // namespace PD_EXT_CTRL_MSGT
 
+// [rev3.2 v1.2] 6.5.16 Sink_Capabilities_Extended Message
+// Table 6.61 Sink Capabilities Extended Data Block (SKEDB)
+union SKEDB_LOAD_STEP {
+    uint8_t raw_value;
+    struct {
+        uint8_t load_step : 2; // 00b - 150mA/μs, 01b - 500mA/μs
+        uint8_t : 6;
+    };
+};
+
+union SKEDB_SINK_LOAD_CHARACTERISTICS {
+    uint16_t raw_value;
+    struct {
+        uint16_t percent_overload : 5; // 10% step
+        uint16_t overload_period : 6; // 20ms step
+        uint16_t duty_cycle : 4; // 5% step
+        uint16_t can_tolerate_vbus_droop : 1;
+    };
+};
+
+union SKEDB_COMPLIANCE {
+    uint8_t raw_value;
+    struct {
+        uint8_t lps : 1;
+        uint8_t ps1 : 1;
+        uint8_t ps2 : 1;
+        uint8_t : 5;
+    };
+};
+
+union SKEDB_BATTERY_INFO {
+    uint8_t raw_value;
+    struct {
+        uint8_t fixed_batteries : 4;
+        uint8_t hot_swappable_battery_slots : 4;
+    };
+};
+
+union SKEDB_SINK_MODES {
+    uint8_t raw_value;
+    struct {
+        uint8_t pps_charging_supported : 1;
+        uint8_t vbus_powered : 1;
+        uint8_t ac_supply_powered : 1;
+        uint8_t battery_powered : 1;
+        uint8_t battery_essentially_unlimited : 1;
+        uint8_t avs_supported : 1;
+        uint8_t : 2;
+    };
+};
+
+struct SKEDB {
+    uint16_t vid;
+    uint16_t pid;
+    uint32_t xid;
+    uint8_t fw_version;
+    uint8_t hw_version;
+    uint8_t skedb_version;
+    SKEDB_LOAD_STEP load_step;
+    SKEDB_SINK_LOAD_CHARACTERISTICS sink_load_characteristics;
+    SKEDB_COMPLIANCE compliance;
+    uint8_t touch_temp;
+    SKEDB_BATTERY_INFO battery_info;
+    SKEDB_SINK_MODES sink_modes;
+    uint8_t spr_sink_minimum_pdp;
+    uint8_t spr_sink_operational_pdp;
+    uint8_t spr_sink_maximum_pdp;
+    uint8_t epr_sink_minimum_pdp;
+    uint8_t epr_sink_operational_pdp;
+    uint8_t epr_sink_maximum_pdp;
+};
+
 // [rev3.2 v1.2] 6.4.11 Revision Message
 // Table 6.31 Revision Message Data Object (RMDO)
 union RMDO {

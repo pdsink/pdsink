@@ -15,6 +15,7 @@ public:
     virtual etl::pair<uint32_t, uint32_t> get_request_data_object(const etl::ivector<uint32_t>& src_caps) = 0;
     virtual PDO_LIST get_sink_pdo_list() = 0;
     virtual uint32_t get_epr_watts() = 0;
+    virtual SKEDB get_sink_cap_extended() = 0;
 };
 
 class DPM : public IDPM {
@@ -49,6 +50,11 @@ public:
 
     // Required by the spec to enter EPR mode (no idea why)
     virtual uint32_t get_epr_watts() override { return epr_watts; }
+
+    // Reply to `Get Sink Capabilities Extended`. Default is a device without
+    // USB-IF IDs. If you set VID/PID, they must match Discover Identity and
+    // Manufacturer_Info, when implemented ([rev3.2 v1.2] 6.1.5).
+    virtual SKEDB get_sink_cap_extended() override;
 
     //
     // Sugar methods for simple mode selection. You are not forced to use them.

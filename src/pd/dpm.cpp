@@ -100,6 +100,33 @@ auto DPM::get_sink_pdo_list() -> PDO_LIST {
     return sink_pdo_list;
 }
 
+auto DPM::get_sink_cap_extended() -> SKEDB {
+    SKEDB skedb{};
+
+    // No VID => VID FFFFh, PID 0. No XID => 0.
+    skedb.vid = 0xFFFF;
+    skedb.pid = 0;
+    skedb.xid = 0;
+    skedb.skedb_version = 1;
+
+    // Match the default sink PDO list
+    skedb.sink_modes.pps_charging_supported = 1;
+    skedb.sink_modes.vbus_powered = 1;
+    skedb.sink_modes.avs_supported = 1;
+
+    const auto epr_pdp = uint8_t(etl::min<uint32_t>(get_epr_watts(), 240));
+    skedb.epr_sink_minimum_pdp = epr_pdp;
+    skedb.epr_sink_operational_pdp = epr_pdp;
+    skedb.epr_sink_maximum_pdp = epr_pdp;
+
+    const auto spr_pdp = etl::min<uint8_t>(epr_pdp, 100);
+    skedb.spr_sink_minimum_pdp = spr_pdp;
+    skedb.spr_sink_operational_pdp = spr_pdp;
+    skedb.spr_sink_maximum_pdp = spr_pdp;
+
+    return skedb;
+}
+
 void DPM::fill_rdo_flags(uint32_t &rdo) {
     // Fill common RDO flags here.
     // This is the default implementation. You can override it if required.

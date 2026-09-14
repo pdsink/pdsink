@@ -23,6 +23,8 @@ enum PE_State {
     PE_SNK_Ready,
 
     PE_SNK_Give_Sink_Cap,
+    // [rev3.2 v1.2] 9.2.9.4.1 PE_SNK_Give_Sink_Cap_Ext State
+    PE_SNK_Give_Sink_Cap_Ext,
 
     PE_SNK_EPR_Keep_Alive,
     PE_SNK_Hard_Reset,
@@ -67,6 +69,7 @@ namespace {
             case PE_SNK_Transition_Sink: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Transition_Sink");
             case PE_SNK_Ready: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Ready");
             case PE_SNK_Give_Sink_Cap: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Give_Sink_Cap");
+            case PE_SNK_Give_Sink_Cap_Ext: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Give_Sink_Cap_Ext");
             case PE_SNK_EPR_Keep_Alive: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Keep_Alive");
             case PE_SNK_Hard_Reset: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Hard_Reset");
             case PE_SNK_Transition_to_default: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Transition_to_default");
@@ -603,6 +606,9 @@ public:
                 case PD_CTRL_MSGT::Get_Sink_Cap:
                     return PE_SNK_Give_Sink_Cap;
 
+                case PD_CTRL_MSGT::Get_Sink_Cap_Extended:
+                    return PE_SNK_Give_Sink_Cap_Ext;
+
                 case PD_CTRL_MSGT::Wait: // Unexpected => soft reset
                     PE_LOGE("Unexpected PD_CTRL_MSGT::Wait => Soft Reset");
                     return PE_SNK_Send_Soft_Reset;
@@ -746,6 +752,51 @@ public:
         }
 
         // No more checks - rely on standard error processing.
+        return No_State_Change;
+    }
+
+    static void on_exit_state(PE&) {}
+};
+
+
+class PE_SNK_Give_Sink_Cap_Ext_State : public afsm::state<PE, PE_SNK_Give_Sink_Cap_Ext_State, PE_SNK_Give_Sink_Cap_Ext> {
+public:
+    static auto on_enter_state(PE& pe) -> state_id_t {
+        auto& port = pe.port;
+        pe.log_state();
+
+        const auto skedb = pe.dpm.get_sink_cap_extended();
+
+        port.tx_emsg.clear();
+        auto& data = port.tx_emsg.get_data();
+
+        port.tx_emsg.append16(skedb.vid);
+        port.tx_emsg.append16(skedb.pid);
+        port.tx_emsg.append32(skedb.xid);
+        data.push_back(skedb.fw_version);
+        data.push_back(skedb.hw_version);
+        data.push_back(skedb.skedb_version);
+        data.push_back(skedb.load_step.raw_value);
+        port.tx_emsg.append16(skedb.sink_load_characteristics.raw_value);
+        data.push_back(skedb.compliance.raw_value);
+        data.push_back(skedb.touch_temp);
+        data.push_back(skedb.battery_info.raw_value);
+        data.push_back(skedb.sink_modes.raw_value);
+        data.push_back(skedb.spr_sink_minimum_pdp);
+        data.push_back(skedb.spr_sink_operational_pdp);
+        data.push_back(skedb.spr_sink_maximum_pdp);
+        data.push_back(skedb.epr_sink_minimum_pdp);
+        data.push_back(skedb.epr_sink_operational_pdp);
+        data.push_back(skedb.epr_sink_maximum_pdp);
+
+        pe.send_ext_msg(PD_EXT_MSGT::Sink_Capabilities_Extended);
+        return No_State_Change;
+    }
+
+    static auto on_run_state(PE& pe) -> state_id_t {
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+            return PE_SNK_Ready;
+        }
         return No_State_Change;
     }
 
@@ -1305,6 +1356,7 @@ using PE_STATES = afsm::state_pack<
     PE_SNK_Transition_Sink_State,
     PE_SNK_Ready_State,
     PE_SNK_Give_Sink_Cap_State,
+    PE_SNK_Give_Sink_Cap_Ext_State,
     PE_SNK_EPR_Keep_Alive_State,
     PE_SNK_Hard_Reset_State,
     PE_SNK_Transition_to_default_State,
