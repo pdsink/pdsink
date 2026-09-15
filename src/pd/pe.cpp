@@ -1252,7 +1252,7 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
-        pe.port.timers.start(PD_TIMEOUT::tBISTCarrierMode);
+        pe.port.timers.start(PD_TIMEOUT::tBISTContMode);
         return No_State_Change;
     }
 
@@ -1261,20 +1261,20 @@ public:
 
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
 
-        if (port.timers.is_disabled(PD_TIMEOUT::tBISTCarrierMode)) {
+        if (port.timers.is_disabled(PD_TIMEOUT::tBISTContMode)) {
             return PE_SNK_Transition_to_default;
         }
 
-        if (port.timers.is_expired(PD_TIMEOUT::tBISTCarrierMode)) {
+        if (port.timers.is_expired(PD_TIMEOUT::tBISTContMode)) {
             pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
-            port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+            port.timers.stop(PD_TIMEOUT::tBISTContMode);
         }
 
         return No_State_Change;
     }
 
     static void on_exit_state(PE& pe) {
-        pe.port.timers.stop(PD_TIMEOUT::tBISTCarrierMode);
+        pe.port.timers.stop(PD_TIMEOUT::tBISTContMode);
     }
 };
 

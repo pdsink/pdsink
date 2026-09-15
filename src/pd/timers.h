@@ -67,7 +67,7 @@ struct PD_TIMEOUT {
     static constexpr Type tPSTransition_EPR {PD_TIMER::PE_PSTransitionTimer, 925 * ms_mult}; // 830-1020 ms
     static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, 375 * ms_mult}; // 250-500 ms
     static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500 * ms_mult}; // 450-550 ms
-    static constexpr Type tBISTCarrierMode {PD_TIMER::PE_BISTContModeTimer, 300 * ms_mult}; // 300 ms before exit
+    static constexpr Type tBISTContMode {PD_TIMER::PE_BISTContModeTimer, 45 * ms_mult}; // 30-60 ms
 
     static constexpr Type tHardResetComplete {PD_TIMER::PRL_HardResetCompleteTimer, 5 * ms_mult}; // 4-5 ms
     static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27 * ms_mult}; // 24-30 ms
