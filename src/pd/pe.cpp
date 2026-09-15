@@ -211,6 +211,10 @@ public:
                 if (port.rx_emsg.is_ext_msg(PD_EXT_MSGT::EPR_Source_Capabilities)) {
                     return PE_SNK_Evaluate_Capability;
                 }
+                if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::Source_Capabilities)) {
+                    PE_LOGE("Got SPR Source_Capabilities in EPR mode => Hard Reset");
+                    return PE_SNK_Hard_Reset;
+                }
             } else {
                 if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::Source_Capabilities)) {
                     return PE_SNK_Evaluate_Capability;
