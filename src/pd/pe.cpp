@@ -157,7 +157,8 @@ public:
         pe.log_state();
 
         port.notify_prl(MsgToPrl_EnqueueRestart{});
-        port.pe_flags.clear(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+        port.pe_flags.clear(PE_FLAG::SPR_MODE_CONTRACTED);
+        port.pe_flags.clear(PE_FLAG::EPR_MODE_CONTRACTED);
         port.notify_dpm(MsgToDpm_Startup{});
         return No_State_Change;
     }
@@ -353,7 +354,8 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Accept))
             {
-                port.pe_flags.set(PE_FLAG::HAS_EXPLICIT_CONTRACT);
+                port.pe_flags.set(pe.is_in_epr_mode() ?
+                    PE_FLAG::EPR_MODE_CONTRACTED : PE_FLAG::SPR_MODE_CONTRACTED);
                 port.rdo_contracted = port.rdo_to_request;
 
                 if (pe.active_dpm_request == DPM_REQUEST_FLAG::NEW_POWER_LEVEL) {
@@ -367,7 +369,7 @@ public:
 
             if (msg.is_ctrl_msg(PD_CTRL_MSGT::Wait))
             {
-                if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+                if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
                     // The spec requires initializing this timer on PE_SNK_Ready entry,
                     // but it is more convenient to do it here.
                     port.timers.start(PD_TIMEOUT::tSinkRequest);
@@ -383,7 +385,12 @@ public:
                     port.notify_dpm(MsgToDpm_NewPowerLevelRejected{});
                 }
 
-                if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+                if (pe.is_in_epr_mode() && !port.pe_flags.test(PE_FLAG::EPR_MODE_CONTRACTED)) {
+                    PE_LOGE("First EPR_Request rejected => Hard Reset");
+                    return PE_SNK_Hard_Reset;
+                }
+
+                if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
                     return PE_SNK_Ready;
                 }
                 return PE_SNK_Wait_for_Capabilities;
@@ -490,7 +497,7 @@ public:
             }
         }
 
-        if (pe.is_in_pps_contract()) {
+        if (pe.is_pps_pdo_now()) {
             // The PPS contract should be refreshed at least every 10 s
             // of inactivity. We use 5 s to be safe.
             port.timers.start(PD_TIMEOUT::tPPSRequest);
@@ -1187,12 +1194,13 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (!pe.is_in_spr_contract()) {
+        if (!pe.is_spr_pdo_now()) {
             PE_LOGE("Not in an SPR contract before EPR mode exit => Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
         port.pe_flags.clear(PE_FLAG::IN_EPR_MODE);
+        port.pe_flags.clear(PE_FLAG::EPR_MODE_CONTRACTED);
         port.pe_flags.set(PE_FLAG::EPR_AUTO_ENTER_DISABLED);
 
         return PE_SNK_Wait_for_Capabilities;
@@ -1210,7 +1218,7 @@ public:
         pe.log_state();
 
         // Can enter only when connected at vSafe5V
-        if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return PE_SNK_Ready; }
+        if (!port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) { return PE_SNK_Ready; }
 
         // Simplified check - verify PDO index instead of voltage
         RDO_ANY rdo{port.rdo_contracted};
@@ -1465,7 +1473,7 @@ void PE::send_ctrl_msg(PD_CTRL_MSGT::Type msgt) {
 // Utilities
 //
 auto PE::is_epr_mode_available() const -> bool {
-    if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) ||
+    if (!port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED) ||
         port.pe_flags.test(PE_FLAG::EPR_AUTO_ENTER_DISABLED) ||
         port.revision < PD_REVISION::REV30)
     {
@@ -1484,14 +1492,14 @@ bool PE::is_in_epr_mode() const {
 }
 
 
-auto PE::is_in_spr_contract() const -> bool {
+auto PE::is_spr_pdo_now() const -> bool {
     const RDO_ANY rdo{port.rdo_contracted};
-    return port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) &&
+    return port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED) &&
         (rdo.obj_position <= MaxPdoObjects_SPR);
 }
 
-auto PE::is_in_pps_contract() const -> bool {
-    if (!port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) { return false; }
+auto PE::is_pps_pdo_now() const -> bool {
+    if (!port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) { return false; }
 
     const RDO_ANY rdo{port.rdo_contracted};
 
@@ -1693,7 +1701,7 @@ void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
         return;
     }
 
-    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT) &&
+    if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED) &&
         port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
         !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
     {

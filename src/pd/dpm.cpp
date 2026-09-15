@@ -241,7 +241,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
 void DPM::request_new_power_level() {
     // Only if an explicit contract exists.
     // If not, the data will be used at the handshake.
-    if (port.pe_flags.test(PE_FLAG::HAS_EXPLICIT_CONTRACT)) {
+    if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
         // Don't call wakeup(); keep execution in the driver's "thread".
         // Rely on the timer's periodic tick to catch the request.

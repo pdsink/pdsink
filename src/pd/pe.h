@@ -65,8 +65,8 @@ public:
     void send_ext_msg(PD_EXT_MSGT::Type msgt);
 
     bool is_in_epr_mode() const;
-    bool is_in_spr_contract() const;
-    bool is_in_pps_contract() const;
+    bool is_spr_pdo_now() const;
+    bool is_pps_pdo_now() const;
     bool is_epr_mode_available() const;
     static bool validate_source_caps(const etl::ivector<uint32_t>& src_caps);
 

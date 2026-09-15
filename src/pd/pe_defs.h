@@ -23,8 +23,12 @@ enum class PE_FLAG {
     FORWARD_PRL_ERROR,
     PROTOCOL_ERROR,
 
-    HAS_EXPLICIT_CONTRACT,
     IN_EPR_MODE,
+    // Explicit Contract was negotiated in SPR Mode. Stays set in EPR Mode,
+    // so it also means "any Explicit Contract exists".
+    SPR_MODE_CONTRACTED,
+    // Explicit Contract was negotiated after the last EPR Mode entry
+    EPR_MODE_CONTRACTED,
     AMS_ACTIVE,
     AMS_FIRST_MSG_SENT,
     EPR_AUTO_ENTER_DISABLED,
