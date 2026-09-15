@@ -762,7 +762,11 @@ public:
             return PE_SNK_Ready;
         }
 
-        // No more checks - rely on standard error processing.
+        // Response discarded by incoming message => AMS interrupted
+        // ([rev3.2 v1.2] Table 7.1). Other errors - standard processing.
+        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+            return PE_SNK_Send_Soft_Reset;
+        }
         return No_State_Change;
     }
 
@@ -807,6 +811,12 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
+        }
+
+        // Response discarded by incoming message => AMS interrupted
+        // ([rev3.2 v1.2] Table 7.1)
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+            return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
     }
@@ -959,9 +969,14 @@ public:
             return PE_SNK_Wait_for_Capabilities;
         }
 
-        // Spec does not require discard check here. That will be handled by
-        // repeated Soft Reset or Hard Reset.
         if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+            return PE_SNK_Hard_Reset;
+        }
+
+        // Accept discarded by incoming message:
+        // - Repeated Soft_Reset - restarts this state by global interceptor.
+        // - Anything else - defective partner => Hard Reset ([rev3.2 v1.2] 7.7).
+        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -1010,8 +1025,14 @@ public:
         // NOTE: This was the right place for a status check before using
         // interceptors.
 
+        // Soft_Reset discarded by incoming message. The spec has no clear
+        // rule for this case, so:
+        // - Soft_Reset from partner - handled by global interceptor.
+        // - Anything else - partner is not aware of our error => repeat.
+        //   Returning to Ready would abandon the recovery, and Hard Reset
+        //   would drop power without a reason.
         if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
-            return PE_SNK_Ready;
+            return Self_Transition;
         }
 
         if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
@@ -1055,6 +1076,12 @@ public:
 
         if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
+        }
+
+        // Response discarded by incoming message => AMS interrupted
+        // ([rev3.2 v1.2] Table 7.1)
+        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+            return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
     }
@@ -1331,6 +1358,12 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
             return PE_SNK_Ready;
+        }
+
+        // Response discarded by incoming message => AMS interrupted
+        // ([rev3.2 v1.2] Table 7.1)
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+            return PE_SNK_Send_Soft_Reset;
         }
         return No_State_Change;
     }
