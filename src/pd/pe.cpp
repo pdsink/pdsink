@@ -1116,7 +1116,7 @@ public:
                     port.notify_dpm(MsgToDpm_HandshakeDone());
                 }
 
-                return PE_SNK_Ready;
+                return PE_SNK_Send_Soft_Reset;
             }
 
             return PE_SNK_Send_Soft_Reset;
