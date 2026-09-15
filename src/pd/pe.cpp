@@ -245,7 +245,7 @@ public:
 
         if (!pe.validate_source_caps(port.source_caps)) {
             PE_LOGE("Source_Capabilities validation failed");
-            return PE_SNK_Send_Not_Supported;
+            return PE_SNK_Hard_Reset;
         }
 
         // Continue after all validation checks passed
