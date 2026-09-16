@@ -115,8 +115,12 @@ public:
         auto& port = pe.port;
 
         if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
-            if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-                pe.request_progress = PE_REQUEST_PROGRESS::DISCARDED;
+            // RX interrupts only an unfinished send. TX completion may arrive
+            // in the same PRL pass as the next incoming message.
+            if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+                port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+            {
+                pe.request_progress = PE_REQUEST_PROGRESS::INTERRUPTED;
                 return No_State_Change;
             }
 
@@ -341,7 +345,7 @@ public:
         //   state. DPM means an explicit contract already exists.
         // - If we came from Evaluate_Capability and the AMS was interrupted after
         //   the first message => perform a Soft Reset.
-        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
             if (pe.get_previous_state_id() == PE_SNK_Evaluate_Capability) {
                 return PE_SNK_Send_Soft_Reset;
             }
@@ -484,7 +488,6 @@ public:
 
         // Ensure flags from the previous send attempt are cleared.
         // If the sink returned to this state, everything starts from scratch.
-        port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
         port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
@@ -756,17 +759,8 @@ public:
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        auto& port = pe.port;
-
-        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            return PE_SNK_Ready;
-        }
-
-        // Response discarded by incoming message => AMS interrupted
-        // ([rev3.2 v1.2] Table 7.1). Other errors - standard processing.
-        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) { return PE_SNK_Ready; }
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) { return PE_SNK_Send_Soft_Reset; }
         return No_State_Change;
     }
 
@@ -809,15 +803,8 @@ public:
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            return PE_SNK_Ready;
-        }
-
-        // Response discarded by incoming message => AMS interrupted
-        // ([rev3.2 v1.2] Table 7.1)
-        if (pe.port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) { return PE_SNK_Ready; }
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) { return PE_SNK_Send_Soft_Reset; }
         return No_State_Change;
     }
 
@@ -849,7 +836,7 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
             // If the message was discarded due to another activity => the connection
             // is OK, and a heartbeat is not needed. Consider it successful.
             return PE_SNK_Ready;
@@ -955,7 +942,6 @@ public:
 
         // Cleanup pending flags for sure
         pe.port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
-        pe.port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
         pe.port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
 
         pe.send_ctrl_msg(PD_CTRL_MSGT::Accept);
@@ -976,7 +962,7 @@ public:
         // Accept discarded by incoming message:
         // - Repeated Soft_Reset - restarts this state by global interceptor.
         // - Anything else - defective partner => Hard Reset ([rev3.2 v1.2] 7.7).
-        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
+        if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
             return PE_SNK_Hard_Reset;
         }
 
@@ -997,7 +983,6 @@ public:
         pe.log_state();
 
         // Clean up flags from previous operations
-        port.pe_flags.clear(PE_FLAG::MSG_DISCARDED);
         port.pe_flags.clear(PE_FLAG::MSG_RECEIVED);
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
 
@@ -1031,7 +1016,7 @@ public:
         // - Anything else - partner is not aware of our error => repeat.
         //   Returning to Ready would abandon the recovery, and Hard Reset
         //   would drop power without a reason.
-        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
             return Self_Transition;
         }
 
@@ -1072,17 +1057,8 @@ public:
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        auto& port = pe.port;
-
-        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            return PE_SNK_Ready;
-        }
-
-        // Response discarded by incoming message => AMS interrupted
-        // ([rev3.2 v1.2] Table 7.1)
-        if (port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) { return PE_SNK_Ready; }
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) { return PE_SNK_Send_Soft_Reset; }
         return No_State_Change;
     }
 
@@ -1129,7 +1105,7 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (pe.request_progress == PE_REQUEST_PROGRESS::DISCARDED) {
+        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
             return PE_SNK_Ready;
         }
 
@@ -1356,15 +1332,8 @@ public:
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            return PE_SNK_Ready;
-        }
-
-        // Response discarded by incoming message => AMS interrupted
-        // ([rev3.2 v1.2] Table 7.1)
-        if (pe.port.pe_flags.test(PE_FLAG::MSG_DISCARDED)) {
-            return PE_SNK_Send_Soft_Reset;
-        }
+        if (pe.port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) { return PE_SNK_Ready; }
+        if (pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) { return PE_SNK_Send_Soft_Reset; }
         return No_State_Change;
     }
 
@@ -1678,6 +1647,24 @@ void PE_EventListener::on_receive(const MsgSysUpdate&) {
                 }
             }
 
+            // Handle errors after the whole PRL pass. MessageSent already
+            // records a successful first AMS message, even if RX/error arrived
+            // earlier in that pass. Keep the error flag for on_exit cleanup.
+            if (pe.port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR) &&
+                !pe.port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR))
+            {
+                if (pe.port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED) &&
+                    pe.port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
+                    !pe.port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT) &&
+                    pe.port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+                {
+                    pe.port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
+                    pe.change_state(PE_SNK_Ready);
+                } else {
+                    pe.change_state(PE_SNK_Send_Soft_Reset);
+                }
+            }
+
             pe.run();
             break;
     }
@@ -1707,55 +1694,12 @@ void PE_EventListener::on_receive(const MsgToPe_PrlMessageSent&) {
     pe.port.pe_flags.set(PE_FLAG::TX_COMPLETE);
 }
 
-//
-// [rev3.2 v1.2] 9.2.5 SOP Soft Reset and Protocol Error State Diagrams
-//
-// NOTE: Needs attention; the specification is unclear here
-//
-void PE_EventListener::on_receive(const MsgToPe_PrlReportError& msg) {
-    auto& port = pe.port;
-    auto err = msg.error;
-
+void PE_EventListener::on_receive(const MsgToPe_PrlReportError&) {
     if (pe.is_uninitialized()) { return; }
 
-    PE_LOGE("PRL error reported: {}", static_cast<int>(err));
-
-    // Always arm this flag, even for errors that are not forwarded. This allows
-    // optional resource cleanup in `on_exit()` when some are shared between states.
-    //
-    // Since only 2 target states possible, ensure both
-    // clear this flag in `on_exit()`.
-    port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
-
-    if (port.pe_flags.test(PE_FLAG::FORWARD_PRL_ERROR)) {
-        return;
-    }
-
-    if (err == PRL_ERROR::RCH_SEND_FAIL ||
-        err == PRL_ERROR::TCH_SEND_FAIL)
-    {
-        pe.change_state(PE_SNK_Send_Soft_Reset);
-        return;
-    }
-
-    if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED) &&
-        port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
-        !port.pe_flags.test(PE_FLAG::AMS_FIRST_MSG_SENT))
-    {
-        // Discard is not possible without an RX message, but let's check to be sure.
-        if (port.pe_flags.test(PE_FLAG::MSG_RECEIVED)) {
-            port.pe_flags.set(PE_FLAG::DO_SOFT_RESET_ON_UNSUPPORTED);
-        }
-        pe.change_state(PE_SNK_Ready);
-        return;
-    }
-
-    pe.change_state(PE_SNK_Send_Soft_Reset);
-}
-
-void PE_EventListener::on_receive(const MsgToPe_PrlReportDiscard&) {
-    PE_LOGI("=> Message discarded (from PRL)");
-    pe.port.pe_flags.set(PE_FLAG::MSG_DISCARDED);
+    PE_LOGE("PRL error reported");
+    // React only after PRL finishes publishing TX, RX and error notifications.
+    pe.port.pe_flags.set(PE_FLAG::PROTOCOL_ERROR);
 }
 
 void PE_EventListener::on_receive(const MsgToPe_PrlHardResetFromPartner&) {

@@ -14,7 +14,6 @@ enum class DPM_REQUEST_FLAG {
 enum class PE_FLAG {
     // Flags of message transfer (set by PRL)
     TX_COMPLETE,   // Message sent
-    MSG_DISCARDED, // Outgoing message discarded by new incoming one
     MSG_RECEIVED,  // Got reply OR new message (which discarded outgoing transfer)
 
     // By default, a PRL error usually causes a soft reset (or a return to the

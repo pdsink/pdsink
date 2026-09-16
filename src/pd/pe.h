@@ -13,7 +13,7 @@ namespace pd {
 enum class PE_REQUEST_PROGRESS {
     PENDING,
     FINISHED,
-    DISCARDED,
+    INTERRUPTED,
     FAILED
 };
 
@@ -24,7 +24,6 @@ using PE_EventListener_Base = etl::message_router<class PE_EventListener,
     MsgToPe_PrlMessageReceived,
     MsgToPe_PrlMessageSent,
     MsgToPe_PrlReportError,
-    MsgToPe_PrlReportDiscard,
     MsgToPe_PrlHardResetFromPartner,
     MsgToPe_PrlHardResetSent>;
 
@@ -35,7 +34,6 @@ public:
     void on_receive(const MsgToPe_PrlMessageReceived& msg);
     void on_receive(const MsgToPe_PrlMessageSent& msg);
     void on_receive(const MsgToPe_PrlReportError& msg);
-    void on_receive(const MsgToPe_PrlReportDiscard& msg);
     void on_receive(const MsgToPe_PrlHardResetFromPartner& msg);
     void on_receive(const MsgToPe_PrlHardResetSent& msg);
     void on_receive_unknown(const etl::imessage& msg);

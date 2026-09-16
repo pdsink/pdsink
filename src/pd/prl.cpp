@@ -190,7 +190,7 @@ public:
                 }
 
                 // Unchunked extended messages are not supported
-                port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
+                PRL_LOGE("RCH received unsupported unchunked extended message");
                 return RCH_Report_Error;
             }
 
@@ -234,7 +234,7 @@ public:
             (ehdr.request_chunk != 0) ||
             (ehdr.chunked != 1))
         {
-            port.rch_error = PRL_ERROR::RCH_BAD_SEQUENCE;
+            PRL_LOGE("RCH received invalid chunk header");
             return RCH_Report_Error;
         }
 
@@ -294,7 +294,7 @@ public:
         }
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_ERROR)) {
-            port.rch_error = PRL_ERROR::RCH_SEND_FAIL;
+            PRL_LOGE("RCH failed to send chunk request");
             return RCH_Report_Error;
         }
 
@@ -335,7 +335,7 @@ public:
 
             // NOTE: if unchunked extended messages are ever supported, filter here too.
             if (port.rx_chunk.header.extended == 0) {
-                port.rch_error = PRL_ERROR::RCH_SEQUENCE_DISCARDED;
+                PRL_LOGE("RCH receive interrupted by new message");
                 return RCH_Report_Error;
             }
 
@@ -347,7 +347,7 @@ public:
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderResponse)) {
-            port.rch_error = PRL_ERROR::RCH_SEQUENCE_TIMEOUT;
+            PRL_LOGE("RCH timed out waiting for chunk");
             return RCH_Report_Error;
         }
 
@@ -370,7 +370,7 @@ public:
             rch.prl.report_pe(MsgToPe_PrlMessageReceived{});
         }
 
-        rch.prl.report_pe(MsgToPe_PrlReportError{port.rch_error});
+        rch.prl.report_pe(MsgToPe_PrlReportError{});
         return RCH_Wait_For_Message_From_Protocol_Layer;
     }
 
@@ -415,7 +415,6 @@ public:
                 // looks more consistent than error reporting (the same as
                 // discarding TX because of RX).
                 //
-                tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
                 return No_State_Change;
             }
 
@@ -463,7 +462,7 @@ public:
         }
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_ERROR)) {
-            port.tch_error = PRL_ERROR::TCH_SEND_FAIL;
+            PRL_LOGE("TCH failed to send message");
             return TCH_Report_Error;
         }
 
@@ -481,7 +480,6 @@ public:
 
         // At this point, if TX is not finished but RX exists, a discard happened
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
-            // At this point, discard already reported by PRL_TX
             return TCH_Message_Received;
         }
 
@@ -567,7 +565,7 @@ public:
         auto& port = tch.prl.port;
 
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_ERROR)) {
-            port.tch_error = PRL_ERROR::TCH_SEND_FAIL;
+            PRL_LOGE("TCH failed to send chunk");
             return TCH_Report_Error;
         }
 
@@ -595,13 +593,9 @@ public:
             return TCH_Wait_Chunk_Request;
         }
 
-        // Not completed but an incoming message exists => a discard happened
-        // in the PRL_TX layer (most likely) or at the chunking layer (the
-        // partner stopped requesting the sequence). In the second case,
-        // report a discard. Duplicate discard reporting is not a problem
-        // (those are merged).
+        // An incoming message interrupts the unfinished send, either in
+        // PRL_TX or here when the partner stops requesting chunks.
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
-            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
@@ -643,7 +637,7 @@ public:
                     }
 
                     port.prl_tch_flags.clear(TCH_FLAG::CHUNK_FROM_RX);
-                    port.tch_error = PRL_ERROR::TCH_BAD_SEQUENCE;
+                    PRL_LOGE("TCH received unexpected chunk request number");
                     return TCH_Report_Error;
                 }
             }
@@ -651,10 +645,6 @@ public:
             // [rev3.2 v1.2] 9.1.2.1.3.8 TCH_Wait_Chunk_Request State
             // Any other Message than Chunk Request is received.
 
-            // TODO: It's not clear why an error/discard is not reported
-            // when chunked sending is interrupted instead of consuming the next
-            // chunks. Let's add discard to be safe.
-            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
             return TCH_Message_Received;
         }
 
@@ -666,7 +656,7 @@ public:
                 return TCH_Message_Sent;
             }
 
-            port.tch_error = PRL_ERROR::TCH_SEQUENCE_TIMEOUT;
+            PRL_LOGE("TCH timed out waiting for chunk request");
             return TCH_Report_Error;
         }
 
@@ -689,9 +679,7 @@ public:
         tch.prl.request_wakeup();
 
         // Drop any incoming TCH request from PE
-        if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
-            tch.prl.report_pe(MsgToPe_PrlReportDiscard{});
-        }
+        port.prl_tch_flags.clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
 
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
     }
@@ -706,7 +694,7 @@ public:
         auto& port = tch.prl.port;
         tch.log_state();
 
-        tch.prl.report_pe(MsgToPe_PrlReportError{port.tch_error});
+        tch.prl.report_pe(MsgToPe_PrlReportError{});
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
             return TCH_Message_Received;
@@ -722,7 +710,6 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 // This is the low-level layer for packet rx/tx.
 //
-// - Only discards are reported to PE from here.
 // - Success/errors are forwarded to RCH/TCH via flags.
 // - Some room is reserved for CRC processing to stay close to the spec, but
 //   currently only the branches for hardware-supported GoodCRC are active.
@@ -994,7 +981,6 @@ public:
             is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
         {
             port.tx_msg_id_counter++;
-            prl_tx.prl.report_pe(MsgToPe_PrlReportDiscard{});
         }
         return PRL_Tx_PHY_Layer_Reset;
     }
