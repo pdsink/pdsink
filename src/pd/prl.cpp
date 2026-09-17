@@ -547,6 +547,10 @@ public:
         auto offset = port.tch_chunk_number_to_send * MaxExtendedMsgChunkLen;
         port.tx_chunk.append_from(port.tx_emsg, offset, offset + chunk_data_len);
 
+        // Payload length on the wire is defined by the Number of Data Objects,
+        // so pad the tail with zeros ([rev3.2 v1.2] 6.2.1.2.7)
+        while (port.tx_chunk.data_size() % 4) { port.tx_chunk.get_data().push_back(0); }
+
         port.tx_chunk.header = port.tx_emsg.header;
         // single data object size is 4 bytes
         port.tx_chunk.header.data_obj_count = port.tx_chunk.size_to_pdo_count();
