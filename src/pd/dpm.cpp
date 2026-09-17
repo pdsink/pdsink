@@ -133,7 +133,8 @@ void DPM::fill_rdo_flags(uint32_t &rdo) {
 
     RDO_ANY rdo_bits{rdo};
 
-    rdo_bits.epr_capable = 1;
+    // In PD2 the corresponding RDO bits are reserved
+    rdo_bits.epr_capable = port.revision != PD_REVISION::REV20 ? 1 : 0;
     // Unchunked extended messages (long transfers) are NOT supported (and not
     // needed, because chunking is enough).
     // DON'T try to set this bit; it will break everything!
