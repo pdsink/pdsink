@@ -10,13 +10,6 @@
 
 namespace pd {
 
-enum class PE_REQUEST_PROGRESS {
-    PENDING,
-    FINISHED,
-    INTERRUPTED,
-    FAILED
-};
-
 class Port; class IDPM; class ITCPC; class PE; class PRL;
 
 using PE_EventListener_Base = etl::message_router<class PE_EventListener,
@@ -78,7 +71,6 @@ public:
     ITCPC& tcpc;
 
     DPM_REQUEST_FLAG active_dpm_request{DPM_REQUEST_FLAG::NONE};
-    PE_REQUEST_PROGRESS request_progress{PE_REQUEST_PROGRESS::PENDING};
 
     PE_EventListener pe_event_listener;
     etl::atomic<bool> has_deferred_wakeup_request{false};

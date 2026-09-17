@@ -104,53 +104,33 @@ public:
     }
 };
 
-class InterceptorCheckRequestProgress : public afsm::interceptor<PE, InterceptorCheckRequestProgress> {
+class InterceptorRxWait : public afsm::interceptor<PE, InterceptorRxWait> {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
-        pe.port.pe_flags.clear(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
+        pe.port.pe_flags.clear(PE_FLAG::RX_WAIT_STARTED);
+        // Safety guard: states normally send on entry, which already clears TX_COMPLETE.
+        pe.port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (!port.pe_flags.test(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED)) {
-            // RX interrupts only an unfinished send. TX completion may arrive
-            // in the same PRL pass as the next incoming message.
-            if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
-                port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
-            {
-                pe.request_progress = PE_REQUEST_PROGRESS::INTERRUPTED;
-                return No_State_Change;
-            }
-
-            if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
-                pe.request_progress = PE_REQUEST_PROGRESS::FAILED;
-                return No_State_Change;
-            }
-
-            // Wait for GoodCRC
-            if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-                port.pe_flags.set(PE_FLAG::TRANSMIT_REQUEST_SUCCEEDED);
-                // NOTE: This timer can be disabled from RCH chunking. But the flag
-                // TRANSMIT_REQUEST_SUCCEEDED protect us from re-arming it. If
-                // RCH chunker is activated, then chunker timeout will be used
-                // instead to generate error.
-                port.timers.start(PD_TIMEOUT::tSenderResponse);
-                pe.request_progress = PE_REQUEST_PROGRESS::FINISHED;
-                return No_State_Change;
-            }
-
-            pe.request_progress = PE_REQUEST_PROGRESS::PENDING;
-            return No_State_Change;
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            !port.pe_flags.test(PE_FLAG::RX_WAIT_STARTED))
+        {
+            // PRL may stop the timer while receiving chunks. Keep the flag set
+            // so the interceptor does not start it again.
+            port.pe_flags.set(PE_FLAG::RX_WAIT_STARTED);
+            port.timers.start(PD_TIMEOUT::tSenderResponse);
         }
 
-        pe.request_progress = PE_REQUEST_PROGRESS::FINISHED;
         return No_State_Change;
     }
 
     static void on_exit_state(PE& pe) {
         pe.port.timers.stop(PD_TIMEOUT::tSenderResponse);
+        pe.port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
     }
 };
 
@@ -299,7 +279,7 @@ public:
 
 class PE_SNK_Select_Capability_State :
     public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability>,
-    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -345,17 +325,19 @@ public:
         //   state. DPM means an explicit contract already exists.
         // - If we came from Evaluate_Capability and the AMS was interrupted after
         //   the first message => perform a Soft Reset.
-        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
+        if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+        {
             if (pe.get_previous_state_id() == PE_SNK_Evaluate_Capability) {
                 return PE_SNK_Send_Soft_Reset;
             }
             return PE_SNK_Ready;
         }
-        if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
+        if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             auto& msg = port.rx_emsg;
@@ -443,6 +425,10 @@ public:
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
+
+        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+            return PE_SNK_Hard_Reset;
+        }
 
         if (port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED)) {
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::PS_RDY)) {
@@ -814,7 +800,7 @@ public:
 
 class PE_SNK_EPR_Keep_Alive_State :
     public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive>,
-    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -836,18 +822,20 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
+        if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+        {
             // If the message was discarded due to another activity => the connection
             // is OK, and a heartbeat is not needed. Consider it successful.
             return PE_SNK_Ready;
         }
 
-        if (pe.request_progress == PE_REQUEST_PROGRESS::FAILED) {
-            PE_LOGE("EPR_Keep_Alive send failed => Soft Reset");
+        if (port.pe_flags.test(PE_FLAG::PROTOCOL_ERROR)) {
+            PE_LOGE("EPR_Keep_Alive protocol error => Soft Reset");
             return PE_SNK_Send_Soft_Reset;
         }
 
-        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ext_ctrl_msg(PD_EXT_CTRL_MSGT::EPR_Keep_Alive_Ack)) {
@@ -951,12 +939,12 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
-            return PE_SNK_Wait_for_Capabilities;
-        }
-
         if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
             return PE_SNK_Hard_Reset;
+        }
+
+        if (port.pe_flags.test_and_clear(PE_FLAG::TX_COMPLETE)) {
+            return PE_SNK_Wait_for_Capabilities;
         }
 
         // Accept discarded by incoming message:
@@ -975,7 +963,7 @@ public:
 
 class PE_SNK_Send_Soft_Reset_State :
     public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset>,
-    public afsm::interceptor_pack<InterceptorCheckRequestProgress, InterceptorForwardErrors>
+    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -994,6 +982,10 @@ public:
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
+
+        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR)) {
+            return PE_SNK_Hard_Reset;
+        }
 
         // Wait until the PRL layer is ready
         if (!port.is_prl_running()) {
@@ -1016,11 +1008,13 @@ public:
         // - Anything else - partner is not aware of our error => repeat.
         //   Returning to Ready would abandon the recovery, and Hard Reset
         //   would drop power without a reason.
-        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
+        if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+        {
             return Self_Transition;
         }
 
-        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Accept)) {
@@ -1028,9 +1022,7 @@ public:
             }
         }
 
-        if (port.pe_flags.test_and_clear(PE_FLAG::PROTOCOL_ERROR) ||
-            port.timers.is_expired(PD_TIMEOUT::tSenderResponse))
-        {
+        if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
             return PE_SNK_Hard_Reset;
         }
         return No_State_Change;
@@ -1081,7 +1073,7 @@ public:
 
 class PE_SNK_Send_EPR_Mode_Entry_State :
     public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry>,
-    public afsm::interceptor_pack<InterceptorCheckRequestProgress>
+    public afsm::interceptor_pack<InterceptorRxWait>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -1105,11 +1097,13 @@ public:
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (pe.request_progress == PE_REQUEST_PROGRESS::INTERRUPTED) {
+        if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
+        {
             return PE_SNK_Ready;
         }
 
-        if ((pe.request_progress == PE_REQUEST_PROGRESS::FINISHED) &&
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             port.pe_flags.test_and_clear(PE_FLAG::MSG_RECEIVED))
         {
             if (port.rx_emsg.is_data_msg(PD_DATA_MSGT::EPR_Mode)) {
