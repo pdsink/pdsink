@@ -723,18 +723,22 @@ public:
 
         // DPM is responsible for providing properly padded sink PDOs.
         auto caps = pe.dpm.get_sink_pdo_list();
+        size_t len = caps.size();
 
-        // Fill data; length depends on the request type
-        for (int i = 0, max = caps.size(); i < max; i++) {
-            auto pdo = caps[i];
+        // For a regular request (non-EPR) only 7 PDOs are allowed
+        if (!is_epr && len > MaxPdoObjects_SPR) { len = MaxPdoObjects_SPR; }
 
-            if (!is_epr) {
-                // For a regular request (non-EPR) only 7 PDOs are allowed
-                if (i >= MaxPdoObjects_SPR) { break; }
+        // Drop placeholders at the tail
+        while (len > 0 && caps[len - 1] == 0) { len--; }
+
+        // APDOs appeared in PD3 and are placed after the Fixed PDOs
+        if (port.revision == PD_REVISION::REV20) {
+            while (len > 0 && dobj_utils::get_snk_pdo_variant(caps[len - 1]) != PDO_VARIANT::FIXED) {
+                len--;
             }
-
-            port.tx_emsg.append32(pdo);
         }
+
+        for (size_t i = 0; i < len; i++) { port.tx_emsg.append32(caps[i]); }
 
         if (!is_epr) {
             pe.send_data_msg(PD_DATA_MSGT::Sink_Capabilities);
