@@ -60,7 +60,10 @@ PDO_LIMITS get_src_pdo_limits(uint32_t src_pdo) {
 }
 
 void set_snk_pdo_limits(uint32_t& snk_pdo, const PDO_LIMITS& limits) {
-    auto id = get_snk_pdo_variant(snk_pdo);
+    // An uninitialized Fixed PDO is zero, the same as a placeholder, and the
+    // detector reports UNKNOWN for it. But if limits are being set, the caller
+    // knows what it does, so force the type instead of relying on detection.
+    auto id = snk_pdo == 0 ? PDO_VARIANT::FIXED : get_snk_pdo_variant(snk_pdo);
     if (id == PDO_VARIANT::FIXED) {
         PDO_FIXED pdo{snk_pdo};
         pdo.voltage = limits.mv_min / 50u;
