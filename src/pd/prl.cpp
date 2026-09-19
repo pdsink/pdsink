@@ -348,11 +348,9 @@ public:
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderResponse)) {
             PRL_LOGE("RCH timed out waiting for chunk");
-            // Deliberate deviation from [rev3.2 v1.2] 9.1.2.1.2.6, which requires
-            // reporting the error to PE. Chunking is internal to PRL, and an
-            // incomplete message was never seen by PE. Reporting it would only
-            // cause a needless Soft Reset. If PE waits for a response, its own
-            // SenderResponseTimer covers the case.
+            // Deliberate deviation from [rev3.2 v1.2] 9.1.2.1.2.6: no PE error report.
+            // PE must ignore this timeout (CTS ALL3.6); distinguishing it would
+            // complicate the current single-flag error signaling.
             return RCH_Wait_For_Message_From_Protocol_Layer;
         }
 

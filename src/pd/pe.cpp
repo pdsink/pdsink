@@ -239,8 +239,9 @@ public:
 
         // Continue after all validation checks passed
         port.hard_reset_counter = 0;
+        // [rev3.2 v1.2] Table 6.2: interpret revision 00b as PD 2.0.
         port.revision = static_cast<PD_REVISION::Type>(
-            etl::min(static_cast<uint16_t>(MaxSupportedRevision), port.rx_emsg.header.spec_revision));
+            etl::clamp<uint16_t>(port.rx_emsg.header.spec_revision, PD_REVISION::REV20, MaxSupportedRevision));
 
         if (port.source_caps.size() > MaxPdoObjects_SPR && !pe.is_in_epr_mode()) {
             // NOTE: For unknown reasons, the spec does NOT say
