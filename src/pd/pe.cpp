@@ -1030,6 +1030,8 @@ public:
             if (port.rx_emsg.is_ctrl_msg(PD_CTRL_MSGT::Accept)) {
                 return PE_SNK_Wait_for_Capabilities;
             }
+            // [rev3.2 v1.2] 7.7: a Protocol Error during Soft Reset requires Hard Reset.
+            return PE_SNK_Hard_Reset;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tSenderResponse)) {
