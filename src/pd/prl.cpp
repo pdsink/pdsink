@@ -1121,6 +1121,10 @@ public:
         port.prl_tch_flags.clear_all();
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
 
+        // End the previous AMS before restarting TX, or Accept may wait for SinkTxOK.
+        port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
+        port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+
         prl.reset_msg_counters();
 
         prl.prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
