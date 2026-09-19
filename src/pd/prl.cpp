@@ -173,13 +173,13 @@ public:
         auto& port = rch.prl.port;
 
         if (port.prl_rch_flags.test_and_clear(RCH_FLAG::RX_ENQUEUED)) {
-            // Copy header to output struct
-            port.rx_emsg.header = port.rx_chunk.header;
-
             if (port.rx_chunk.header.extended) {
                 PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
 
                 if (ehdr.chunked) {
+                    // [rev3.2 v1.2] Table 6.48: ignore chunk numbers 10..15.
+                    if (ehdr.chunk_number >= MaxChunksPerMsg) { return No_State_Change; }
+
                     // The spec says to clear variables below in
                     // RCH_Processing_Extended_Message
                     // on the first chunk, but this place looks more obvious.
@@ -229,12 +229,24 @@ public:
 
         // Data integrity check
         if ((ehdr.chunk_number != port.rch_chunk_number_expected) ||
-            (ehdr.chunk_number >= MaxChunksPerMsg) ||
             (ehdr.data_size > MaxExtendedMsgLen) ||
             (ehdr.request_chunk != 0) ||
             (ehdr.chunked != 1))
         {
             PRL_LOGE("RCH received invalid chunk header");
+            return RCH_Report_Error;
+        }
+
+        if (port.rx_chunk.header.message_type != port.rx_emsg.header.message_type) {
+            PRL_LOGE("RCH received mismatched chunk type");
+            return RCH_Report_Error;
+        }
+
+        // [rev3.2 v1.2] 6.5.1.1: require 26 data bytes or the remaining tail.
+        if (port.rx_chunk.data_size() < MaxExtendedMsgChunkLen + 2U &&
+            port.rx_emsg.data_size() + port.rx_chunk.data_size() < ehdr.data_size + 2U)
+        {
+            PRL_LOGE("RCH received truncated chunk");
             return RCH_Report_Error;
         }
 
@@ -343,7 +355,13 @@ public:
             // checks in the next state. Everything not matched will be
             // a pure error (without message forwarding).
             port.prl_rch_flags.clear(RCH_FLAG::RX_ENQUEUED);
-            return RCH_Processing_Extended_Message;
+
+            // [rev3.2 v1.2] Table 6.48: ignore chunk numbers 10..15
+            // without restarting the wait timers.
+            PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
+            if (!ehdr.chunked || ehdr.chunk_number < MaxChunksPerMsg) {
+                return RCH_Processing_Extended_Message;
+            }
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderResponse)) {
@@ -634,25 +652,29 @@ public:
         auto& port = tch.prl.port;
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::CHUNK_FROM_RX)) {
-            if (port.rx_chunk.header.extended) {
-                PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
+            // [rev3.2 v1.2] 9.1.2.1.3.8: other messages go to TCH_Message_Received.
+            if (!port.rx_chunk.header.extended) { return TCH_Message_Received; }
 
-                if (ehdr.request_chunk == 1) {
-                    if (ehdr.chunk_number == port.tch_chunk_number_to_send) {
-                        port.prl_tch_flags.clear(TCH_FLAG::CHUNK_FROM_RX);
-                        return TCH_Construct_Chunked_Message;
-                    }
+            PD_EXT_HEADER ehdr{port.rx_chunk.read16(0)};
+            if (!ehdr.chunked) { return TCH_Message_Received; }
 
-                    port.prl_tch_flags.clear(TCH_FLAG::CHUNK_FROM_RX);
+            // [rev3.2 v1.2] Table 6.48: ignore chunk numbers 10..15
+            // without restarting the wait timer.
+            if (ehdr.chunk_number < MaxChunksPerMsg) {
+                if (!ehdr.request_chunk) { return TCH_Message_Received; }
+
+                if (ehdr.chunk_number != port.tch_chunk_number_to_send) {
                     PRL_LOGE("TCH received unexpected chunk request number");
                     return TCH_Report_Error;
                 }
+
+                if (port.rx_chunk.header.message_type != port.tx_emsg.header.message_type) {
+                    PRL_LOGE("TCH received mismatched chunk request type");
+                    return TCH_Report_Error;
+                }
+
+                return TCH_Construct_Chunked_Message;
             }
-
-            // [rev3.2 v1.2] 9.1.2.1.3.8 TCH_Wait_Chunk_Request State
-            // Any other Message than Chunk Request is received.
-
-            return TCH_Message_Received;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tChunkSenderRequest)) {
