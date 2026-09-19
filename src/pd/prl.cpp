@@ -762,8 +762,9 @@ public:
 
         if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
-        // For the first AMS message, we need to wait for the SinkTxOK CC level
-        if (!port.is_ams_active()) {
+        // For the first AMS message, we need to wait for the SinkTxOK CC level.
+        // Skip this wait for PD 2.0, which does not support this feature.
+        if (port.revision == PD_REVISION::REV20 || !port.is_ams_active()) {
             port.prl_tx_flags.clear(PRL_TX_FLAG::START_OF_AMS_DETECTED);
         } else {
             if (!port.prl_tx_flags.test(PRL_TX_FLAG::START_OF_AMS_DETECTED)) {
