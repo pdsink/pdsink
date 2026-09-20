@@ -1110,13 +1110,19 @@ public:
 
         pe.send_data_msg(PD_DATA_MSGT::EPR_Mode);
 
-        port.timers.start(PD_TIMEOUT::tEnterEPR);
+        port.timers.stop(PD_TIMEOUT::tEnterEPR);
 
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
+
+        if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
+            port.timers.is_disabled(PD_TIMEOUT::tEnterEPR))
+        {
+            port.timers.start(PD_TIMEOUT::tEnterEPR);
+        }
 
         if (!port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             port.pe_flags.test(PE_FLAG::MSG_RECEIVED))
