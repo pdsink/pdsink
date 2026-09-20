@@ -105,6 +105,7 @@ public:
 class InterceptorRxWait : public afsm::interceptor<PE, InterceptorRxWait> {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
+        pe.port.timers.stop(PD_TIMEOUT::tSenderResponse);
         pe.port.pe_flags.clear(PE_FLAG::RX_WAIT_STARTED);
         // Safety guard: states normally send on entry, which already clears TX_COMPLETE.
         pe.port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
