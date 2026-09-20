@@ -47,7 +47,6 @@ enum PE_State {
     PE_SNK_EPR_Mode_Exit_Received, // Manual exit not needed, only SRC-forced
 
     // [rev3.2 v1.2] 9.2.26.4 BIST State diagrams
-    PE_BIST_Activate, // Not in spec, common entry point
     PE_BIST_Carrier_Mode,
     PE_BIST_Test_Mode,
 
@@ -80,7 +79,6 @@ namespace {
             case PE_SNK_Send_EPR_Mode_Entry: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Send_EPR_Mode_Entry");
             case PE_SNK_EPR_Mode_Entry_Wait_For_Response: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Mode_Entry_Wait_For_Response");
             case PE_SNK_EPR_Mode_Exit_Received: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Mode_Exit_Received");
-            case PE_BIST_Activate: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Activate");
             case PE_BIST_Carrier_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Carrier_Mode");
             case PE_BIST_Test_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Test_Mode");
             case PE_Give_Revision: return PD_LOG_ASSUME_STATIC_STR("PE_Give_Revision");
@@ -563,8 +561,19 @@ public:
                     if (port.revision >= PD_REVISION::REV30) { return PE_SNK_Send_Not_Supported; }
                     break;
 
-                case PD_DATA_MSGT::BIST:
-                    return PE_BIST_Activate;
+                case PD_DATA_MSGT::BIST: {
+                    // Can enter only when connected at vSafe5V
+                    if (!port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) { return Self_Transition; }
+
+                    // Simplified check - verify PDO index instead of voltage
+                    RDO_ANY rdo{port.rdo_contracted};
+                    if (rdo.obj_position != 1) { return Self_Transition; }
+
+                    BISTDO bdo{msg.read32(0)};
+                    if (bdo.mode == BIST_MODE::Carrier) { return PE_BIST_Carrier_Mode; }
+                    if (bdo.mode == BIST_MODE::TestData) { return PE_BIST_Test_Mode; }
+                    return Self_Transition;
+                }
 
                 case PD_DATA_MSGT::Alert:
                     return PE_SNK_Source_Alert_Received;
@@ -1224,56 +1233,13 @@ public:
 };
 
 
-class PE_BIST_Activate_State : public afsm::state<PE, PE_BIST_Activate_State, PE_BIST_Activate> {
-public:
-    static auto on_enter_state(PE& pe) -> state_id_t {
-        auto& port = pe.port;
-        pe.log_state();
-
-        // Can enter only when connected at vSafe5V
-        if (!port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) { return PE_SNK_Ready; }
-
-        // Simplified check - verify PDO index instead of voltage
-        RDO_ANY rdo{port.rdo_contracted};
-        if (rdo.obj_position != 1) { return PE_SNK_Ready; }
-
-        // Set up supported modes
-        BISTDO bdo{port.rx_emsg.read32(0)};
-        if (bdo.mode == BIST_MODE::Carrier) {
-            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
-            return No_State_Change;
-        }
-        if (bdo.mode == BIST_MODE::TestData) {
-            pe.tcpc.req_set_bist(TCPC_BIST_MODE::TestData);
-            return No_State_Change;
-        }
-
-        // Ignore the rest
-        return PE_SNK_Ready;
-    }
-
-    static auto on_run_state(PE& pe) -> state_id_t {
-        auto& port = pe.port;
-
-        // Wait for the TCPC call to complete
-        if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
-
-        // Small cheat to avoid storing state. Parse BISTDO again; it should
-        // not be corrupted in such a short time.
-        BISTDO bdo{port.rx_emsg.read32(0)};
-        if (bdo.mode == BIST_MODE::Carrier) { return PE_BIST_Carrier_Mode; }
-        return PE_BIST_Test_Mode;
-    }
-
-    static void on_exit_state(PE&) {}
-};
-
 class PE_BIST_Carrier_Mode_State : public afsm::state<PE, PE_BIST_Carrier_Mode_State, PE_BIST_Carrier_Mode> {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
-        pe.port.timers.start(PD_TIMEOUT::tBISTContMode);
+        pe.port.timers.stop(PD_TIMEOUT::tBISTContMode);
+        pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
         return No_State_Change;
     }
 
@@ -1283,12 +1249,20 @@ public:
         if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
 
         if (port.timers.is_disabled(PD_TIMEOUT::tBISTContMode)) {
+            port.timers.start(PD_TIMEOUT::tBISTContMode);
+            // Clean up if Carrier activation failed.
+            if (pe.tcpc.get_bist_mode() != TCPC_BIST_MODE::Carrier) {
+                pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
+                return No_State_Change;
+            }
+        }
+
+        if (pe.tcpc.get_bist_mode() == TCPC_BIST_MODE::Off) {
             return PE_SNK_Transition_to_default;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tBISTContMode)) {
             pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
-            port.timers.stop(PD_TIMEOUT::tBISTContMode);
         }
 
         return No_State_Change;
@@ -1304,6 +1278,7 @@ class PE_BIST_Test_Mode_State : public afsm::state<PE, PE_BIST_Test_Mode_State, 
 public:
     static state_id_t on_enter_state(PE& pe) {
         pe.log_state();
+        pe.tcpc.req_set_bist(TCPC_BIST_MODE::TestData);
         return No_State_Change;
     }
 
@@ -1387,7 +1362,6 @@ using PE_STATES = afsm::state_pack<
     PE_SNK_Send_EPR_Mode_Entry_State,
     PE_SNK_EPR_Mode_Entry_Wait_For_Response_State,
     PE_SNK_EPR_Mode_Exit_Received_State,
-    PE_BIST_Activate_State,
     PE_BIST_Carrier_Mode_State,
     PE_BIST_Test_Mode_State,
     PE_Give_Revision_State,

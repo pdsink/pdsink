@@ -118,6 +118,8 @@ public:
     // Set BIST mode
     virtual void req_set_bist(TCPC_BIST_MODE mode) = 0;
     virtual bool is_set_bist_done() = 0;
+    // Last applied mode; pending requests do not change it.
+    virtual auto get_bist_mode() const -> TCPC_BIST_MODE = 0;
 
     virtual void req_hr_send() = 0;
     virtual bool is_hr_send_done() = 0;

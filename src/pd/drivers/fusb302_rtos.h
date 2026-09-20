@@ -105,6 +105,7 @@ public:
         kick_task(MSK_API_CALL);
     };
     bool is_set_bist_done() override { return sync_set_bist.is_idle(); };
+    auto get_bist_mode() const -> TCPC_BIST_MODE override { return bist_mode.load(); };
 
     void req_hr_send() override {
         sync_hr_send.enqueue();
@@ -162,6 +163,7 @@ protected:
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_value{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_value{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY> polarity{TCPC_POLARITY::NONE};
+    etl::atomic<TCPC_BIST_MODE> bist_mode{TCPC_BIST_MODE::Off};
     etl::atomic<bool> vbus_ok{false};
     bool rx_enabled{false};
     bool has_deferred_wakeup{false};

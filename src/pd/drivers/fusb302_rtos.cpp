@@ -62,6 +62,7 @@ bool Fusb302Rtos::fusb_setup() {
     Reset rst{0};
     rst.SW_RES = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Reset::reg, rst.raw_value));
+    bist_mode.store(TCPC_BIST_MODE::Off);
 
     // Read ID to check connection
     DeviceID id;
@@ -417,6 +418,7 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
         DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctrl0.raw_value));
     }
 
+    bist_mode.store(mode);
     return true;
 }
 
