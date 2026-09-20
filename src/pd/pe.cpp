@@ -655,6 +655,7 @@ public:
         {
             if (port.timers.is_expired(PD_TIMEOUT::tSinkRequest)) {
                 port.timers.stop(PD_TIMEOUT::tSinkRequest);
+                port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
 
                 // Note, if postponed Request was initialized by DPM, such
                 // simplified state change will cause duplicated command.
@@ -708,10 +709,12 @@ public:
         //
 
         if (port.timers.is_expired(PD_TIMEOUT::tSinkEPRKeepAlive)) {
+            port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
             return PE_SNK_EPR_Keep_Alive;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tPPSRequest)) {
+            port.pe_flags.set(PE_FLAG::AMS_ACTIVE);
             return PE_SNK_Select_Capability;
         }
 
