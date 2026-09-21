@@ -139,7 +139,7 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        port.notify_prl(MsgToPrl_EnqueueRestart{});
+        port.notify_prl(MsgToPrl_EnqueueInit{});
         port.pe_flags.clear(PE_FLAG::SPR_MODE_CONTRACTED);
         port.pe_flags.clear(PE_FLAG::EPR_MODE_CONTRACTED);
         port.source_caps.clear();
@@ -999,7 +999,7 @@ public:
 
         port.pe_flags.set(PE_FLAG::CAN_SEND_SOFT_RESET);
 
-        port.notify_prl(MsgToPrl_EnqueueRestart{});
+        port.notify_prl(MsgToPrl_EnqueuePrlSoftReset{});
         return No_State_Change;
     }
 

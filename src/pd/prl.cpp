@@ -1130,29 +1130,9 @@ public:
 class PRL_Rx_Layer_Reset_for_Receive_State : public afsm::state<PRL_Rx, PRL_Rx_Layer_Reset_for_Receive_State, PRL_Rx_Layer_Reset_for_Receive> {
 public:
     static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
-        auto& prl = prl_rx.prl;
-        auto& port = prl.port;
         prl_rx.log_state();
-
-        // Similar to init, but skip RX and revision clearing.
-        prl.prl_rch.change_state(afsm::Uninitialized);
-        prl.prl_tch.change_state(afsm::Uninitialized);
-        prl.prl_tx.change_state(afsm::Uninitialized);
-
-        port.prl_tx_flags.clear_all();
-        port.prl_rch_flags.clear_all();
-        port.prl_tch_flags.clear_all();
-        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-
-        // End the previous AMS before restarting TX, or Accept may wait for SinkTxOK.
-        port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
-        port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
-
-        prl.reset_msg_counters();
-
-        prl.prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
-        prl.prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
-        prl.prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
+        // Incoming Soft Reset restarts RX through its current state transition.
+        prl_rx.prl.reinit_for_sr(true);
 
         return PRL_Rx_Send_GoodCRC;
     }
@@ -1471,9 +1451,15 @@ void PRL::init() {
     port.prl_hr_flags.clear_all();
     prl_hr.change_state(PRL_HR_IDLE);
 
+    reinit_for_sr(false);
+
+    PRL_LOGI("PRL init done");
+}
+
+void PRL::reinit_for_sr(bool keep_rx_state) {
     prl_rch.change_state(afsm::Uninitialized);
     prl_tch.change_state(afsm::Uninitialized);
-    prl_rx.change_state(afsm::Uninitialized);
+    if (!keep_rx_state) { prl_rx.change_state(afsm::Uninitialized); }
     prl_tx.change_state(afsm::Uninitialized);
 
     port.prl_tx_flags.clear_all();
@@ -1483,19 +1469,23 @@ void PRL::init() {
 
     port.timers.stop_range(PD_TIMERS_RANGE::PRL);
 
+    // End the previous AMS before restarting TX, or Accept may wait for SinkTxOK.
+    port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
+    port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+
     // NOTE: negotiated revision stays intact. It's cleared via PE init and
     // hard reset.
     reset_msg_counters();
 
     prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
     prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
-    prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message);
+    if (!keep_rx_state) { prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message); }
     // Reset TX last, because it does driver call on init.
     prl_tx.change_state(PRL_Tx_PHY_Layer_Reset);
     // Ensure the loop repeats to continue PE states that wait for PRL to run.
     request_wakeup();
 
-    PRL_LOGI("PRL init end");
+    PRL_LOGI("PRL reinit_for_sr done");
 }
 
 void PRL::report_pe(const etl::imessage& msg) {
@@ -1632,55 +1622,62 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
         case PRL::LOCAL_STATE::INIT:
             prl.init();
             prl.local_state = PRL::LOCAL_STATE::WORKING;
+            break;
 
-            ETL_FALLTHROUGH;
+        case PRL::LOCAL_STATE::INIT_SOFT_RESET_ONLY:
+            prl.reinit_for_sr(false);
+            prl.local_state = PRL::LOCAL_STATE::WORKING;
+            break;
+
         case PRL::LOCAL_STATE::WORKING:
-            if (!prl.port.is_attached) {
-                prl.tcpc.req_rx_enable(false);
-                prl.local_state = PRL::LOCAL_STATE::DISABLED;
-                break;
-            }
+            break;
+    }
 
+    if (prl.local_state == PRL::LOCAL_STATE::WORKING) {
+        if (!prl.port.is_attached) {
+            prl.tcpc.req_rx_enable(false);
+            prl.local_state = PRL::LOCAL_STATE::DISABLED;
+        } else {
             prl.prl_hr.run();
 
-            if (prl.prl_hr.get_state_id() != PRL_HR_IDLE) { break; }
+            if (prl.prl_hr.get_state_id() == PRL_HR_IDLE) {
+                // In theory, if an RTOS with a slow reaction is used, it's possible
+                // to get both TX Complete and RX updates when transmission was requested
 
-            // In theory, if an RTOS with a slow reaction is used, it's possible
-            // to get both TX Complete and RX updates when transmission was requested
+                if (prl.port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED)
+                {
+                    // If TCPC send finished - ensure to react before discarding
+                    // by RX (if both events detected in the same time).
+                    //
+                    // - Skip TCPC fail here, because it can start retry.
+                    // - Skip TCPC discard here, to expose by RX
+                    //
+                    // Maybe software CRC handling needs more care, but for
+                    // hardware CRC this looks OK.
+                    prl.prl_tx.run();
+                }
 
-            if (prl.port.tcpc_tx_status.load() == TCPC_TRANSMIT_STATUS::SUCCEEDED)
-            {
-                // If TCPC send finished - ensure to react before discarding
-                // by RX (if both events detected in the same time).
-                //
-                // - Skip TCPC fail here, because it can start retry.
-                // - Skip TCPC discard here, to expose by RX
-                //
-                // Maybe software CRC handling needs more care, but for
-                // hardware CRC this looks OK.
+                prl.prl_rx.run();
+                prl.prl_rch.run();
+                // First TCH call needed when PE enqueued message, to start
+                // chunking / transfer.
+                prl.prl_tch.run();
                 prl.prl_tx.run();
+
+                //
+                // Repeat TCH/RCH calls for quick-consume previous changes
+                //
+
+                // After transfer complete - PE should be notified, call TCH again.
+                prl.prl_tch.run();
+                // Once more to catch edge case
+                prl.prl_tch.run();
+                // Repeat RCH call to land
+                // - re-routed TCH message
+                // - prl_tx status update after chunk request
+                prl.prl_rch.run();
             }
-
-            prl.prl_rx.run();
-            prl.prl_rch.run();
-            // First TCH call needed when PE enqueued message, to start
-            // chunking / transfer.
-            prl.prl_tch.run();
-            prl.prl_tx.run();
-
-            //
-            // Repeat TCH/RCH calls for quick-consume previous changes
-            //
-
-            // After transfer complete - PE should be notified, call TCH again.
-            prl.prl_tch.run();
-            // Once more to catch edge case
-            prl.prl_tch.run();
-            // Repeat RCH call to land
-            // - re-routed TCH message
-            // - prl_tx status update after chunk request
-            prl.prl_rch.run();
-            break;
+        }
     }
 
     if (prl.has_deferred_wakeup_request) {
@@ -1691,8 +1688,15 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
     }
 }
 
-void PRL_EventListener::on_receive(const MsgToPrl_EnqueueRestart&) {
+void PRL_EventListener::on_receive(const MsgToPrl_EnqueueInit&) {
     prl.local_state = PRL::LOCAL_STATE::INIT;
+}
+
+void PRL_EventListener::on_receive(const MsgToPrl_EnqueuePrlSoftReset&) {
+    if (prl.local_state == PRL::LOCAL_STATE::WORKING &&
+        prl.prl_hr.get_state_id() == PRL_HR_IDLE) {
+        prl.local_state = PRL::LOCAL_STATE::INIT_SOFT_RESET_ONLY;
+    }
 }
 
 void PRL_EventListener::on_receive(const MsgToPrl_HardResetFromPe&) {

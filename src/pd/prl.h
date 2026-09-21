@@ -47,7 +47,8 @@ public:
 
 using PRL_EventListener_Base = etl::message_router<class PRL_EventListener,
     MsgSysUpdate,
-    MsgToPrl_EnqueueRestart,
+    MsgToPrl_EnqueueInit,
+    MsgToPrl_EnqueuePrlSoftReset,
     MsgToPrl_HardResetFromPe,
     MsgToPrl_PEHardResetDone,
     MsgToPrl_TcpcHardReset,
@@ -60,7 +61,8 @@ class PRL_EventListener : public PRL_EventListener_Base {
 public:
     PRL_EventListener(PRL& prl) : prl(prl) {}
     void on_receive(const MsgSysUpdate& msg);
-    void on_receive(const MsgToPrl_EnqueueRestart& msg);
+    void on_receive(const MsgToPrl_EnqueueInit& msg);
+    void on_receive(const MsgToPrl_EnqueuePrlSoftReset& msg);
     void on_receive(const MsgToPrl_HardResetFromPe& msg);
     void on_receive(const MsgToPrl_PEHardResetDone& msg);
     void on_receive(const MsgToPrl_TcpcHardReset& msg);
@@ -84,6 +86,7 @@ public:
 
     void setup();
     void init();
+    void reinit_for_sr(bool keep_rx_state);
     void request_wakeup() { has_deferred_wakeup_request = true; };
     // notify + deferred wakeup
     void report_pe(const etl::imessage& msg);
@@ -94,7 +97,7 @@ public:
     void prl_tx_enqueue_chunk();
 
     enum class LOCAL_STATE {
-        DISABLED, INIT, WORKING
+        DISABLED, INIT, WORKING, INIT_SOFT_RESET_ONLY
     } local_state{LOCAL_STATE::DISABLED};
 
     Port& port;
