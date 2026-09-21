@@ -104,8 +104,8 @@ public:
     virtual void req_set_polarity(TCPC_POLARITY active_cc) = 0;
     virtual bool is_set_polarity_done() = 0;
 
-    // NOTE: Disable should flush the RX/TX FIFOs, and enable should flush the
-    // TX FIFO only.
+    // Always flush TX. Flush pending RX on disable and before enabling from
+    // disabled; preserve it on repeated enable.
     virtual void req_rx_enable(bool enable) = 0;
     virtual bool is_rx_enable_done() = 0;
 

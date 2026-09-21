@@ -218,20 +218,24 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
 }
 
 bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
-    //
-    // NOTE:
-    // - Clearing the TX FIFO is important to interrupt any ongoing TX
-    //   on TX discard.
-    // - Clearing everything seems safe.
-    //
-
     DRV_LOGI("Set RX enable {}", enable ? "ON" : "OFF");
 
-    DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
-    rx_queue.clear_from_producer();
+    if (!enable) {
+        DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(false));
+    }
+
+    // Keep acknowledged RX on repeated enable (Soft Reset/discard).
+    if (!enable || !rx_enabled) {
+        DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
+        rx_queue.clear_from_producer();
+    }
+
+    // Clear pending TX for PRL reset/discard.
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
-    DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(enable));
+    if (enable) {
+        DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(true));
+    }
 
     rx_enabled = enable;
     return true;
