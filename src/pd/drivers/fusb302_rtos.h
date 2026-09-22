@@ -173,7 +173,11 @@ protected:
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_auto_goodcrc_send = true,
         .tx_auto_goodcrc_check = true,
+#if defined(FUSB302_DISABLE_HW_RETRIES)
+        .tx_auto_retry = false
+#else
         .tx_auto_retry = true
+#endif
     };
 
     // Call sync + param store primitives

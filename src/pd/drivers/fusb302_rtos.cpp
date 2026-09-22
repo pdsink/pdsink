@@ -151,7 +151,8 @@ bool Fusb302Rtos::fusb_set_tx_auto_retries(uint8_t count) {
     Control3 ctl3;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control3::reg, ctl3.raw_value));
     ctl3.N_RETRIES = count & 3; // 0-3 retries
-    ctl3.AUTO_RETRY = count > 0 ? 1 : 0;
+    // Required for TX completion interrupts, even with zero retries.
+    ctl3.AUTO_RETRY = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control3::reg, ctl3.raw_value));
     return true;
 }
@@ -258,13 +259,11 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
 
     DRV_LOGI("TX begin");
 
-    // Auto-retries MUST be used to get interrupts about completion. Without
-    // auto-retries we can't know when TX is done.
-    //
     // NOTE: The spec says retries should NOT be used for unchunked extended
     // messages and cable plug messages. Since we do not support those, just
-    // set SOP retries count according to negotiated protocol revision.
-    DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(port.max_retries()));
+    // use the negotiated retry count, or zero when PRL handles retries.
+    DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(
+        tcpc_hw_features.tx_auto_retry ? port.max_retries() : 0));
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
