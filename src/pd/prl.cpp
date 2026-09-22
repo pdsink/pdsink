@@ -747,15 +747,24 @@ public:
 class PRL_Tx_PHY_Layer_Reset_State : public afsm::state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset> {
 public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
+        auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        // Technically, we should call set_rx_enable(true). But since the call
-        // is asynchronous — postpone it to the next state to coordinate
-        // variable initialization.
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+
+        // This also resets fusb302 FIFO
+        PRL_LOGD("Requesting RX enable");
+        prl_tx.prl.tcpc.req_rx_enable(true);
+        return No_State_Change;
+    }
+
+    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
+        if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
+
+        prl_tx.prl.request_wakeup();
         return PRL_Tx_Wait_for_Message_Request;
     }
 
-    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
@@ -770,19 +779,11 @@ public:
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
         port.tx_retry_counter = 0;
 
-        if (prl_tx.get_previous_state_id() == PRL_Tx_PHY_Layer_Reset) {
-            // This also resets fusb302 FIFO
-            PRL_LOGD("Requesting RX enable");
-            prl_tx.prl.tcpc.req_rx_enable(true);
-        }
-
         return No_State_Change;
     }
 
     static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
-
-        if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
 
         // For the first AMS message, we need to wait for the SinkTxOK CC level.
         // Skip this wait for PD 2.0, which does not support this feature.
@@ -815,14 +816,7 @@ public:
         auto& prl = prl_tx.prl;
         prl_tx.log_state();
 
-        // NOTE: The spec says to reset only `msg_id_counter` here, and reset
-        // `msg_id_stored` via an RX state change. But etl::fsm does not re-run
-        // `on_enter` if we come from the current state to itself.
-        // So, reset both here.
-        prl.reset_msg_counters();
-        // This will not make sense, because we do not send GoodCRC in software,
-        // and every input packet causes a return to the initial state immediately.
-        // But this is left for consistency with the spec.
+        prl.port.tx_msg_id_counter = 0;
         prl.prl_rx.change_state(PRL_Rx_Wait_for_PHY_Message);
 
         return PRL_Tx_Construct_Message;
@@ -997,16 +991,11 @@ public:
 class PRL_Tx_Discard_Message_State : public afsm::state<PRL_Tx, PRL_Tx_Discard_Message_State, PRL_Tx_Discard_Message> {
 public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
-        prl_tx.log_state();
-        return No_State_Change;
-    }
-
-    static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& port = prl_tx.prl.port;
+        prl_tx.log_state();
 
-        // Discard if any TX chunk is being processed:
-        // - input queued to send
-        // - passed to the driver and sending in progress
+        // The spec enters Discard on RX even without pending TX. Increment
+        // MessageID only when discarding a message awaiting transmission.
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
             is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
         {
@@ -1015,6 +1004,7 @@ public:
         return PRL_Tx_PHY_Layer_Reset;
     }
 
+    static auto on_run_state(PRL_Tx&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_Tx&) {}
 };
 
@@ -1276,6 +1266,7 @@ public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
+        hr.prl.port.tx_msg_id_counter = 0;
         hr.prl.port.revision = MaxSupportedRevision;
 
         // Start by disabling the RX path (and clearing the FIFO).
@@ -1475,7 +1466,8 @@ void PRL::reinit_for_sr(bool keep_rx_state) {
 
     // NOTE: negotiated revision stays intact. It's cleared via PE init and
     // hard reset.
-    reset_msg_counters();
+    port.rx_msg_id_stored = -1;
+    port.tx_msg_id_counter = 0;
 
     prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
     prl_tch.change_state(TCH_Wait_For_Message_Request_From_Policy_Engine);
@@ -1491,11 +1483,6 @@ void PRL::reinit_for_sr(bool keep_rx_state) {
 void PRL::report_pe(const etl::imessage& msg) {
     port.notify_pe(msg);
     request_wakeup();
-}
-
-void PRL::reset_msg_counters() {
-    port.rx_msg_id_stored = -1;
-    port.tx_msg_id_counter = 0;
 }
 
 void PRL::prl_tx_enqueue_chunk() {

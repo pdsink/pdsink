@@ -91,8 +91,6 @@ public:
     // notify + deferred wakeup
     void report_pe(const etl::imessage& msg);
 
-    void reset_msg_counters();
-
     // Mark TX chunk for sending (+ cleanup status flags from prev operations)
     void prl_tx_enqueue_chunk();
 
