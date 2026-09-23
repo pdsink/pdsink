@@ -310,11 +310,9 @@ public:
             return RCH_Report_Error;
         }
 
-        // Catch simultaneous RX/TX and discards. Assume TX was successful,
-        // and decide what really happened in the next states.
-        // A new message from PRL_RX can arrive before PRL_TX is called.
+        // [rev3.2 v1.2] 9.1.2.1.2.4: RX before TX completion is an error.
         if (port.prl_rch_flags.test(RCH_FLAG::RX_ENQUEUED)) {
-            return RCH_Waiting_Chunk;
+            return RCH_Report_Error;
         }
 
         return No_State_Change;
