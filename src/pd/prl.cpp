@@ -420,6 +420,9 @@ public:
 
         if (port.prl_tch_flags.test_and_clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED)) {
             if (tch.prl.prl_rch.get_state_id() != RCH_Wait_For_Message_From_Protocol_Layer) {
+                if (port.pe_flags.test(PE_FLAG::AMS_ACTIVE)) {
+                    port.pe_flags.set(PE_FLAG::AMS_INTERRUPTED);
+                }
                 //
                 // This may happen when:
                 // - PRL was not busy
@@ -710,6 +713,12 @@ public:
         // Drop any incoming TCH request from PE
         port.prl_tch_flags.clear(TCH_FLAG::MSG_FROM_PE_ENQUEUED);
 
+        if (port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
+            !port.pe_flags.test(PE_FLAG::TX_COMPLETE))
+        {
+            port.pe_flags.set(PE_FLAG::AMS_INTERRUPTED);
+        }
+
         return TCH_Wait_For_Message_Request_From_Policy_Engine;
     }
 
@@ -787,13 +796,12 @@ public:
 
         // For the first AMS message, we need to wait for the SinkTxOK CC level.
         // Skip this wait for PD 2.0, which does not support this feature.
-        if (port.revision == PD_REVISION::REV20 || !port.is_ams_active()) {
-            port.prl_tx_flags.clear(PRL_TX_FLAG::START_OF_AMS_DETECTED);
-        } else {
-            if (!port.prl_tx_flags.test(PRL_TX_FLAG::START_OF_AMS_DETECTED)) {
-                port.prl_tx_flags.set(PRL_TX_FLAG::START_OF_AMS_DETECTED);
-                return PRL_Tx_Snk_Start_of_AMS;
-            }
+        if (port.revision != PD_REVISION::REV20 &&
+            port.pe_flags.test(PE_FLAG::AMS_ACTIVE) &&
+            !port.pe_flags.test(PE_FLAG::AMS_INTERRUPTED) &&
+            !port.pe_flags.test(PE_FLAG::AMS_SINK_TX_OK_REACHED))
+        {
+            return PRL_Tx_Snk_Start_of_AMS;
         }
 
         // For non-AMS messages, or after first AMS message
@@ -1058,6 +1066,7 @@ public:
 
         // Wait SinkTxOK before sending first AMS message
         if (cc_level == TCPC_CC_LEVEL::SinkTxOK) {
+            port.pe_flags.set(PE_FLAG::AMS_SINK_TX_OK_REACHED);
             port.prl_tx_flags.clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED);
             return PRL_Tx_Construct_Message;
         }
@@ -1460,9 +1469,8 @@ void PRL::reinit_for_sr(bool keep_rx_state) {
 
     port.timers.stop_range(PD_TIMERS_RANGE::PRL);
 
-    // End the previous AMS before restarting TX, or Accept may wait for SinkTxOK.
-    port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
-    port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+    // Interrupt the previous AMS so Accept won't wait for SinkTxOK.
+    port.pe_flags.set(PE_FLAG::AMS_INTERRUPTED);
 
     // NOTE: negotiated revision stays intact. It's cleared via PE init and
     // hard reset.

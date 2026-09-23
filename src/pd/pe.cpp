@@ -482,6 +482,8 @@ public:
         port.pe_flags.clear(PE_FLAG::PROTOCOL_ERROR);
         port.pe_flags.clear(PE_FLAG::AMS_ACTIVE);
         port.pe_flags.clear(PE_FLAG::AMS_FIRST_MSG_SENT);
+        port.pe_flags.clear(PE_FLAG::AMS_SINK_TX_OK_REACHED);
+        port.pe_flags.clear(PE_FLAG::AMS_INTERRUPTED);
 
         pe.active_dpm_request = DPM_REQUEST_FLAG::NONE;
 

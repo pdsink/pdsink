@@ -27,10 +27,6 @@ void Port::wakeup() {
     notify_task(MsgTask_Wakeup{});
 }
 
-bool Port::is_ams_active() {
-    return pe_flags.test(PE_FLAG::AMS_ACTIVE);
-}
-
 void Port::wait_dpm_transit_to_default(bool enable) {
     if (enable) {
         pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);

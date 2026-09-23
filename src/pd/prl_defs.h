@@ -12,7 +12,6 @@ enum class TCH_FLAG {
 };
 
 enum class PRL_TX_FLAG {
-    START_OF_AMS_DETECTED,
     // Input signal from RCH/TCH
     TX_CHUNK_ENQUEUED,
     // Output signal for RCH/TCH

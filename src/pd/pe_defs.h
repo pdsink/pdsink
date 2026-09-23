@@ -30,6 +30,11 @@ enum class PE_FLAG {
     EPR_MODE_CONTRACTED,
     AMS_ACTIVE,
     AMS_FIRST_MSG_SENT,
+    AMS_SINK_TX_OK_REACHED,
+    // For PRL: avoid waiting for SinkTxOK on an incoming multi-chunk message.
+    // Do not use as a direct error signal in PE; wait for message reassembly
+    // before making the final decision.
+    AMS_INTERRUPTED,
     EPR_AUTO_ENTER_DISABLED,
     // Used to mark the complete entry sequence at start, when the sink becomes
     // ready to accept DPM requests.
