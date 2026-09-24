@@ -163,15 +163,20 @@ public:
 
 class PE_SNK_Discovery_State : public afsm::state<PE, PE_SNK_Discovery_State, PE_SNK_Discovery> {
 public:
+    // Most sinks run in dead-battery mode and cannot operate without VBUS.
+    // Keep the explicit VBUS check for spec compliance.
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
-        // As a Sink, we detect TC attach via CC1/CC2 with debounce. VBUS should
-        // be stable at this moment, so there is no need to wait.
-        return PE_SNK_Wait_for_Capabilities;
+        if (pe.tcpc.is_vbus_ok()) { return PE_SNK_Wait_for_Capabilities; }
+        return No_State_Change;
     }
 
-    static state_id_t on_run_state(PE&) { return No_State_Change; }
+    static auto on_run_state(PE& pe) -> state_id_t {
+        if (pe.tcpc.is_vbus_ok()) { return PE_SNK_Wait_for_Capabilities; }
+        return No_State_Change;
+    }
+
     static void on_exit_state(PE&) {}
 };
 

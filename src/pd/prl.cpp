@@ -180,9 +180,10 @@ public:
                     // [rev3.2 v1.2] Table 6.48: ignore chunk numbers 10..15.
                     if (ehdr.chunk_number >= MaxChunksPerMsg) { return No_State_Change; }
 
-                    // The spec says to clear variables below in
-                    // RCH_Processing_Extended_Message
-                    // on the first chunk, but this place looks more obvious.
+                    // The spec says to reset the counters in
+                    // RCH_Processing_Extended_Message on the first chunk.
+                    // That would require a flag or checking the previous state.
+                    // This path only starts new messages, so resetting here is simpler.
                     port.rch_chunk_number_expected = 0;
                     port.rx_emsg.clear();
                     port.rx_emsg.header = port.rx_chunk.header;
