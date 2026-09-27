@@ -130,6 +130,11 @@ public:
 class IDriver: public ITCPC, public ITimer {
 public:
     virtual void setup() = 0;
+
+    // Wake up the PD event loop, ensuring it runs in the appropriate execution
+    // context. Use this to signal the PD event loop from application code through
+    // DPM or PE flags.
+    virtual void wakeup() = 0;
 };
 
 } // namespace pd

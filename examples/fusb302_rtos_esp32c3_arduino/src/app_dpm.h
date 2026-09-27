@@ -41,7 +41,8 @@ private:
 
 class AppDPM : public pd::DPM {
 public:
-    AppDPM(pd::Port& port) : pd::DPM(port), dpm_event_listener(*this) {}
+    AppDPM(pd::Port& port, pd::IDriver& driver)
+        : pd::DPM(port, driver), dpm_event_listener(*this) {}
 
     void setup() override { port.dpm_rtr = &dpm_event_listener; }
 

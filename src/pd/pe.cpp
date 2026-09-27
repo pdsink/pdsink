@@ -928,8 +928,8 @@ public:
         port.pe_flags.clear_all();
         port.dpm_requests.clear_all();
 
-        // If you need to pend, call `wait_dpm_transit_to_default(true)` in the
-        // event handler, and `wait_dpm_transit_to_default(false)` to continue.
+        // To defer completion, call `DPM::hold_pe_transition_to_default(true)`
+        // in the event handler, then call it with false when ready to continue.
         port.notify_dpm(MsgToDpm_TransitToDefault());
         pe.request_wakeup();
         return No_State_Change;

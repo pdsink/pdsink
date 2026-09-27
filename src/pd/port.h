@@ -86,8 +86,6 @@ public:
     // Helpers
     //
 
-    void wait_dpm_transit_to_default(bool enable);
-
     bool is_prl_running();
     bool is_prl_busy();
 

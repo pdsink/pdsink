@@ -1,6 +1,7 @@
 #include <etl/algorithm.h>
 
 #include "dpm.h"
+#include "idriver.h"
 #include "pd_log.h"
 #include "port.h"
 #include "utils/dobj_utils.h"
@@ -267,6 +268,15 @@ void DPM::trigger_by_position(uint8_t position, uint32_t mv, uint32_t ma) {
     trigger_position = position;
     trigger_pdo_variant = PDO_VARIANT::UNKNOWN; // not used in this mode
     request_new_power_level();
+}
+
+void DPM::hold_pe_transition_to_default(bool hold) {
+    if (hold) {
+        port.pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
+    } else {
+        port.pe_flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
+        driver.wakeup();
+    }
 }
 
 } // namespace pd

@@ -7,7 +7,7 @@
 
 namespace pd {
 
-class Port; class PE;
+class Port; class PE; class IDriver;
 
 class IDPM {
 public:
@@ -20,7 +20,7 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port) : port{port} {};
+    DPM(Port& port, IDriver& driver) : port{port}, driver{driver} {};
 
     // Disable unexpected use
     DPM() = delete;
@@ -78,8 +78,11 @@ public:
     // clamped to profile limits (position has priority over the rest).
     void trigger_by_position(uint8_t position, uint32_t mv=0, uint32_t ma = 0);
 
+    void hold_pe_transition_to_default(bool hold);
+
 protected:
     Port& port;
+    IDriver& driver;
 
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};

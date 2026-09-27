@@ -24,7 +24,7 @@ pd::fusb302::Fusb302RtosHalEsp32 fusb302_hal;
 Driver driver(port, fusb302_hal);
 
 pd::Task task(port, driver);
-AppDPM dpm(port);
+AppDPM dpm(port, driver);
 pd::PRL prl(port, driver);
 pd::PE pe(port, dpm, prl, driver);
 pd::TC tc(port, driver);

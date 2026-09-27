@@ -27,15 +27,6 @@ void Port::wakeup() {
     notify_task(MsgTask_Wakeup{});
 }
 
-void Port::wait_dpm_transit_to_default(bool enable) {
-    if (enable) {
-        pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
-    } else {
-        pe_flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
-        wakeup();
-    }
-}
-
 bool Port::is_prl_running() {
     // Those defaults will be returned if PRL instance not yet subscribed
     // to the message bus. That's an acceptable behavior.

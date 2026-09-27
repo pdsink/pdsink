@@ -716,6 +716,9 @@ void Fusb302Rtos::task() {
                 DRV_LOGI("Handle API call");
                 handle_tcpc_calls();
             }
+            if (event_mask & MSK_WAKEUP) {
+                has_deferred_wakeup = true;
+            }
 
             BaseType_t notified = xTaskNotifyWait(0, UINT32_MAX, &event_mask, 0);
             if (notified == pdFALSE) { break; }
