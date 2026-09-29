@@ -494,6 +494,14 @@ void Fusb302Rtos::handle_interrupt() {
     return;
 }
 
+void Fusb302Rtos::rearm(uint32_t deadline_ticks) {
+    // No kick_task() is needed with synchronous PD processing in this task.
+    // Splitting PD processing across tasks or calling the PD loop from another
+    // context is currently considered a design error and is not supported.
+    // Revisit the notification logic if a concrete use case justifies such a design.
+    timers.start_with_deadline(DriverTimer::PD_CORE_TIMERS, deadline_ticks);
+}
+
 // Since FUSB302 does not allow making different measurements in parallel,
 // do all in a single place to avoid collisions. Also, use simple FSM to implement
 // non-blocking delays.
@@ -502,16 +510,12 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
     Status0 status0;
     Switches0 sw0;
 
-    // Should be 250 us, but FreeRTOS does not allow that precise timing.
-    // Use 2 timer ticks (2ms) to guarantee at least 1ms after jitter.
-    static constexpr uint32_t MEASURE_DELAY_MS = 2;
-
     switch (meter_state) {
         case MeterState::IDLE:
             if (sync_active_cc.get_job()) {
                 DRV_LOGV("Active CC measurement begin");
-                meter_state = MeterState::CC_ACTIVE_BEGIN;
-                repeat = true;
+                timers.start(CC_SETTLE);
+                meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
                 return true;
             }
             if (sync_scan_cc.get_job()) {
@@ -522,14 +526,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             }
             break;
 
-        case MeterState::CC_ACTIVE_BEGIN:
-            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
-            meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
-            repeat = true;
-            break;
-
         case MeterState::CC_ACTIVE_MEASURE_WAIT:
-            if (get_timestamp() < meter_wait_until_ts) { break; }
+            if (!timers.is_expired(CC_SETTLE)) { break; }
 
             // Note, CC activity can introduce noise, but since we are waiting
             // for SinkTxOK, false negatives are acceptable; those will only
@@ -547,9 +545,11 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             }
 
             DRV_LOGV("Active CC measurement end");
+            timers.stop(CC_SETTLE);
             sync_active_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
+            repeat = true;
             break;
 
         case MeterState::SCAN_CC_BEGIN:
@@ -562,17 +562,12 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC2 = 0;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
-            // Technically, 250 us is OK, but a precise match would be
-            // platform-dependent and probably blocking. We rely on FreeRTOS
-            // ticks instead. The minimal value is 1, and we add one more to
-            // guard against jitter.
-            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
+            timers.start(CC_SETTLE);
             meter_state = MeterState::SCAN_CC1_MEASURE_WAIT;
-            repeat = true;
             break;
 
         case MeterState::SCAN_CC1_MEASURE_WAIT:
-            if (get_timestamp() < meter_wait_until_ts) { break; }
+            if (!timers.is_expired(CC_SETTLE)) { break; }
 
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
             cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
@@ -582,29 +577,28 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             sw0.MEAS_CC1 = 0;
             sw0.MEAS_CC2 = 1;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-            meter_wait_until_ts = get_timestamp() + MEASURE_DELAY_MS;
+            timers.start(CC_SETTLE);
             meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
-            repeat = true;
-
             break;
 
         case MeterState::SCAN_CC2_MEASURE_WAIT:
-            if (get_timestamp() < meter_wait_until_ts) { break; }
+            if (!timers.is_expired(CC_SETTLE)) { break; }
 
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
             cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
 
-            // Restore previous state
+            // Restore only the saved measurement selection.
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
             sw0.MEAS_CC1 = meter_sw0_backup.MEAS_CC1;
             sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
             DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
 
             DRV_LOGV("Scan CC2/CC1 end");
+            timers.stop(CC_SETTLE);
             sync_scan_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
-
+            repeat = true;
             break;
     }
 
@@ -615,17 +609,19 @@ void Fusb302Rtos::handle_meter() {
     bool repeat = false;
 
     while (1) {
-        DRV_RET_ON_ERROR(meter_tick(repeat));
+        if (!meter_tick(repeat)) {
+            timers.stop(CC_SETTLE);
+            if (meter_state == MeterState::CC_ACTIVE_MEASURE_WAIT) {
+                sync_active_cc.job_finish();
+            } else {
+                sync_scan_cc.job_finish();
+            }
+            meter_state = MeterState::IDLE;
+            has_deferred_wakeup = true;
+            repeat = true;
+        }
         if (!repeat) { break; }
     }
-
-    return;
-}
-
-void Fusb302Rtos::handle_timer() {
-    handle_meter();
-    has_deferred_timer = true;
-    return;
 }
 
 void Fusb302Rtos::handle_tcpc_calls() {
@@ -639,6 +635,7 @@ void Fusb302Rtos::handle_tcpc_calls() {
             sync_scan_cc.reset();
             sync_active_cc.reset();
             meter_state = MeterState::IDLE;
+            timers.stop(CC_SETTLE);
 
         DRV_LOG_ON_ERROR(fusb_set_polarity(_polarity));
         sync_set_polarity.job_finish();
@@ -697,7 +694,10 @@ void Fusb302Rtos::task() {
 
     if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
         hal.setup();
-        fusb_setup();
+        if (fusb_setup()) {
+            // Wake after setup and preserve events consumed by the initial wait.
+            kick_task(event_mask | MSK_WAKEUP);
+        }
     }
 
     while (true) {
@@ -706,16 +706,23 @@ void Fusb302Rtos::task() {
         if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { continue; }
 
         for (;;) {
-            // Always check interrupt level to avoid deadlock
+            if (event_mask & MSK_TIMER) {
+                timers.cleanup();
+                has_deferred_timer = true;
+            }
+
+            // Always check interrupt level to avoid deadlock.
             handle_interrupt();
 
-            if (event_mask & MSK_TIMER) {
-                handle_timer();
-            }
             if (event_mask & MSK_API_CALL) {
                 DRV_LOGI("Handle API call");
                 handle_tcpc_calls();
             }
+
+            // Apply pending polarity changes first: handle_tcpc_calls() may
+            // reset the measurement before it takes another step.
+            handle_meter();
+
             if (event_mask & MSK_WAKEUP) {
                 has_deferred_wakeup = true;
             }
@@ -734,6 +741,13 @@ void Fusb302Rtos::task() {
         if (has_deferred_timer) {
             has_deferred_timer = false;
             port.notify_task(MsgTask_Timer{});
+        }
+
+        // Rearm after synchronous engine callbacks have updated the deadlines.
+        if (timers.timers_changed.exchange(false)) {
+            if (auto next_deadline = timers.get_next_deadline()) {
+                hal.rearm(*next_deadline);
+            }
         }
     }
 }

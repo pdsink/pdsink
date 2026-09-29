@@ -245,8 +245,8 @@ void DPM::request_new_power_level() {
     // If not, the data will be used at the handshake.
     if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
-        // Don't call wakeup(); keep execution in the driver's "thread".
-        // Rely on the timer's periodic tick to catch the request.
+        // Process the request in the driver task.
+        driver.wakeup();
     }
 }
 

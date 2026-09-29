@@ -4,7 +4,7 @@
 
 #include <etl/array.h>
 #include <etl/atomic.h>
-#include <etl/limits.h>
+#include <etl/optional.h>
 
 namespace pd {
 
@@ -17,14 +17,10 @@ public:
         timers_changed.store(false);
     }
 
-    void set_time(uint32_t time) {
-        now = time;
-    }
-
-    void start(int timer_id, uint32_t period) {
+    void start(int timer_id, uint32_t deadline) {
         active.set(timer_id);
         disabled.clear(timer_id);
-        expire_at[timer_id] = now + period;
+        expire_at[timer_id] = deadline;
         timers_changed.store(true);
     }
 
@@ -41,9 +37,9 @@ public:
 
     bool is_disabled(int timer_id) const { return disabled.test(int(timer_id)); }
 
-    bool is_expired(int timer_id) {
+    bool is_expired(int timer_id, uint32_t now) {
         if (active.test(timer_id)) {
-            if (time_diff(expire_at[timer_id], now) <= 0) {
+            if (ticks_diff(expire_at[timer_id], now) <= 0) {
                 deactivate(timer_id);
                 return true;
             }
@@ -54,36 +50,30 @@ public:
     };
 
     // A simple GC step that deactivates expired timers to reduce regular checks
-    void cleanup() {
+    void cleanup(uint32_t now) {
         for (size_t i = 0; i < TIMER_COUNT; i++) {
-            if (active.test(i)) { is_expired(i); } // Deactivate
+            if (active.test(i)) { is_expired(i, now); } // Deactivate
         }
     };
 
-    // Can be used for precise timer management. If regular 1 ms interrupts are
-    // used, this is not needed.
-    int32_t get_next_expiration() const {
-        constexpr int32_t MAX_EXPIRE = etl::numeric_limits<int32_t>::max();
-
-        int32_t min = MAX_EXPIRE;
+    etl::optional<uint32_t> get_next_deadline(uint32_t now) const {
+        etl::optional<uint32_t> result;
 
         for (size_t i = 0; i < TIMER_COUNT; i++) {
             if (active.test(i)) {
-                auto exp_diff = time_diff(expire_at[i], now);
-                if (exp_diff <= 0) { return 0; }
-                if (exp_diff < min) { min = exp_diff; }
+                if (!result ||
+                    ticks_diff(expire_at[i], now) < ticks_diff(*result, now))
+                {
+                    result = expire_at[i];
+                }
             }
         }
 
-        return min == MAX_EXPIRE ? NO_EXPIRE : min;
+        return result;
     };
-
-    static constexpr int32_t NO_EXPIRE = -1;
     etl::atomic<bool> timers_changed{false};
 
 private:
-    uint32_t now{0};
-
     // After expiration, timer becomes deactivated, but not disabled, to
     // keep expire status.
     bool is_inactive(int timer_id) const {
@@ -97,7 +87,7 @@ private:
     }
 
     // Timestamps compare with care about overflow
-    int32_t time_diff(uint32_t expiration, uint32_t now) const {
+    int32_t ticks_diff(uint32_t expiration, uint32_t now) const {
         return static_cast<int32_t>(expiration - now);
     }
 

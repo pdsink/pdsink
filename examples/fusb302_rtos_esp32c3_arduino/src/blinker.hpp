@@ -1,5 +1,7 @@
 #pragma once
 
+#include <esp_timer.h>
+
 //
 // PWM / Timers usage:
 //

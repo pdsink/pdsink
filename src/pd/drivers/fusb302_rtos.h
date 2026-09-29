@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../pd_conf.h"
+
 #include <etl/atomic.h>
 #include <etl/delegate.h>
 #include <freertos/FreeRTOS.h>
@@ -11,6 +13,7 @@
 #include "../utils/atomic_enum_bits.h"
 #include "../utils/leapsync.h"
 #include "../utils/spsc_overwrite_queue.h"
+#include "../timers.h"
 
 namespace pd {
 
@@ -30,7 +33,8 @@ class IFusb302RtosHal {
 public:
     virtual void setup() = 0;
     virtual void set_event_handler(const hal_event_handler_t& handler) = 0;
-    virtual ITimer::TimeFunc get_time_func() const = 0;
+    virtual ITimer::TickSource get_tick_source() const = 0;
+    virtual void rearm(uint32_t deadline_ticks) = 0;
 
     virtual bool read_reg(uint8_t i2c_addr, uint8_t reg, uint8_t& data) = 0;
     virtual bool write_reg(uint8_t i2c_addr, uint8_t reg, uint8_t data) = 0;
@@ -54,8 +58,9 @@ class Fusb302Rtos : public IDriver {
     static constexpr uint32_t MSK_WAKEUP = (1u << 3);
 
 public:
-    Fusb302Rtos(Port& port, IFusb302RtosHal& hal) : port{port}, hal{hal} {
-        get_timestamp = hal.get_time_func();
+    Fusb302Rtos(Port& port, IFusb302RtosHal& hal)
+        : port{port}, hal{hal}, tick_source{hal.get_tick_source()} {
+        timers.set_tick_source(tick_source);
     };
 
     // Prohibit copy/move because class manages FreeRTOS tasks,
@@ -120,16 +125,14 @@ public:
     //
     // Timer
     //
-    ITimer::TimeFunc get_time_func() const override { return hal.get_time_func(); };
-    void rearm(uint32_t interval) override {};
-    bool is_rearm_supported() override { return false; };
+    TickSource get_tick_source() const override { return tick_source; };
+    void rearm(uint32_t deadline_ticks) override;
 
     AtomicEnumBits<DRV_FLAG> flags{};
 
 protected:
     void task();
     void handle_interrupt();
-    void handle_timer();
     void handle_tcpc_calls();
     void handle_meter();
     bool meter_tick(bool &retry);
@@ -157,7 +160,7 @@ protected:
     uint8_t i2c_addr{ChipAddress::FUSB302B};
     Port& port;
     IFusb302RtosHal& hal;
-    ITimer::TimeFunc get_timestamp;
+    TickSource tick_source;
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
@@ -194,15 +197,25 @@ protected:
 
     enum class MeterState {
         IDLE,
-        CC_ACTIVE_BEGIN,
         CC_ACTIVE_MEASURE_WAIT,
         SCAN_CC_BEGIN,
         SCAN_CC1_MEASURE_WAIT,
         SCAN_CC2_MEASURE_WAIT,
     };
     MeterState meter_state{MeterState::IDLE};
-    uint32_t meter_wait_until_ts{0};
     Switches0 meter_sw0_backup{0};
+
+    enum DriverTimer {
+        PD_CORE_TIMERS,
+        CC,
+        COUNT,
+    };
+#if defined(USE_FUSB302_COARSE_TIMER)
+    static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 2000};
+#else
+    static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 250};
+#endif
+    Timers<DriverTimer::COUNT> timers;
 
     // Override in an inherited class if needed.
     uint32_t task_stack_size_bytes{1024*4}; // 4K

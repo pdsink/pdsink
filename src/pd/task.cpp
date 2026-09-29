@@ -16,15 +16,6 @@ void Task::tick() {
     // for manual loop polling.
     if (e_group) {
         if (e_group & Task::EVENT_TIMER_MSK) {
-            // Timers don't interact with the system directly. We update
-            // internal timestamp value in 2 cases:
-            //
-            // - when timer event comes
-            // - when `.start()` invoked
-            //
-            // The rest operations can use "old" value safe.
-            port.timers.set_time(port.timers.get_time());
-
             port.timers.cleanup();
         }
 
@@ -33,28 +24,12 @@ void Task::tick() {
         port.notify_pe(MsgSysUpdate{});
         port.notify_prl(MsgSysUpdate{});
 
-        // Let's rearm timer if needed. 2 cases are possible:
-        //
-        // 1. start/stop invoked  (in PRL/PE/TC/DPM)
-        // 2. Timeout event due timer expire
-        //
-        // This is NOT needed for periodic 1ms timer without rearm support.
-
-        if (driver.is_rearm_supported()) {
-            if (port.timers.timers_changed.exchange(false) ||
-                (e_group & Task::EVENT_TIMER_MSK))
-            {
-                auto next_exp{port.timers.get_next_expiration()};
-                if (next_exp != Timers::NO_EXPIRE)
-                {
-                    if (next_exp == 0) {
-                        // Rearm timer event and add deferred call
-                        event_group.fetch_or(Task::EVENT_TIMER_MSK);
-                        tick_guard_flags.set(GUARD_FLAGS::HAS_DEFERRED_CALL);
-                    } else {
-                        driver.rearm(next_exp);
-                    }
-                }
+        if (port.timers.timers_changed.exchange(false) ||
+            (e_group & Task::EVENT_TIMER_MSK))
+        {
+            auto next_deadline{port.timers.get_next_deadline()};
+            if (next_deadline) {
+                driver.rearm(*next_deadline);
             }
         }
     }
@@ -82,7 +57,7 @@ void Task::dispatch() {
 void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& drv){
     tick_guard_flags.set(GUARD_FLAGS::IS_IN_TICK);
 
-    port.timers.set_time_provider(drv.get_time_func());
+    port.timers.set_tick_source(drv.get_tick_source());
     port.task_rtr = &task_event_listener;
     drv.setup();
     prl.setup();
@@ -91,6 +66,9 @@ void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& drv){
     tc.setup();
 
     tick_guard_flags.clear(GUARD_FLAGS::IS_IN_TICK);
+
+    // Bootstrap processing after setup without relying on a periodic tick.
+    drv.wakeup();
 }
 
 void Task::set_event(uint32_t event_mask) {

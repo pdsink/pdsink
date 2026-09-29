@@ -18,7 +18,7 @@ namespace pd {
 
 class Port {
 public:
-    Timers timers{};
+    Timers<PD_TIMER::PD_TIMER_COUNT> timers{};
 
     bool is_attached{false};
 

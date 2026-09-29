@@ -12,8 +12,3 @@
 #elif defined(PD_USE_CONFIG_FILE)
     #include "pd_config.h"
 #endif
-
-
-#if !defined(PD_TIMER_RESOLUTION_US)
-#define PD_TIMER_RESOLUTION_US 0
-#endif

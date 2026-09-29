@@ -1,5 +1,7 @@
 #pragma once
 
+#include <etl/delegate.h>
+
 #include "pd_conf.h"
 
 namespace pd {
@@ -62,13 +64,15 @@ static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
 
 class ITimer {
 public:
-    using TimeFunc = uint32_t(*)();
-    virtual TimeFunc get_time_func() const = 0;
-    // Set the interval (from "now") of the next timer tick. For a simple
-    // implementation, make this a dummy and tick every 1 ms.
-    virtual void rearm(uint32_t interval) = 0;
+    using TickSource = etl::delegate<uint32_t()>;
 
-    virtual bool is_rearm_supported() = 0;
+    // Source of cyclic 32-bit microsecond ticks. Deadline comparisons are valid
+    // while the distance to or past a deadline is less than 2^31 microseconds.
+    virtual TickSource get_tick_source() const = 0;
+
+    // Arm a one-shot wakeup at an absolute tick value. A deadline that is
+    // already due must still cause a wakeup.
+    virtual void rearm(uint32_t deadline_ticks) = 0;
 };
 
 // TODO: Seems all modern chips support auto-toggle.
