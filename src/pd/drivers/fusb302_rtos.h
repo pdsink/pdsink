@@ -178,7 +178,10 @@ protected:
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_auto_goodcrc_send = true,
         .tx_auto_goodcrc_check = true,
-#if defined(FUSB302_DISABLE_HW_RETRIES)
+        // Software retries are for testing only. USB PD requires the retry
+        // preamble to start within 195 us after CRCReceiveTimer expires.
+        // Software retries over I2C cannot reliably meet this deadline.
+#if defined(FUSB302_NO_HW_RETRIES)
         .tx_auto_retry = false
 #else
         .tx_auto_retry = true

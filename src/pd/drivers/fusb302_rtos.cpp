@@ -262,6 +262,10 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     // NOTE: The spec says retries should NOT be used for unchunked extended
     // messages and cable plug messages. Since we do not support those, just
     // use the negotiated retry count, or zero when PRL handles retries.
+    //
+    // Software retries are for testing only. USB PD requires the retry
+    // preamble to start within 195 us after CRCReceiveTimer expires.
+    // Software retries over I2C cannot reliably meet this deadline.
     DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(
         tcpc_hw_features.tx_auto_retry ? port.max_retries() : 0));
 
