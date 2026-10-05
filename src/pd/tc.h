@@ -40,8 +40,7 @@ public:
     ITCPC& tcpc;
 
     // Internal variables, used from state classes
-    TCPC_CC_LEVEL::Type prev_cc1{TCPC_CC_LEVEL::NONE};
-    TCPC_CC_LEVEL::Type prev_cc2{TCPC_CC_LEVEL::NONE};
+    TCPC_POLARITY detected_polarity{TCPC_POLARITY::NONE};
 
     TC_EventListener tc_event_listener;
 };

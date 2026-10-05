@@ -1050,7 +1050,7 @@ public:
             return PRL_Tx_Layer_Reset_for_Transmit;
         }
 
-        prl_tx.prl.tcpc.req_active_cc();
+        prl_tx.prl.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
 
@@ -1059,9 +1059,9 @@ public:
         auto& port = prl.port;
         auto& tcpc = prl.tcpc;
 
-        // Wait until CC fetch completes
-        TCPC_CC_LEVEL::Type cc_level;
-        if (!tcpc.try_active_cc_result(cc_level)) { return No_State_Change; }
+        // Wait until the active CC cache update completes.
+        if (!tcpc.is_fetch_cc_done()) { return No_State_Change; }
+        const auto cc_level = tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         // Wait SinkTxOK before sending first AMS message
         if (cc_level == TCPC_CC_LEVEL::SinkTxOK) {
@@ -1076,7 +1076,7 @@ public:
 
         if (port.timers.is_expired(PD_TIMEOUT::tActiveCcPollingDebounce)) {
             port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
-            prl.tcpc.req_active_cc();
+            prl.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         }
 
         return No_State_Change;

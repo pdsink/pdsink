@@ -77,17 +77,9 @@ public:
     //
     // TCPC
     //
-    void req_scan_cc() override {
-        sync_scan_cc.enqueue();
-        kick_task(MSK_API_CALL);
-    };
-    bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) override;
-
-    void req_active_cc() override {
-        sync_active_cc.enqueue();
-        kick_task(MSK_API_CALL);
-    };
-    bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) override;
+    void req_fetch_cc(TCPC_CC_REQ selector) override;
+    bool is_fetch_cc_done() const override { return sync_fetch_cc.is_idle(); };
+    auto get_cc(TCPC_CC_GET selector) const -> TCPC_CC_LEVEL::Type override;
 
     bool is_vbus_ok() override;
 
@@ -96,6 +88,7 @@ public:
         kick_task(MSK_API_CALL);
     };
     bool is_set_polarity_done() override { return sync_set_polarity.is_idle(); };
+    auto get_polarity() const -> TCPC_POLARITY override { return polarity.load(); };
 
     void req_rx_enable(bool enable) override {
         sync_rx_enable.enqueue(enable);
@@ -148,6 +141,8 @@ protected:
     bool fusb_flush_tx_fifo();
     bool fusb_pd_reset();
     bool fusb_set_polarity(TCPC_POLARITY polarity);
+    bool fusb_start_toggling();
+    bool fusb_handle_togdone();
     bool fusb_set_rx_enable(bool enable);
     bool fusb_tx_pkt_begin(PD_CHUNK& chunk);
     void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status);
@@ -178,6 +173,7 @@ protected:
     static constexpr TCPC_HW_FEATURES tcpc_hw_features{
         .rx_auto_goodcrc_send = true,
         .tx_auto_goodcrc_check = true,
+        .toggling = true,
         // Software retries are for testing only. USB PD requires the retry
         // preamble to start within 195 us after CRCReceiveTimer expires.
         // Software retries over I2C cannot reliably meet this deadline.
@@ -189,8 +185,7 @@ protected:
     };
 
     // Call sync + param store primitives
-    LeapSync<> sync_scan_cc;
-    LeapSync<> sync_active_cc;
+    LeapSync<TCPC_CC_REQ> sync_fetch_cc;
     LeapSync<TCPC_POLARITY> sync_set_polarity;
     LeapSync<bool> sync_rx_enable;
     LeapSync<TCPC_BIST_MODE> sync_set_bist;
@@ -201,12 +196,8 @@ protected:
     enum class MeterState {
         IDLE,
         CC_ACTIVE_MEASURE_WAIT,
-        SCAN_CC_BEGIN,
-        SCAN_CC1_MEASURE_WAIT,
-        SCAN_CC2_MEASURE_WAIT,
     };
     MeterState meter_state{MeterState::IDLE};
-    Switches0 meter_sw0_backup{0};
 
     enum DriverTimer {
         PD_CORE_TIMERS,

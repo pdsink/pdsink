@@ -9,7 +9,8 @@ namespace pd {
 enum class TCPC_POLARITY {
     CC1 = 0, // CC1 is active
     CC2 = 1, // CC2 is active
-    NONE = 2 // Not selected yet
+    NONE = 2, // Not selected yet
+    TOGGLING = 3 // Hardware is looking for the active CC line
 };
 
 // Voltage ranges from comparator, corresponding to Rp values
@@ -31,11 +32,12 @@ enum class TCPC_BIST_MODE {
     TestData = 2
 };
 
-// Hardware features description to clarify Rx/Tx logic in PRL.
+// Hardware features used by the protocol and Type-C layers.
 // Not final. Cases without hardware CRC support may need to be dropped.
 struct TCPC_HW_FEATURES {
     bool rx_auto_goodcrc_send;
     bool tx_auto_goodcrc_check;
+    bool toggling;
     bool tx_auto_retry;
 };
 
@@ -58,6 +60,19 @@ static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
            status == TCPC_TRANSMIT_STATUS::SENDING;
 }
 
+enum class TCPC_CC_REQ {
+    CC1,
+    CC2,
+    CC1CC2,
+    ACTIVE_CC
+};
+
+enum class TCPC_CC_GET {
+    CC1,
+    CC2,
+    ACTIVE_CC
+};
+
 //
 // Interfaces
 //
@@ -75,38 +90,33 @@ public:
     virtual void rearm(uint32_t deadline_ticks) = 0;
 };
 
-// TODO: Seems all modern chips support auto-toggle.
-// Consider adding it to the API (with optional emulation) and remove the manual
-// method from TC.
 class ITCPC {
 public:
     // Since TCPC hardware can be asynchronous (for example, connected via I2C
     // instead of direct memory mapping), commands go through several steps:
     //
     // 1. Send a command describing what to do (req_xxx).
-    // 2. Monitor status, wait for completion (is_xxx_done).
+    // 2. Monitor status, wait for completion (is_xxx_done or a getter's
+    //    returned completion flag).
     // 3. Optionally, read fetched data (for example, CC line level).
     //
 
-    // Request to fetch both CC1/CC2 line levels. This may be slow because
-    // switches block measurement. Used for manual polarity detection only.
-    virtual void req_scan_cc() = 0;
-    virtual bool try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) = 0;
+    // Request a cache update for the selected CC line(s).
+    virtual void req_fetch_cc(TCPC_CC_REQ selector) = 0;
+    virtual bool is_fetch_cc_done() const = 0;
 
-    // Used only for SinkTxOK waiting in the 3.0 protocol. Possible glitches
-    // caused by BMC are not critical here. Debounced polling is OK because
-    // transfer locks are very rare and short.
-    virtual void req_active_cc() = 0;
-    virtual bool try_active_cc_result(TCPC_CC_LEVEL::Type& cc) = 0;
+    // Read the cached CC level, even while updating. Does not change polarity.
+    virtual auto get_cc(TCPC_CC_GET selector) const -> TCPC_CC_LEVEL::Type = 0;
 
     // Spec requires VBUS detection. While we can use CC1/CC2 instead,
     // keep this method for compatibility.
     virtual bool is_vbus_ok() = 0;
 
-    // NOTE: Any other actions should NOT reset the selected polarity. It is
-    // updated only by this call when a new cable connection is detected.
+    // Apply polarity or start hardware CC detection.
     virtual void req_set_polarity(TCPC_POLARITY active_cc) = 0;
     virtual bool is_set_polarity_done() = 0;
+    // Actual polarity; TOGGLING ends only when CC data is ready.
+    virtual auto get_polarity() const -> TCPC_POLARITY = 0;
 
     // Always flush TX. Flush pending RX on disable and before enabling from
     // disabled; preserve it on repeated enable.

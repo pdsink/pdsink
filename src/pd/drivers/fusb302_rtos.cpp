@@ -98,6 +98,7 @@ bool Fusb302Rtos::fusb_setup() {
     DRV_LOGI("Read initial VBUSOK: {}", vbus_ok.load());
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
+    polarity.store(TCPC_POLARITY::NONE);
     flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
     flags.set(DRV_FLAG::FUSB_SETUP_DONE);
 
@@ -185,6 +186,20 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
     DRV_LOGI("Set polarity to {}",
         polarity == TCPC_POLARITY::CC1 ? "CC1" :
         (polarity == TCPC_POLARITY::CC2 ? "CC2" : "NONE"));
+
+    //
+    // Any explicit selection stops autonomous detection.
+    //
+    Control2 ctl2;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control2::reg, ctl2.raw_value));
+    ctl2.TOGGLE = 0;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control2::reg, ctl2.raw_value));
+
+    Maska maska;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Maska::reg, maska.raw_value));
+    maska.M_TOGDONE = 1;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, maska.raw_value));
+
     //
     // Attach comparator
     //
@@ -213,8 +228,74 @@ bool Fusb302Rtos::fusb_set_polarity(TCPC_POLARITY polarity) {
         DRV_RET_FALSE_ON_ERROR(fusb_set_rx_enable(false));
     }
 
-    this->polarity.store(polarity);
+    return true;
+}
 
+bool Fusb302Rtos::fusb_start_toggling() {
+    DRV_LOGI("Start Sink-only CC toggling");
+
+    // Reset CC selection before restarting toggling.
+    DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
+
+    // Clear stale interrupts (read-to-clear) before restarting toggling.
+    Interrupt interrupt;
+    Interrupta interrupta;
+    Interruptb interruptb;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Interrupt::reg, interrupt.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Interrupta::reg, interrupta.raw_value));
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Interruptb::reg, interruptb.raw_value));
+    Status0 status0;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
+    const bool old_vbus_ok = vbus_ok.load();
+    vbus_ok.store(status0.VBUSOK);
+    if (old_vbus_ok != static_cast<bool>(status0.VBUSOK)) {
+        has_deferred_wakeup = true;
+    }
+
+    Control2 ctl2;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control2::reg, ctl2.raw_value));
+    ctl2.TOGGLE = 0;
+    ctl2.MODE = 0b10; // Sink-only polling
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control2::reg, ctl2.raw_value));
+
+    Maska maska;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Maska::reg, maska.raw_value));
+    maska.M_TOGDONE = 0;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, maska.raw_value));
+
+    ctl2.TOGGLE = 1;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control2::reg, ctl2.raw_value));
+
+    cc1_value.store(TCPC_CC_LEVEL::NONE);
+    cc2_value.store(TCPC_CC_LEVEL::NONE);
+    polarity.store(TCPC_POLARITY::TOGGLING);
+    return true;
+}
+
+bool Fusb302Rtos::fusb_handle_togdone() {
+    Status1a status1a;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status1a::reg, status1a.raw_value));
+
+    TCPC_POLARITY detected_polarity;
+    if (status1a.TOGSS == 0b101) {
+        detected_polarity = TCPC_POLARITY::CC1;
+    } else if (status1a.TOGSS == 0b110) {
+        detected_polarity = TCPC_POLARITY::CC2;
+    } else {
+        DRV_LOGE("Unsupported TOGDONE result: {}", status1a.TOGSS);
+        return fusb_start_toggling();
+    }
+
+    DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(detected_polarity));
+
+    // Exact CC levels are fetched later, so use constants here to avoid
+    // complicating the code with an extra measurement.
+    cc1_value.store(detected_polarity == TCPC_POLARITY::CC1
+        ? TCPC_CC_LEVEL::RP_3_0 : TCPC_CC_LEVEL::NONE);
+    cc2_value.store(detected_polarity == TCPC_POLARITY::CC2
+        ? TCPC_CC_LEVEL::RP_3_0 : TCPC_CC_LEVEL::NONE);
+    polarity.store(detected_polarity);
+    has_deferred_wakeup = true;
     return true;
 }
 
@@ -452,6 +533,11 @@ void Fusb302Rtos::handle_interrupt() {
             has_deferred_wakeup = true;
         }
 
+        if (interrupta.I_TOGDONE && polarity.load() == TCPC_POLARITY::TOGGLING) {
+            DRV_LOGI("IRQ: CC toggling completed");
+            DRV_LOG_ON_ERROR(fusb_handle_togdone());
+        }
+
         if (interrupta.I_HARDRST) {
             DRV_LOGI("IRQ: hard reset received");
             DRV_LOG_ON_ERROR(fusb_set_bist(TCPC_BIST_MODE::Off));
@@ -512,25 +598,34 @@ void Fusb302Rtos::rearm(uint32_t deadline_ticks) {
 bool Fusb302Rtos::meter_tick(bool &repeat) {
     repeat = false;
     Status0 status0;
-    Switches0 sw0;
 
     switch (meter_state) {
-        case MeterState::IDLE:
-            if (sync_active_cc.get_job()) {
+        case MeterState::IDLE: {
+            TCPC_CC_REQ selector;
+            if (sync_fetch_cc.get_job(selector)) {
+                if (selector != TCPC_CC_REQ::ACTIVE_CC) {
+                    DRV_LOGE("Unsupported CC selector: {}", static_cast<int>(selector));
+                    sync_fetch_cc.job_finish();
+                    has_deferred_wakeup = true;
+                    repeat = true;
+                    return true;
+                }
                 DRV_LOGV("Active CC measurement begin");
                 timers.start(CC_SETTLE);
                 meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
                 return true;
             }
-            if (sync_scan_cc.get_job()) {
-                DRV_LOGV("Scan CC1/CC2 start");
-                meter_state = MeterState::SCAN_CC_BEGIN;
-                repeat = true;
-                return true;
-            }
             break;
+        }
 
         case MeterState::CC_ACTIVE_MEASURE_WAIT:
+            // Cancelled measurements leave the CC cache unchanged.
+            if (sync_fetch_cc.is_idle()) {
+                timers.stop(CC_SETTLE);
+                meter_state = MeterState::IDLE;
+                repeat = true;
+                break;
+            }
             if (!timers.is_expired(CC_SETTLE)) { break; }
 
             // Note, CC activity can introduce noise, but since we are waiting
@@ -538,7 +633,8 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             // cause a small transfer delay.
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
 
-            if (polarity.load() == TCPC_POLARITY::NONE) {
+            if (polarity.load() != TCPC_POLARITY::CC1 &&
+                polarity.load() != TCPC_POLARITY::CC2) {
                 DRV_LOGE("Can't measure active CC without polarity set");
             } else {
                 if (polarity.load() == TCPC_POLARITY::CC1) {
@@ -550,56 +646,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
 
             DRV_LOGV("Active CC measurement end");
             timers.stop(CC_SETTLE);
-            sync_active_cc.job_finish();
-            meter_state = MeterState::IDLE;
-            has_deferred_wakeup = true;
-            repeat = true;
-            break;
-
-        case MeterState::SCAN_CC_BEGIN:
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-            // save MEAS_CC1/MEAS_CC2
-            meter_sw0_backup = sw0;
-
-            // Measure CC1
-            sw0.MEAS_CC1 = 1;
-            sw0.MEAS_CC2 = 0;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-
-            timers.start(CC_SETTLE);
-            meter_state = MeterState::SCAN_CC1_MEASURE_WAIT;
-            break;
-
-        case MeterState::SCAN_CC1_MEASURE_WAIT:
-            if (!timers.is_expired(CC_SETTLE)) { break; }
-
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
-            cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
-
-            // Measure CC2
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-            sw0.MEAS_CC1 = 0;
-            sw0.MEAS_CC2 = 1;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-            timers.start(CC_SETTLE);
-            meter_state = MeterState::SCAN_CC2_MEASURE_WAIT;
-            break;
-
-        case MeterState::SCAN_CC2_MEASURE_WAIT:
-            if (!timers.is_expired(CC_SETTLE)) { break; }
-
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
-            cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
-
-            // Restore only the saved measurement selection.
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-            sw0.MEAS_CC1 = meter_sw0_backup.MEAS_CC1;
-            sw0.MEAS_CC2 = meter_sw0_backup.MEAS_CC2;
-            DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Switches0::reg, sw0.raw_value));
-
-            DRV_LOGV("Scan CC2/CC1 end");
-            timers.stop(CC_SETTLE);
-            sync_scan_cc.job_finish();
+            sync_fetch_cc.job_finish();
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
             repeat = true;
@@ -616,9 +663,7 @@ void Fusb302Rtos::handle_meter() {
         if (!meter_tick(repeat)) {
             timers.stop(CC_SETTLE);
             if (meter_state == MeterState::CC_ACTIVE_MEASURE_WAIT) {
-                sync_active_cc.job_finish();
-            } else {
-                sync_scan_cc.job_finish();
+                sync_fetch_cc.job_finish();
             }
             meter_state = MeterState::IDLE;
             has_deferred_wakeup = true;
@@ -631,17 +676,18 @@ void Fusb302Rtos::handle_meter() {
 void Fusb302Rtos::handle_tcpc_calls() {
 
     TCPC_POLARITY _polarity{};
-        if (sync_set_polarity.get_job(_polarity)) {
-            // "Drop" tx for sure
-            port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
-            // Since polarity reconfigures the comparator, terminate the
-            // measurer to prevent restoring old config from backup
-            sync_scan_cc.reset();
-            sync_active_cc.reset();
-            meter_state = MeterState::IDLE;
-            timers.stop(CC_SETTLE);
+    if (sync_set_polarity.get_job(_polarity)) {
+        // Reset TX status and cancel pending CC operations.
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+        sync_fetch_cc.reset();
+        timers.stop(CC_SETTLE);
+        meter_state = MeterState::IDLE;
 
-        DRV_LOG_ON_ERROR(fusb_set_polarity(_polarity));
+        if (_polarity == TCPC_POLARITY::TOGGLING) {
+            DRV_LOG_ON_ERROR(fusb_start_toggling());
+        } else if (fusb_set_polarity(_polarity)) {
+            polarity.store(_polarity);
+        }
         sync_set_polarity.job_finish();
         has_deferred_wakeup = true;
     }
@@ -833,38 +879,49 @@ void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {
 // TCPC API methods.
 //
 
+void Fusb302Rtos::req_fetch_cc(TCPC_CC_REQ selector) {
+    if (selector != TCPC_CC_REQ::ACTIVE_CC) {
+        DRV_LOGE("Unsupported CC selector: {}", static_cast<int>(selector));
+        // Complete unsupported requests without changing the CC cache.
+        sync_fetch_cc.reset();
+        kick_task(MSK_WAKEUP);
+        return;
+    }
+
+    sync_fetch_cc.enqueue(selector);
+    kick_task(MSK_API_CALL);
+}
+
+auto Fusb302Rtos::get_cc(TCPC_CC_GET selector) const -> TCPC_CC_LEVEL::Type {
+    switch (selector) {
+        case TCPC_CC_GET::CC1:
+            return cc1_value.load();
+        case TCPC_CC_GET::CC2:
+            return cc2_value.load();
+        case TCPC_CC_GET::ACTIVE_CC: {
+            const auto active_cc = polarity.load();
+            if (active_cc == TCPC_POLARITY::CC1) {
+                return cc1_value.load();
+            } else if (active_cc == TCPC_POLARITY::CC2) {
+                return cc2_value.load();
+            } else {
+                DRV_LOGE("Can't read ACTIVE_CC without selected polarity");
+            }
+            break;
+        }
+        default:
+            DRV_LOGE("Unsupported CC cache selector: {}", static_cast<int>(selector));
+            break;
+    }
+
+    return TCPC_CC_LEVEL::NONE;
+}
+
 void Fusb302Rtos::req_transmit() {
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
     enqueued_tx_chunk = port.tx_chunk;
     port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::ENQUEUED);
     kick_task(MSK_API_CALL);
-}
-
-bool Fusb302Rtos::try_scan_cc_result(TCPC_CC_LEVEL::Type& cc1, TCPC_CC_LEVEL::Type& cc2) {
-    if (!sync_scan_cc.is_idle()) { return false; }
-    cc1 = cc1_value.load();
-    cc2 = cc2_value.load();
-    return true;
-}
-
-bool Fusb302Rtos::try_active_cc_result(TCPC_CC_LEVEL::Type& cc) {
-    if (!sync_active_cc.is_idle()) { return false; }
-
-    auto _polarity = polarity.load();
-
-    if (_polarity == TCPC_POLARITY::CC1) {
-        cc = cc1_value.load();
-    }
-    else if (_polarity == TCPC_POLARITY::CC2) {
-        cc = cc2_value.load();
-    } else {
-        // Since this function is used only to wait for SinkTxOK before the first
-        // AMS packet transfer, the result for an unselected polarity does not matter.
-        // Any value that avoids false positives is acceptable.
-        DRV_LOGE("try_active_cc_result: Polarity not selected, returning TCPC_CC_LEVEL::NONE");
-        cc = TCPC_CC_LEVEL::NONE;
-    }
-    return true;
 }
 
 bool Fusb302Rtos::is_vbus_ok() {

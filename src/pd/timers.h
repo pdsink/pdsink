@@ -12,6 +12,7 @@ namespace pd {
 namespace PD_TIMER {
     enum Type {
         TC_DEBOUNCE,
+        TC_POLL,
 
         // (!) Check PD_TIMERS_RANGE after update
         PE_SinkWaitCapTimer,
@@ -54,9 +55,10 @@ private:
 public:
     using Type = etl::pair<int, uint32_t>;
 
-    // Custom timeouts (not from spec, for manual polarity detection)
-    static constexpr Type TC_VBUS_DEBOUNCE {PD_TIMER::TC_DEBOUNCE, 100 * ms}; // 100 ms
-    static constexpr Type TC_CC_POLL {PD_TIMER::TC_DEBOUNCE, 20 * ms}; // 20 ms
+    // [USB Type-C 2.5] Table 4-34 and 4-3.
+    static constexpr Type tCCDebounce {PD_TIMER::TC_DEBOUNCE, 100 * ms}; // 100-200 ms
+    static constexpr Type tPDDebounce {PD_TIMER::TC_DEBOUNCE, 10 * ms}; // 10-20 ms
+    static constexpr Type TC_CC_POLL {PD_TIMER::TC_POLL, 1 * ms};
 
     static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms}; // 310-620 ms
     static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms}; // 27-50 ms
