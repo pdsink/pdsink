@@ -238,12 +238,11 @@ public:
 
         pe.log_source_caps();
 
-        if (!pe.validate_source_caps(port.source_caps)) {
-            PE_LOGE("Source_Capabilities validation failed");
+        if (pe.check_source_caps_need_hard_reset(port.source_caps, pe.is_in_epr_mode())) {
+            PE_LOGE("Source_Capabilities require Hard Reset");
             return PE_SNK_Hard_Reset;
         }
 
-        // Continue after all validation checks passed
         port.hard_reset_counter = 0;
         // [rev3.2 v1.2] 6.1.3.1: updates and Soft Reset preserve the revision.
         if (first_caps) {
@@ -1517,17 +1516,18 @@ auto PE::is_pps_pdo_now() const -> bool {
         pdo.apdo_subtype == PDO_AUGMENTED_SUBTYPE::SPR_PPS;
 }
 
-bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
+bool PE::check_source_caps_need_hard_reset(
+    const etl::ivector<uint32_t>& src_caps, bool in_epr_mode)
+{
     using namespace dobj_utils;
 
     if (src_caps.empty()) {
         PE_LOGE("SRC Capabilities can't be empty");
-        return false;
+        return true;
     }
 
     if (src_caps.size() > MaxPdoObjects) {
         PE_LOGE("SRC Capabilities max count is {}, got {}", MaxPdoObjects, src_caps.size());
-        return false;
     }
 
     // First PDO must be Safe5v
@@ -1535,7 +1535,6 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
         PDO_FIXED{src_caps[0]}.voltage != 100 /* 5000mV in 50mv steps */)
     {
         PE_LOGE("First PDO MUST be Safe5v FIXED");
-        return false;
     }
 
     // EPR PDOs are prohibited at SPR positions (1-7, counted from 1),
@@ -1548,12 +1547,15 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
         {
             if (i < MaxPdoObjects_SPR) {
                 PE_LOGE("EPR PDO prohibited at SPR position {}", i + 1);
-                return false;
+                // [rev3.2 v1.2] 7.30.7.3
+                // The spec requires a Hard Reset for this error only in EPR mode.
+                // Some fmchip chargers advertise a 28 V PDO in SPR mode.
+                // Tolerate this violation in SPR mode for compatibility.
+                if (in_epr_mode) { return true; }
             }
         } else {
             if (i >= MaxPdoObjects_SPR) {
                 PE_LOGE("SPR PDO prohibited at EPR position {}", i + 1);
-                return false;
             }
         }
     }
@@ -1568,13 +1570,11 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
             spr_avs_count++;
             if (spr_avs_count > 1) {
                 PE_LOGE("Only one SPR AVS APDO allowed");
-                return false;
             }
         } else if (pdo_variant == PDO_VARIANT::APDO_EPR_AVS) {
             epr_avs_count++;
             if (epr_avs_count > 1) {
                 PE_LOGE("Only one EPR AVS APDO allowed");
-                return false;
             }
         }
     }
@@ -1587,7 +1587,6 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
             uint32_t voltage = PDO_FIXED{src_caps[i]}.voltage;
             if (voltage <= prev_fixed_voltage) {
                 PE_LOGE("Fixed PDO voltages must be strictly ascending");
-                return false;
             }
             prev_fixed_voltage = voltage;
         }
@@ -1601,13 +1600,12 @@ bool PE::validate_source_caps(const etl::ivector<uint32_t>& src_caps) {
             uint32_t max_voltage = PDO_SPR_PPS{src_caps[i]}.max_voltage;
             if (max_voltage < prev_pps_max_voltage) {
                 PE_LOGE("PPS APDO max_voltage must be in ascending order");
-                return false;
             }
             prev_pps_max_voltage = max_voltage;
         }
     }
 
-    return true;
+    return false;
 }
 
 void PE_EventListener::on_receive(const MsgSysUpdate&) {

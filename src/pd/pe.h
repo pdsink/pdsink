@@ -59,7 +59,8 @@ public:
     bool is_spr_pdo_now() const;
     bool is_pps_pdo_now() const;
     bool is_epr_mode_available() const;
-    static bool validate_source_caps(const etl::ivector<uint32_t>& src_caps);
+    static bool check_source_caps_need_hard_reset(
+        const etl::ivector<uint32_t>& src_caps, bool in_epr_mode);
 
     enum class LOCAL_STATE {
         DISABLED, INIT, WORKING
