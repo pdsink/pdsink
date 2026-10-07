@@ -113,7 +113,7 @@ public:
     };
     bool is_hr_send_done() override { return sync_hr_send.is_idle(); };
 
-    auto get_hw_features() -> TCPC_HW_FEATURES override { return tcpc_hw_features; };
+    auto get_features() -> TCPC_FEATURES override { return tcpc_features; };
 
     //
     // Timer
@@ -170,17 +170,17 @@ protected:
     bool has_deferred_timer{false};
 
 
-    static constexpr TCPC_HW_FEATURES tcpc_hw_features{
-        .rx_auto_goodcrc_send = true,
-        .tx_auto_goodcrc_check = true,
-        .toggling = true,
+    static constexpr TCPC_FEATURES tcpc_features{
+        .cc_toggling = true,
+        .rx_goodcrc_send = true,
+        .tx_goodcrc_wait = true,
         // Software retries are for testing only. USB PD requires the retry
         // preamble to start within 195 us after CRCReceiveTimer expires.
         // Software retries over I2C cannot reliably meet this deadline.
 #if defined(FUSB302_NO_HW_RETRIES)
-        .tx_auto_retry = false
+        .tx_retries = false
 #else
-        .tx_auto_retry = true
+        .tx_retries = true
 #endif
     };
 

@@ -93,7 +93,7 @@ public:
 
     static auto on_run_state(TC& tc) -> state_id_t {
         if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
-        return tc.tcpc.get_hw_features().toggling
+        return tc.tcpc.get_features().cc_toggling
             ? TC_UNATTACHED_SNK_TOGGLING
             : TC_UNATTACHED_SNK_CC_DETECT;
     }

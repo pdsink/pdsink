@@ -32,13 +32,13 @@ enum class TCPC_BIST_MODE {
     TestData = 2
 };
 
-// Hardware features used by the protocol and Type-C layers.
-// Not final. Cases without hardware CRC support may need to be dropped.
-struct TCPC_HW_FEATURES {
-    bool rx_auto_goodcrc_send;
-    bool tx_auto_goodcrc_check;
-    bool toggling;
-    bool tx_auto_retry;
+// Features handled at the TCPC level, in hardware or software.
+// TC and PRL must account for these flags in their state machines.
+struct TCPC_FEATURES {
+    bool cc_toggling;
+    bool rx_goodcrc_send;
+    bool tx_goodcrc_wait;
+    bool tx_retries;
 };
 
 // NOTE: discarding is done at PRL layer.
@@ -142,7 +142,7 @@ public:
     virtual void req_hr_send() = 0;
     virtual bool is_hr_send_done() = 0;
 
-    virtual auto get_hw_features() -> TCPC_HW_FEATURES = 0;
+    virtual auto get_features() -> TCPC_FEATURES = 0;
 };
 
 class IDriver: public ITCPC, public ITimer {

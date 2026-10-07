@@ -749,8 +749,8 @@ public:
 //
 // - Success/errors are forwarded to RCH/TCH via flags.
 // - Some room is reserved for CRC processing to stay close to the spec, but
-//   currently only the branches for hardware-supported GoodCRC are active.
-//   This should be revisited and cleaned if software CRC support is not needed.
+//   currently only the branches for TCPC-handled GoodCRC are active.
+//   This should be revisited and cleaned if CRC support in PRL is not needed.
 
 class PRL_Tx_PHY_Layer_Reset_State : public afsm::state<PRL_Tx, PRL_Tx_PHY_Layer_Reset_State, PRL_Tx_PHY_Layer_Reset> {
 public:
@@ -872,8 +872,8 @@ public:
     static auto on_enter_state(PRL_Tx& prl_tx) -> state_id_t {
         prl_tx.log_state();
 
-        // Timer should be used ONLY when hardware confirmation is not supported
-        // if (!prl_tx.prl.tcpc.get_hw_features().tx_auto_goodcrc_check) {
+        // Timer is only needed when PRL waits for GoodCRC.
+        // if (!prl_tx.prl.tcpc.get_features().tx_goodcrc_wait) {
         //    prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
         // }
         return No_State_Change;
@@ -892,7 +892,7 @@ public:
             return PRL_Tx_Check_RetryCounter;
         }
 
-        // Actual only for software CRC processing
+        // Only needed when PRL waits for GoodCRC.
         // if (port.timers.is_expired(PD_TIMEOUT::tReceive)) {
         //    return PRL_Tx_Check_RetryCounter;
         // }
@@ -953,10 +953,10 @@ public:
         //   has not been chunked
         //
         // Since we are sink-only and do not support unchunked extended messages,
-        // no extra checks are needed. Always use retries if supported by hardware.
+        // no extra checks are needed. Use TCPC retries when available.
 
-        if (prl_tx.prl.tcpc.get_hw_features().tx_auto_retry) {
-            // Don't try to retransmit manually if hardware supports it.
+        if (prl_tx.prl.tcpc.get_features().tx_retries) {
+            // Retry handling is delegated to the TCPC.
             return PRL_Tx_Transmission_Error;
         }
 
@@ -1141,7 +1141,7 @@ public:
 
 class PRL_Rx_Send_GoodCRC_State : public afsm::state<PRL_Rx, PRL_Rx_Send_GoodCRC_State, PRL_Rx_Send_GoodCRC> {
 public:
-    // All modern hardware sends CRC automatically. This state exists
+    // GoodCRC is sent at the TCPC level. This state exists
     // only to match the spec.
     //
     // NOTE: PRL_Rx_Layer_Reset_for_Receive relies on reaching
@@ -1646,8 +1646,8 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
                     // - Skip TCPC fail here, because it can start retry.
                     // - Skip TCPC discard here, to expose by RX
                     //
-                    // Maybe software CRC handling needs more care, but for
-                    // hardware CRC this looks OK.
+                    // GoodCRC handling in PRL may need more care; this assumes
+                    // the TCPC handles it.
                     prl.prl_tx.run();
                 }
 

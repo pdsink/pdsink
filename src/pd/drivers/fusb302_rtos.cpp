@@ -348,7 +348,7 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     // preamble to start within 195 us after CRCReceiveTimer expires.
     // Software retries over I2C cannot reliably meet this deadline.
     DRV_RET_FALSE_ON_ERROR(fusb_set_tx_auto_retries(
-        tcpc_hw_features.tx_auto_retry ? port.max_retries() : 0));
+        tcpc_features.tx_retries ? port.max_retries() : 0));
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
