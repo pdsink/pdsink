@@ -205,7 +205,7 @@ public:
             return No_State_Change;
         }
 
-        return tc.tcpc.is_vbus_ok()
+        return tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)
             ? TC_ATTACHED_SNK : TC_ATTACH_WAIT_SNK_VBUS_CHECK;
     }
 
@@ -258,7 +258,7 @@ public:
         const auto cc_level = tc.tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         if (!is_cc_nonzero(cc_level)) { return TC_ATTACH_WAIT_SNK_CC_LOSS; }
-        if (tc.tcpc.is_vbus_ok()) { return TC_ATTACHED_SNK; }
+        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return TC_ATTACHED_SNK; }
         return No_State_Change;
     }
 
@@ -272,7 +272,7 @@ class TC_ATTACHED_SNK_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        if (!tc.tcpc.is_vbus_ok()) { return TC_UNATTACHED_SNK; }
+        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
 
         tc.port.is_attached = true;
         tc.port.notify_dpm(MsgToDpm_CableAttached{});
@@ -280,7 +280,7 @@ public:
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
-        if (!tc.tcpc.is_vbus_ok()) { return TC_UNATTACHED_SNK; }
+        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
         return No_State_Change;
     }
 

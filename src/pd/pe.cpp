@@ -168,12 +168,12 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
-        if (pe.tcpc.is_vbus_ok()) { return PE_SNK_Wait_for_Capabilities; }
+        if (pe.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        if (pe.tcpc.is_vbus_ok()) { return PE_SNK_Wait_for_Capabilities; }
+        if (pe.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
         return No_State_Change;
     }
 

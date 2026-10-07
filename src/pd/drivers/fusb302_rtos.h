@@ -81,7 +81,7 @@ public:
     bool is_fetch_cc_done() const override { return sync_fetch_cc.is_idle(); };
     auto get_cc(TCPC_CC_GET selector) const -> TCPC_CC_LEVEL::Type override;
 
-    bool is_vbus_ok() override;
+    bool check_vbus(TCPC_VBUS_LEVEL level) override;
 
     void req_set_polarity(TCPC_POLARITY active_cc) override {
         sync_set_polarity.enqueue(active_cc);

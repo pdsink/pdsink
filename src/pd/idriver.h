@@ -73,6 +73,12 @@ enum class TCPC_CC_GET {
     ACTIVE_CC
 };
 
+enum class TCPC_VBUS_LEVEL {
+    PRESENT,
+    SINK_DISCONNECTED,
+    SAFE0V
+};
+
 //
 // Interfaces
 //
@@ -108,9 +114,7 @@ public:
     // Read the cached CC level, even while updating. Does not change polarity.
     virtual auto get_cc(TCPC_CC_GET selector) const -> TCPC_CC_LEVEL::Type = 0;
 
-    // Spec requires VBUS detection. While we can use CC1/CC2 instead,
-    // keep this method for compatibility.
-    virtual bool is_vbus_ok() = 0;
+    virtual bool check_vbus(TCPC_VBUS_LEVEL level) = 0;
 
     // Apply polarity or start hardware CC detection.
     virtual void req_set_polarity(TCPC_POLARITY active_cc) = 0;

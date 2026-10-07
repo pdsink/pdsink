@@ -924,8 +924,19 @@ void Fusb302Rtos::req_transmit() {
     kick_task(MSK_API_CALL);
 }
 
-bool Fusb302Rtos::is_vbus_ok() {
-    return vbus_ok.load();
+bool Fusb302Rtos::check_vbus(TCPC_VBUS_LEVEL level) {
+    switch (level) {
+        case TCPC_VBUS_LEVEL::PRESENT:
+            return vbus_ok.load();
+        case TCPC_VBUS_LEVEL::SINK_DISCONNECTED:
+        case TCPC_VBUS_LEVEL::SAFE0V:
+            // Approximate both thresholds with VBUSOK to keep the code simple;
+            // precise detection is not critical for the current sink implementation.
+            return !vbus_ok.load();
+    }
+
+    DRV_LOGE("Unsupported VBUS level: {}", static_cast<int>(level));
+    return false;
 }
 
 bool Fusb302Rtos::fetch_rx_data() {
