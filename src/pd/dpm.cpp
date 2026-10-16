@@ -199,7 +199,7 @@ auto DPM::get_request_data_object(const etl::ivector<uint32_t>& src_caps) -> etl
         uint32_t mv = trigger_mv ? trigger_mv : limits.mv_min;
         mv = etl::clamp<uint32_t>(mv, limits.mv_min, limits.mv_max);
 
-        uint32_t ma_limit = limits.ma ? limits.ma : (limits.pdp * 1000U / mv);
+        uint32_t ma_limit = limits.ma ? limits.ma : (limits.pdp * 1000u * 1000u / mv);
         if (ma_limit > 5000) { ma_limit = 5000; } // clamp to 5A max PD limit
 
         uint32_t ma = trigger_ma ? trigger_ma : ma_limit;
