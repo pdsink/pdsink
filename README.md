@@ -69,6 +69,21 @@ similar external trigger) can be a more rational choice.
 
 Project scope: sink role only. The non-goals in `Not supported` are intentional.
 
+## Sponsors
+
+<p>
+  <a href="https://nlnet.nl/project/pdsink/">
+    <img src="https://nlnet.nl/logo/banner.svg" alt="NLnet Foundation" height="60">
+  </a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://nlnet.nl/commonsfund/">
+    <img src="https://nlnet.nl/image/logos/NGI0CommonsFund_tag.svg" alt="NGI Zero Commons Fund" height="60">
+  </a>
+</p>
+
+Building a product with pdsink? Join our sponsors in supporting its continued
+development.
+
 ## References
 
 Other projects with USB PD support:
