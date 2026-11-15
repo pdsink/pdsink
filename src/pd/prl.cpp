@@ -1073,12 +1073,12 @@ public:
             return PRL_Tx_Construct_Message;
         }
 
-        if (port.timers.is_disabled(PD_TIMEOUT::tActiveCcPollingDebounce)) {
-            port.timers.start(PD_TIMEOUT::tActiveCcPollingDebounce);
+        if (port.timers.is_disabled(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD)) {
+            port.timers.start(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD);
         }
 
-        if (port.timers.is_expired(PD_TIMEOUT::tActiveCcPollingDebounce)) {
-            port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
+        if (port.timers.is_expired(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD)) {
+            port.timers.stop(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD);
             prl.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         }
 
@@ -1086,7 +1086,7 @@ public:
     }
 
     static void on_exit_state(PRL_Tx& prl_tx) {
-        prl_tx.prl.port.timers.stop(PD_TIMEOUT::tActiveCcPollingDebounce);
+        prl_tx.prl.port.timers.stop(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD);
     }
 };
 

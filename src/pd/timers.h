@@ -12,7 +12,7 @@ namespace pd {
 namespace PD_TIMER {
     enum Type {
         TC_DEBOUNCE,
-        TC_POLL,
+        TC_CC_POLL_PERIOD, // Custom, not PD spec
 
         // (!) Check PD_TIMERS_RANGE after update
         PE_SinkWaitCapTimer,
@@ -25,7 +25,7 @@ namespace PD_TIMER {
         PE_BISTContModeTimer,
 
         // (!) Check PD_TIMERS_RANGE after update
-        PRL_ActiveCcPollingDebounce, // Custom, not PD spec
+        PRL_SinkTxOK_POLL_PERIOD, // Custom, not PD spec
         PRL_CRCReceive,
         PRL_ChunkSenderResponse,
         PRL_ChunkSenderRequest,
@@ -39,7 +39,7 @@ struct PD_TIMERS_RANGE {
     using Type = etl::pair<int, int>;
 
     static constexpr Type PE{PD_TIMER::PE_SinkWaitCapTimer, PD_TIMER::PE_BISTContModeTimer};
-    static constexpr Type PRL{PD_TIMER::PRL_ActiveCcPollingDebounce, PD_TIMER::PRL_ChunkSenderRequest};
+    static constexpr Type PRL{PD_TIMER::PRL_SinkTxOK_POLL_PERIOD, PD_TIMER::PRL_ChunkSenderRequest};
 };
 
 // [rev3.2 v1.2] 7.31.19 Time Values and Timers
@@ -57,7 +57,6 @@ public:
     // [USB Type-C 2.5] Table 4-34 and 4-3.
     static constexpr Type tCCDebounce {PD_TIMER::TC_DEBOUNCE, 100 * ms}; // 100-200 ms
     static constexpr Type tPDDebounce {PD_TIMER::TC_DEBOUNCE, 10 * ms}; // 10-20 ms
-    static constexpr Type TC_CC_POLL {PD_TIMER::TC_POLL, 1 * ms};
 
     static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms}; // 310-620 ms
     static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms}; // 27-50 ms
@@ -76,8 +75,10 @@ public:
 
     static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms}; // 0.9-1.1 ms
 
-    // CC polling timeout while waiting for the SnkTxOK level before AMS transfer.
-    static constexpr Type tActiveCcPollingDebounce {PD_TIMER::PRL_ActiveCcPollingDebounce, 20 * ms}; // 20 ms
+    // Custom timeouts, only for manual CC polling, when BMC filtering is not
+    // available and transfers can add noise.
+    static constexpr Type TC_CC_POLL_PERIOD {PD_TIMER::TC_CC_POLL_PERIOD, 1 * ms};
+    static constexpr Type PRL_SinkTxOK_POLL_PERIOD {PD_TIMER::PRL_SinkTxOK_POLL_PERIOD, 20 * ms};
 };
 
 template<size_t TIMER_COUNT>

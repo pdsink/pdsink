@@ -51,15 +51,15 @@ namespace {
     }
 
     // Space out CC update requests; return true when data can be used.
-    // In on_enter, stop TC_CC_POLL and call req_fetch_cc(ACTIVE_CC); call this in on_run.
-    // Stop TC_CC_POLL in on_exit.
+    // In on_enter, stop TC_CC_POLL_PERIOD and call req_fetch_cc(ACTIVE_CC); call this in on_run.
+    // Stop TC_CC_POLL_PERIOD in on_exit.
     bool poll_active_cc(TC& tc) {
         auto& timers = tc.port.timers;
 
-        if (!timers.is_disabled(PD_TIMEOUT::TC_CC_POLL) &&
-            timers.is_expired(PD_TIMEOUT::TC_CC_POLL))
+        if (!timers.is_disabled(PD_TIMEOUT::TC_CC_POLL_PERIOD) &&
+            timers.is_expired(PD_TIMEOUT::TC_CC_POLL_PERIOD))
         {
-            timers.stop(PD_TIMEOUT::TC_CC_POLL);
+            timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
             tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
             return false;
         }
@@ -68,8 +68,8 @@ namespace {
             return false;
         }
 
-        if (timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
-            timers.start(PD_TIMEOUT::TC_CC_POLL);
+        if (timers.is_disabled(PD_TIMEOUT::TC_CC_POLL_PERIOD)) {
+            timers.start(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         }
         return true;
     }
@@ -84,7 +84,7 @@ public:
 
         port.is_attached = false;
         port.notify_dpm(MsgToDpm_CableDetached{});
-        port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         port.timers.stop(PD_TIMEOUT::tCCDebounce);
         tc.detected_polarity = TCPC_POLARITY::NONE;
         tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
@@ -129,7 +129,7 @@ class TC_UNATTACHED_SNK_CC_DETECT_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.tcpc.req_fetch_cc(TCPC_CC_REQ::CC1CC2);
         return No_State_Change;
     }
@@ -137,9 +137,9 @@ public:
     static auto on_run_state(TC& tc) -> state_id_t {
         auto& timers = tc.port.timers;
 
-        if (!timers.is_disabled(PD_TIMEOUT::TC_CC_POLL)) {
-            if (timers.is_expired(PD_TIMEOUT::TC_CC_POLL)) {
-                timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        if (!timers.is_disabled(PD_TIMEOUT::TC_CC_POLL_PERIOD)) {
+            if (timers.is_expired(PD_TIMEOUT::TC_CC_POLL_PERIOD)) {
+                timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
                 tc.tcpc.req_fetch_cc(TCPC_CC_REQ::CC1CC2);
             }
             return No_State_Change;
@@ -157,12 +157,12 @@ public:
             return TC_ATTACH_WAIT_SNK_SET_POLARITY;
         }
 
-        timers.start(PD_TIMEOUT::TC_CC_POLL);
+        timers.start(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         return No_State_Change;
     }
 
     static void on_exit_state(TC& tc) {
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
     }
 };
 
@@ -188,7 +188,7 @@ class TC_ATTACH_WAIT_SNK_CC_STABLE_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.start(PD_TIMEOUT::tCCDebounce);
         tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
@@ -210,7 +210,7 @@ public:
     }
 
     static void on_exit_state(TC& tc) {
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.stop(PD_TIMEOUT::tCCDebounce);
     }
 };
@@ -220,7 +220,7 @@ class TC_ATTACH_WAIT_SNK_CC_LOSS_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.start(PD_TIMEOUT::tPDDebounce);
         tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
@@ -238,7 +238,7 @@ public:
     }
 
     static void on_exit_state(TC& tc) {
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.stop(PD_TIMEOUT::tPDDebounce);
     }
 };
@@ -248,7 +248,7 @@ class TC_ATTACH_WAIT_SNK_VBUS_CHECK_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
@@ -263,7 +263,7 @@ public:
     }
 
     static void on_exit_state(TC& tc) {
-        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL);
+        tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
     }
 };
 
