@@ -76,14 +76,14 @@ bool Fusb302Rtos::fusb_setup() {
     pwr.PWR = 0xF;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Power::reg, pwr.raw_value));
 
-    // By default disable all interrupts except VBUSOK.
+    // By default, disable all interrupts except VBUSOK.
     DRV_LOGI("Disable all interrupts except VBUSOK");
     Mask1 mask{0xFF};
     mask.M_VBUSOK = 0;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, 0xFF));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maskb::reg, 0xFF));
-    // ...and remove global interrupt mask
+    // ...and remove the global interrupt mask
     Control0 ctl0;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctl0.raw_value));
     ctl0.INT_MASK = 0;
@@ -120,6 +120,8 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     Mask1 mask;
     DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Mask1::reg, mask.raw_value));
     mask.M_COLLISION = enable ? 0 : 1;
+    mask.M_CRC_CHK = enable ? 0 : 1;
+    mask.M_ACTIVITY = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
 
     Maska maska;
@@ -130,11 +132,14 @@ bool Fusb302Rtos::fusb_set_rxtx_interrupts(bool enable) {
     maska.M_RETRYFAIL = enable ? 0 : 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, maska.raw_value));
 
-    Maskb maskb;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Maskb::reg, maskb.raw_value));
-    maskb.M_GCRCSENT = enable ? 0 : 1;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maskb::reg, maskb.raw_value));
+    return true;
+}
 
+bool Fusb302Rtos::fusb_set_activity_interrupt(bool enable) {
+    Mask1 mask;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Mask1::reg, mask.raw_value));
+    mask.M_ACTIVITY = enable ? 0 : 1;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
     return true;
 }
 
@@ -306,14 +311,13 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
         DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(false));
     }
 
-    // Keep acknowledged RX on repeated enable (Soft Reset/discard).
-    if (!enable || !rx_enabled) {
-        DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
-        rx_queue.clear_from_producer();
-    }
+    DRV_RET_FALSE_ON_ERROR(tx.reset());
 
-    // Clear pending TX for PRL reset/discard.
-    DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
+    // Preserve pending RX on repeated enable.
+    if (!enable || !rx_enabled) {
+        reset_rx_state();
+        DRV_RET_FALSE_ON_ERROR(fusb_flush_rx_fifo());
+    }
 
     if (enable) {
         DRV_RET_FALSE_ON_ERROR(fusb_set_auto_goodcrc(true));
@@ -323,22 +327,10 @@ bool Fusb302Rtos::fusb_set_rx_enable(bool enable) {
     return true;
 }
 
-void Fusb302Rtos::fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status) {
-    // Ensure transmit was not invoked again; otherwise our info is outdated
-    // and should be discarded.
-    auto expected = TCPC_TRANSMIT_STATUS::SENDING;
-    if (port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
-        DRV_LOGI("TX end, status: {}", static_cast<int>(status));
-        has_deferred_wakeup = true;
-    } else {
-        DRV_LOGI("TX end failed: TCPC status changed from outside to {}", static_cast<int>(expected));
-    }
-}
-
-bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
+bool Fusb302Rtos::fusb_tx_pkt_load(PD_CHUNK& chunk) {
     DRV_RET_FALSE_ON_ERROR(fusb_flush_tx_fifo());
 
-    DRV_LOGI("TX begin");
+    DRV_LOGI("TX prepare");
 
     // NOTE: The spec says retries should NOT be used for unchunked extended
     // messages and cable plug messages. Since we do not support those, just
@@ -352,15 +344,17 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
 
     etl::vector<uint8_t, 40> fifo_buf{};
 
-    // Max raw data size is: SOP[4] + PACKSYM[1] + HEAD[2] + DATA[28] + TAIL[4]
-    // = 39. One extra byte may be used if the HAL API uses the first byte as
-    // I2C address (but the current API takes it as a separate parameter)
+    // Prepared packet: SOP[4] + PACKSYM[1] + header[2] + data[28]
+    //                  + JAM_CRC[1] + EOP[1] + TX_OFF[1].
+    // TXON is written separately.
     static_assert(decltype(fifo_buf)::MAX_SIZE >=
-        4 + 1 + 2 + PD_CHUNK::MAX_SIZE + 4,
+        4 + 1 + 2 + PD_CHUNK::MAX_SIZE + 1 + 1 + 1,
         "TX buffer too small to fit all possible data");
 
     // Ensure only "legacy" packets are allowed. We do NOT support unchunked
-    // extended packets or long vendor packets (they are not useful in sink mode).
+    // extended packets or long vendor packets:
+    // - those are not useful in sink mode.
+    // - the chip's FIFO size limits the maximum packet size.
     static_assert(PD_CHUNK::MAX_SIZE <= 28,
         "Packet size should not exceed 28 bytes in this implementation");
 
@@ -372,8 +366,8 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
 
     uint8_t pack_sym = TX_TKN::PACKSYM;
 
-    // Add data size (+ 2 for header). No need to mask - value restricted by
-    // static_assert above.
+    // Add data size (+ 2 for header). No need to mask: the value is restricted
+    // by the static_assert above.
 
     pack_sym |= (chunk.data_size() + 2);
     fifo_buf.push_back(pack_sym);
@@ -392,63 +386,42 @@ bool Fusb302Rtos::fusb_tx_pkt_begin(PD_CHUNK& chunk) {
     fifo_buf.push_back(TX_TKN::JAM_CRC);
     fifo_buf.push_back(TX_TKN::EOP);
     fifo_buf.push_back(TX_TKN::TX_OFF);
-    fifo_buf.push_back(TX_TKN::TXON);
+
+    // TXON will be written only after the final silence check
+    // (interrupts should not happen when the line is silent).
 
     DRV_RET_FALSE_ON_ERROR(hal.write_block(i2c_addr, FIFOs::reg, fifo_buf.data(), fifo_buf.size()));
     return true;
 }
 
-bool Fusb302Rtos::fusb_rx_pkt() {
-    PD_CHUNK pkt{};
+// Read one packet into rx_buffer. The caller ensures the FIFO is not empty.
+bool Fusb302Rtos::fusb_rx_fifo_fetch_pkt() {
     ETL_MAYBE_UNUSED uint8_t sop;
     uint8_t hdr[2];
     ETL_MAYBE_UNUSED uint8_t crc_junk[4];
 
-    Status1 status1{};
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status1::reg, status1.raw_value));
+    if (!hal.read_reg(i2c_addr, FIFOs::reg, sop) ||
+        !hal.read_block(i2c_addr, FIFOs::reg, hdr, 2)) {
+        DRV_LOGE("RX FIFO read failed (SOP/header)");
+        return false;
+    }
+    rx_buffer.header.raw_value = (hdr[1] << 8) | hdr[0];
 
-    if (status1.RX_EMPTY) {
-        DRV_LOGI("Can't read from empty FIFO");
-        return true;
+    // Chunked extended messages have non-zero data_obj_count.
+    if (rx_buffer.header.extended && !rx_buffer.header.data_obj_count) {
+        // Unchunked extended packets are unsupported; restore FIFO framing.
+        DRV_LOGE("Unchunked extended packet received, ignoring");
+        DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
+        return false;
     }
 
-    // Pick all pending packets from RX FIFO.
-    //
-    // NOTE: We can get a mixture of chunks and GoodCRC. That's why we read
-    // all available packets in a loop and skip GoodCRC.
-    while (!status1.RX_EMPTY) {
-        DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, FIFOs::reg, sop));
-
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, hdr, 2));
-        pkt.header.raw_value = (hdr[1] << 8) | hdr[0];
-
-        // Chunked extended messages have non-zero data_obj_count
-        if (pkt.header.extended == 1 && pkt.header.data_obj_count == 0) {
-            // Unchunked extended packets are not supported. This is an abnormal
-            // situation, and all we can do is wipe out the RX FIFO.
-            DRV_LOGE("Unchunked extended packet received, ignoring");
-            fusb_flush_rx_fifo();
-            return false;
-        }
-
-        // After unchunked extended messages are filtered out, the rest have
-        // size data_obj_count*4 bytes. data_obj_count has 3 bits, which means
-        // at most 28 bytes in total. That guarantees `pkt` has enough space.
-        pkt.resize_by_data_obj_count();
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, pkt.get_data().data(), pkt.data_size()));
-
-        DRV_RET_FALSE_ON_ERROR(hal.read_block(i2c_addr, FIFOs::reg, crc_junk, 4));
-
-        // Process all but GoodCRC, coming after TX. Processing of TX was
-        // already scheduled, and here we just ignore GoodCRC as garbage.
-        if (!pkt.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) {
-            DRV_LOGI("Message received: type = {}, extended = {}, data size = {}",
-                pkt.header.message_type, pkt.header.extended, pkt.data_size());
-            rx_queue.push(pkt);
-            has_deferred_wakeup = true;
-        }
-
-        DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status1::reg, status1.raw_value));
+    // Remaining packets have data_obj_count*4 bytes. Its 3-bit range limits
+    // the block read to 28 bytes, which fits directly in the destination.
+    rx_buffer.resize_by_data_obj_count();
+    if (!hal.read_block(i2c_addr, FIFOs::reg, rx_buffer.get_data().data(), rx_buffer.data_size()) ||
+        !hal.read_block(i2c_addr, FIFOs::reg, crc_junk, 4)) {
+        DRV_LOGE("RX FIFO read failed (data/CRC)");
+        return false;
     }
     return true;
 }
@@ -461,13 +434,6 @@ bool Fusb302Rtos::fusb_hr_send() {
     ctrl3.SEND_HARD_RESET = 1;
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control3::reg, ctrl3.raw_value));
 
-    return true;
-}
-
-bool Fusb302Rtos::hr_cleanup() {
-    // Cleanup internal states after hard reset received or sent.
-    DRV_RET_FALSE_ON_ERROR(fusb_pd_reset());
-    rx_queue.clear_from_producer();
     return true;
 }
 
@@ -510,6 +476,82 @@ bool Fusb302Rtos::fusb_set_bist(TCPC_BIST_MODE mode) {
     return true;
 }
 
+bool Fusb302Rtos::hr_cleanup() {
+    // Clean up internal states after a hard reset is received or sent.
+    DRV_LOG_ON_ERROR(tx.reset());
+    reset_rx_state();
+    DRV_RET_FALSE_ON_ERROR(fusb_pd_reset());
+    return true;
+}
+
+void Fusb302Rtos::reset_rx_state() {
+    rx_buffer_has_pkt.store(false);
+    rx_fifo_may_have_pkt.store(false);
+    rx_msg_id_stored = -1;
+    rx_fetch_pending.store(false);
+}
+
+bool Fusb302Rtos::process_rx_fifo() {
+    const bool had_pkt = rx_buffer_has_pkt.load();
+    bool fifo_read_ok = true;
+
+    for (;;) {
+        if (!fifo_read_ok) { break; }
+        if (rx_buffer_has_pkt.load()) { break; }
+        if (!rx_fifo_may_have_pkt.exchange(false)) { break; }
+
+        Status1 status1{};
+        fifo_read_ok = hal.read_reg(i2c_addr, Status1::reg, status1.raw_value);
+        DRV_LOG_ON_ERROR(fifo_read_ok);
+        if (!fifo_read_ok) {
+            rx_fifo_may_have_pkt.store(true);
+            continue;
+        }
+        if (status1.RX_EMPTY) { continue; }
+
+        fifo_read_ok = fusb_rx_fifo_fetch_pkt();
+        if (!fifo_read_ok) {
+            rx_fifo_may_have_pkt.store(true);
+            continue;
+        }
+
+        fifo_read_ok = hal.read_reg(i2c_addr, Status1::reg, status1.raw_value);
+        DRV_LOG_ON_ERROR(fifo_read_ok);
+        if (!fifo_read_ok || !status1.RX_EMPTY) { rx_fifo_may_have_pkt.store(true); }
+
+        // GoodCRC messages are ignored and not logged.
+        if (rx_buffer.is_ctrl_msg(PD_CTRL_MSGT::GoodCRC)) { continue; }
+
+        DRV_LOGI("Message received: type = {}, extended = {}, data size = {}",
+            rx_buffer.header.message_type, rx_buffer.header.extended, rx_buffer.data_size());
+
+        // With TX retries, the driver filters duplicates and Pings inline.
+        // This is required for eventual consistency.
+        bool ignored = false;
+        if (tcpc_features.tx_retries) {
+            ignored = (rx_msg_id_stored == rx_buffer.header.message_id &&
+                !rx_buffer.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) ||
+                rx_buffer.is_ctrl_msg(PD_CTRL_MSGT::Ping);
+            rx_msg_id_stored = rx_buffer.header.message_id;
+        }
+
+        if (ignored) { continue; }
+        rx_buffer_has_pkt.store(true);
+        tx.on_rx_pkt_new();
+    }
+
+    // PRL must observe RX and any deferred FAILED together.
+    // A failed read must also wake PRL so it can retry the pending RX.
+    const bool fetch_done = rx_fetch_pending.exchange(false);
+    if (fetch_done ||
+        (!had_pkt && rx_buffer_has_pkt.load()) ||
+        !fifo_read_ok)
+    {
+        has_deferred_wakeup = true;
+    }
+    return fifo_read_ok;
+}
+
 void Fusb302Rtos::handle_interrupt() {
     if (!hal.is_interrupt_active()) { return; }
 
@@ -520,7 +562,7 @@ void Fusb302Rtos::handle_interrupt() {
         Interrupta interrupta;
         Interruptb interruptb;
 
-        // TODO: Consider 5-bytes block read (0x3E-0x42) with single call.
+        // TODO: Consider a 5-byte block read (0x3E-0x42) with single call.
         DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interrupt::reg, interrupt.raw_value));
         DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interrupta::reg, interrupta.raw_value));
         DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Interruptb::reg, interruptb.raw_value));
@@ -549,30 +591,45 @@ void Fusb302Rtos::handle_interrupt() {
         if (interrupta.I_HARDSENT) {
             DRV_LOGI("IRQ: hard reset sent");
             DRV_LOG_ON_ERROR(hr_cleanup());
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
+            timers.stop(HR_SEND_TIMEOUT);
+            sync_hr_send.job_finish();
+            has_deferred_wakeup = true;
         }
 
-        if (interrupt.I_COLLISION) {
-            DRV_LOGI("IRQ: tx collision");
-            // Discarding logic is part of PRL, here we just report tx failure
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
-        }
-        if (interrupta.I_RETRYFAIL) {
-            DRV_LOGI("IRQ: tx retry failed");
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
-        }
-        if (interrupta.I_TXSENT) {
-            DRV_LOGI("IRQ: tx completed");
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::SUCCEEDED);
-            // That's not necessary, but force GoodCRC peek to free FIFO faster.
-            DRV_LOG_ON_ERROR(fusb_rx_pkt());
-        }
-        if (interruptb.I_GCRCSENT) {
-            if (rx_enabled) {
-                DRV_LOGI("IRQ: GoodCRC sent");
-                DRV_LOG_ON_ERROR(fusb_rx_pkt());
-            } else {
-                DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
+        // A reset invalidates all ordinary TX/RX events in this IRQ snapshot.
+        if (!interrupta.I_HARDRST && !interrupta.I_HARDSENT) {
+            if (interrupta.I_TXSENT) {
+                // Always process TX success before RX to avoid false discards.
+                tx.on_tx_sent();
+            }
+
+            if (interrupt.I_CRC_CHK) {
+                // Processing RX before TX errors speeds up TX FSM cleanup.
+                if (rx_enabled) {
+                    // Unread FIFO data does not retrigger IRQ; retain this until RX_EMPTY.
+                    rx_fifo_may_have_pkt.store(true);
+                    DRV_LOG_ON_ERROR(process_rx_fifo());
+                } else {
+                    DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
+                }
+            }
+
+            if (interrupt.I_COLLISION) {
+                DRV_LOGI("IRQ: tx collision");
+                tx.on_tx_failed();
+            }
+            if (interrupta.I_RETRYFAIL) {
+                DRV_LOGI("IRQ: tx retry failed");
+                tx.on_tx_failed();
+            }
+
+            if (interrupt.I_ACTIVITY && rx_enabled && tx.is_awaiting_quiet()) {
+                Status0 status0;
+                if (hal.read_reg(i2c_addr, Status0::reg, status0.raw_value)) {
+                    tx.on_activity(status0.ACTIVITY);
+                } else {
+                    DRV_LOGE("CC activity read failed");
+                }
             }
         }
 
@@ -580,8 +637,6 @@ void Fusb302Rtos::handle_interrupt() {
 
         DRV_LOGD("Interrupt handled, but still active. Repeat processing...");
     }
-
-    return;
 }
 
 void Fusb302Rtos::rearm(uint32_t deadline_ticks) {
@@ -593,8 +648,8 @@ void Fusb302Rtos::rearm(uint32_t deadline_ticks) {
 }
 
 // Since FUSB302 does not allow making different measurements in parallel,
-// do all in a single place to avoid collisions. Also, use simple FSM to implement
-// non-blocking delays.
+// do them all in one place to avoid collisions. Also, use a simple FSM to
+// implement non-blocking delays.
 bool Fusb302Rtos::meter_tick(bool &repeat) {
     repeat = false;
     Status0 status0;
@@ -628,7 +683,7 @@ bool Fusb302Rtos::meter_tick(bool &repeat) {
             }
             if (!timers.is_expired(CC_SETTLE)) { break; }
 
-            // Note, CC activity can introduce noise, but since we are waiting
+            // Note: CC activity can introduce noise, but since we are waiting
             // for SinkTxOK, false negatives are acceptable; those will only
             // cause a small transfer delay.
             DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
@@ -707,30 +762,31 @@ void Fusb302Rtos::handle_tcpc_calls() {
         has_deferred_wakeup = true;
     }
 
-    auto expected = TCPC_TRANSMIT_STATUS::ENQUEUED;
-    if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
-        if (!fusb_tx_pkt_begin(enqueued_tx_chunk)) {
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
-        }
-    }
-
     if (sync_hr_send.get_job()) {
-        // Clean up before sending just in case (probably not required)
+        // Cancel pending TX starts and RX fetches before sending Hard Reset.
+        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
+        DRV_LOG_ON_ERROR(tx.reset());
+        reset_rx_state();
         DRV_LOG_ON_ERROR(fusb_flush_rx_fifo());
         DRV_LOG_ON_ERROR(fusb_flush_tx_fifo());
-        rx_queue.clear_from_producer();
 
-        // Emulate transmit entry to get result as for ordinary chunk
-        // (because we can have both success and failure)
-        port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::SENDING);
-
-        // Initiate hard reset sending. Then PRL should check
-        // port.tcpc_tx_status to get result.
-        if (!fusb_hr_send()) {
-            fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS::FAILED);
+        if (fusb_hr_send()) {
+            timers.start(HR_SEND_TIMEOUT);
+        } else {
+            DRV_LOGE("Hard Reset sending failed");
+            timers.stop(HR_SEND_TIMEOUT);
+            sync_hr_send.job_finish();
+            has_deferred_wakeup = true;
         }
-        sync_hr_send.job_finish();
-        has_deferred_wakeup = true;
+        return;
+    }
+
+    // If the RX buffer is empty, fetch pending FIFO data before TX.
+    DRV_LOG_ON_ERROR(process_rx_fifo());
+
+    auto expected = TCPC_TRANSMIT_STATUS::ENQUEUED;
+    if (port.tcpc_tx_status.compare_exchange_strong(expected, TCPC_TRANSMIT_STATUS::SENDING)) {
+        tx.on_tx_requested();
     }
 }
 
@@ -767,6 +823,17 @@ void Fusb302Rtos::task() {
             if (event_mask & MSK_API_CALL) {
                 DRV_LOGI("Handle API call");
                 handle_tcpc_calls();
+            }
+
+            if (tx.is_awaiting_quiet() && timers.is_expired(LINE_QUIET_TIME)) {
+                tx.on_timer_expired();
+            }
+
+            if (timers.is_expired(HR_SEND_TIMEOUT)) {
+                DRV_LOGE("Hard Reset sending timed out");
+                timers.stop(HR_SEND_TIMEOUT);
+                sync_hr_send.job_finish();
+                has_deferred_wakeup = true;
             }
 
             // Apply pending polarity changes first: handle_tcpc_calls() may
@@ -939,8 +1006,197 @@ bool Fusb302Rtos::check_vbus(TCPC_VBUS_LEVEL level) {
     return false;
 }
 
-bool Fusb302Rtos::fetch_rx_data() {
-    return rx_queue.pop(port.rx_chunk);
+auto Fusb302Rtos::fetch_rx() -> FETCH_RX_STATUS {
+    if (rx_buffer_has_pkt.load()) { return FETCH_RX_STATUS::READY; }
+    if (rx_fetch_pending.load()) { return FETCH_RX_STATUS::IN_PROGRESS; }
+    // RX IRQs publish new packets; fetch requests drain packets left in the FIFO.
+    if (!rx_enabled || !rx_fifo_may_have_pkt.load()) {
+        return FETCH_RX_STATUS::EMPTY;
+    }
+    rx_fetch_pending.store(true);
+    kick_task(MSK_API_CALL);
+    return FETCH_RX_STATUS::IN_PROGRESS;
+}
+
+bool Fusb302Rtos::get_rx() {
+    if (!rx_buffer_has_pkt.load()) { return false; }
+    port.rx_chunk = rx_buffer;
+    rx_buffer_has_pkt.store(false);
+    return true;
+}
+
+void Fusb302Rtos::TxController::on_tx_requested() {
+    if (state != State::TX_IDLE) {
+        // Safety guard. This should never happen.
+        DRV_LOG_ON_ERROR(reset());
+    }
+
+    // TX FIFO is loaded after the quiet pause, when any GoodCRC is complete.
+    DRV_LOG_ON_ERROR(go(State::TX_WAIT_LINE_QUIET));
+
+    // RX may already be buffered before this TX request.
+    if (driver.rx_enabled && driver.rx_buffer_has_pkt.load()) {
+        on_rx_pkt_new();
+    }
+}
+
+void Fusb302Rtos::TxController::on_tx_sent() {
+    if (state != State::TX_ACTIVE) { return; }
+
+    DRV_LOGI("IRQ: tx completed");
+    DRV_LOG_ON_ERROR(go(State::TX_IDLE));
+    publish_tx_result(TCPC_TRANSMIT_STATUS::SUCCEEDED);
+}
+
+void Fusb302Rtos::TxController::on_tx_failed() {
+    if (state != State::TX_ACTIVE) { return; }
+
+    DRV_LOG_ON_ERROR(go(State::TX_FAILURE_PENDING));
+}
+
+void Fusb302Rtos::TxController::on_rx_pkt_new() {
+    // With software retries, PRL retains duplicate/Ping and discard decisions.
+    const bool is_tx_pending = state == State::TX_WAIT_LINE_QUIET || state == State::TX_ACTIVE;
+
+    if (state == State::TX_FAILURE_PENDING || (tcpc_features.tx_retries && is_tx_pending)) {
+        DRV_LOG_ON_ERROR(go(State::TX_IDLE));
+        publish_tx_result(TCPC_TRANSMIT_STATUS::FAILED);
+    }
+}
+
+void Fusb302Rtos::TxController::on_activity(bool active) {
+    if (!is_awaiting_quiet()) { return; }
+
+    if (active) {
+        driver.timers.stop(LINE_QUIET_TIME);
+    } else {
+        driver.timers.start(LINE_QUIET_TIME);
+    }
+}
+
+void Fusb302Rtos::TxController::on_timer_expired() {
+    if (!is_awaiting_quiet()) { return; }
+    if (!driver.rx_enabled) { return; }
+
+    if (driver.rx_buffer_has_pkt.load()) { on_rx_pkt_new(); }
+    // Unread RX must be classified before TX starts or FAILED is published.
+    if (driver.rx_buffer_has_pkt.load() || driver.rx_fifo_may_have_pkt.load()) { return; }
+
+    // Reload on every attempt; the checks below cover activity during the load.
+    if (state == State::TX_WAIT_LINE_QUIET &&
+        !driver.fusb_tx_pkt_load(driver.enqueued_tx_chunk))
+    {
+        DRV_LOG_ON_ERROR(go(State::TX_FAILURE_PENDING));
+        return;
+    }
+
+    if (!is_line_still_quiet()) { return; }
+
+    if (state == State::TX_WAIT_LINE_QUIET) {
+        DRV_LOG_ON_ERROR(go(State::TX_ACTIVE));
+        if (!driver.hal.write_reg(driver.i2c_addr, FIFOs::reg, TX_TKN::TXON)) {
+            DRV_LOG_ON_ERROR(go(State::TX_FAILURE_PENDING));
+        }
+    } else {
+        // Normally, FAILED is reported on a new RX without waiting for the timeout.
+        // The timeout is a fallback for cable-traffic collisions, unexpected in normal use.
+        DRV_LOG_ON_ERROR(go(State::TX_IDLE));
+        publish_tx_result(TCPC_TRANSMIT_STATUS::FAILED);
+    }
+}
+
+bool Fusb302Rtos::TxController::reset() {
+    return go(State::TX_IDLE);
+}
+
+bool Fusb302Rtos::TxController::go(State next) {
+    // Self-transitions are not used; skip them to avoid restarting state actions.
+    if (next == state) {
+        return true;
+    }
+
+    bool exit_ok = true;
+    switch (state) {
+        case State::TX_IDLE: exit_ok = on_exit_TX_IDLE(); break;
+        case State::TX_WAIT_LINE_QUIET: exit_ok = on_exit_TX_WAIT_LINE_QUIET(); break;
+        case State::TX_ACTIVE: exit_ok = on_exit_TX_ACTIVE(); break;
+        case State::TX_FAILURE_PENDING: exit_ok = on_exit_TX_FAILURE_PENDING(); break;
+    }
+
+    state = next;
+
+    bool enter_ok = true;
+    switch (state) {
+        case State::TX_IDLE: enter_ok = on_enter_TX_IDLE(); break;
+        case State::TX_WAIT_LINE_QUIET: enter_ok = on_enter_TX_WAIT_LINE_QUIET(); break;
+        case State::TX_ACTIVE: enter_ok = on_enter_TX_ACTIVE(); break;
+        case State::TX_FAILURE_PENDING: enter_ok = on_enter_TX_FAILURE_PENDING(); break;
+    }
+
+    return exit_ok && enter_ok;
+}
+
+bool Fusb302Rtos::TxController::on_enter_TX_IDLE() { return nop(); }
+bool Fusb302Rtos::TxController::on_exit_TX_IDLE() { return nop(); }
+
+bool Fusb302Rtos::TxController::on_enter_TX_WAIT_LINE_QUIET() {
+    DRV_RET_FALSE_ON_ERROR(driver.fusb_set_activity_interrupt(true));
+    Status0 status0;
+    DRV_RET_FALSE_ON_ERROR(driver.hal.read_reg(driver.i2c_addr, Status0::reg, status0.raw_value));
+
+    if (status0.ACTIVITY) {
+        driver.timers.stop(LINE_QUIET_TIME);
+    } else {
+        driver.timers.start(LINE_QUIET_TIME);
+    }
+    return true;
+}
+
+bool Fusb302Rtos::TxController::on_exit_TX_WAIT_LINE_QUIET() {
+    driver.timers.stop(LINE_QUIET_TIME);
+    // Masked before TXON, so our own TX does not raise ACTIVITY.
+    return driver.fusb_set_activity_interrupt(false);
+}
+
+// TXON is written by the caller, so a write failure can switch state normally.
+bool Fusb302Rtos::TxController::on_enter_TX_ACTIVE() { return nop(); }
+bool Fusb302Rtos::TxController::on_exit_TX_ACTIVE() { return driver.fusb_flush_tx_fifo(); }
+
+bool Fusb302Rtos::TxController::on_enter_TX_FAILURE_PENDING() {
+    return on_enter_TX_WAIT_LINE_QUIET();
+}
+
+bool Fusb302Rtos::TxController::on_exit_TX_FAILURE_PENDING() {
+    driver.timers.stop(LINE_QUIET_TIME);
+    return driver.fusb_set_activity_interrupt(false);
+}
+
+bool Fusb302Rtos::TxController::is_line_still_quiet() {
+    Status0 status0;
+    DRV_RET_FALSE_ON_ERROR(driver.hal.read_reg(driver.i2c_addr, Status0::reg, status0.raw_value));
+    if (status0.ACTIVITY) {
+        driver.timers.stop(LINE_QUIET_TIME);
+        return false;
+    }
+    // Activity may have started and ended during the load or status read.
+    // On a quiet line, no enabled interrupt is expected to fire.
+    if (driver.hal.is_interrupt_active()) {
+        driver.kick_task(MSK_PD_INTERRUPT);
+        return false;
+    }
+    return true;
+}
+
+void Fusb302Rtos::TxController::publish_tx_result(TCPC_TRANSMIT_STATUS status) {
+    // Ensure transmit was not invoked again; otherwise our info is outdated
+    // and should be discarded.
+    auto expected = TCPC_TRANSMIT_STATUS::SENDING;
+    if (driver.port.tcpc_tx_status.compare_exchange_strong(expected, status)) {
+        DRV_LOGI("TX end, status: {}", static_cast<int>(status));
+        driver.has_deferred_wakeup = true;
+    } else {
+        DRV_LOGI("TX end failed: TCPC status changed from outside to {}", static_cast<int>(expected));
+    }
 }
 
 } // namespace fusb302

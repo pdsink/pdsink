@@ -12,7 +12,6 @@
 #include "../idriver.h"
 #include "../utils/atomic_enum_bits.h"
 #include "../utils/leapsync.h"
-#include "../utils/spsc_overwrite_queue.h"
 #include "../timers.h"
 
 namespace pd {
@@ -21,7 +20,7 @@ class Port;
 
 namespace fusb302 {
 
-// Hal messages to TCPC
+// HAL messages to TCPC
 enum class HAL_EVENT_TYPE {
     Timer,
     FUSB302_Interrupt
@@ -63,7 +62,7 @@ public:
         timers.set_tick_source(tick_source);
     };
 
-    // Prohibit copy/move because class manages FreeRTOS tasks,
+    // Prohibit copy/move because the class manages FreeRTOS tasks,
     // hardware resources, and contains callback references.
     Fusb302Rtos(const Fusb302Rtos&) = delete;
     Fusb302Rtos& operator=(const Fusb302Rtos&) = delete;
@@ -96,7 +95,9 @@ public:
     };
     bool is_rx_enable_done() override { return sync_rx_enable.is_idle(); };
 
-    bool fetch_rx_data() override;
+    auto fetch_rx() -> FETCH_RX_STATUS override;
+    bool get_rx() override;
+    void reset_rx_id_tracker() override { rx_msg_id_stored = -1; }
 
     void req_transmit() override;
 
@@ -111,7 +112,7 @@ public:
         sync_hr_send.enqueue();
         kick_task(MSK_API_CALL);
     };
-    bool is_hr_send_done() override { return sync_hr_send.is_idle(); };
+    bool is_hr_send_done() const override { return sync_hr_send.is_idle(); };
 
     auto get_features() -> TCPC_FEATURES override { return tcpc_features; };
 
@@ -135,6 +136,7 @@ protected:
 
     bool fusb_setup();
     bool fusb_set_rxtx_interrupts(bool enable);
+    bool fusb_set_activity_interrupt(bool enable);
     bool fusb_set_auto_goodcrc(bool enable);
     bool fusb_set_tx_auto_retries(uint8_t count);
     bool fusb_flush_rx_fifo();
@@ -144,13 +146,14 @@ protected:
     bool fusb_start_toggling();
     bool fusb_handle_togdone();
     bool fusb_set_rx_enable(bool enable);
-    bool fusb_tx_pkt_begin(PD_CHUNK& chunk);
-    void fusb_tx_pkt_end(TCPC_TRANSMIT_STATUS status);
-    bool fusb_rx_pkt();
+    bool fusb_tx_pkt_load(PD_CHUNK& chunk);
+    bool fusb_rx_fifo_fetch_pkt();
     bool fusb_hr_send();
     bool fusb_set_bist(TCPC_BIST_MODE mode);
-    // Clear internal states after a hard reset is received or sent.
+
     bool hr_cleanup();
+    void reset_rx_state();
+    bool process_rx_fifo();
 
     uint8_t i2c_addr{ChipAddress::FUSB302B};
     Port& port;
@@ -159,7 +162,53 @@ protected:
     bool started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
-    spsc_overwrite_queue<PD_CHUNK, 4> rx_queue{};
+    // The worker fills this buffer; synchronous port callbacks consume it.
+    PD_CHUNK rx_buffer{};
+    etl::atomic<bool> rx_buffer_has_pkt{false};
+    etl::atomic<bool> rx_fifo_may_have_pkt{false};
+    int8_t rx_msg_id_stored{-1};
+    // Set by fetch_rx(); cleared by any FIFO read pass.
+    etl::atomic<bool> rx_fetch_pending{false};
+
+    class TxController {
+    public:
+        explicit TxController(Fusb302Rtos& driver) : driver{driver} {}
+        void on_tx_requested();
+        void on_tx_sent();
+        void on_tx_failed();
+        void on_rx_pkt_new();
+        void on_activity(bool active);
+        void on_timer_expired();
+        bool reset();
+        bool is_awaiting_quiet() const {
+            return state == State::TX_WAIT_LINE_QUIET || state == State::TX_FAILURE_PENDING;
+        }
+
+    private:
+        enum class State {
+            TX_IDLE,
+            TX_WAIT_LINE_QUIET,
+            TX_ACTIVE,
+            TX_FAILURE_PENDING,
+        };
+        bool go(State next);
+        static bool nop() { return true; }
+        bool on_enter_TX_IDLE();
+        bool on_exit_TX_IDLE();
+        bool on_enter_TX_WAIT_LINE_QUIET();
+        bool on_exit_TX_WAIT_LINE_QUIET();
+        bool on_enter_TX_ACTIVE();
+        bool on_exit_TX_ACTIVE();
+        bool on_enter_TX_FAILURE_PENDING();
+        bool on_exit_TX_FAILURE_PENDING();
+
+        bool is_line_still_quiet();
+        void publish_tx_result(TCPC_TRANSMIT_STATUS status);
+
+        Fusb302Rtos& driver;
+        State state{State::TX_IDLE};
+    };
+    TxController tx{*this};
     etl::atomic<TCPC_CC_LEVEL::Type> cc1_value{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_CC_LEVEL::Type> cc2_value{TCPC_CC_LEVEL::NONE};
     etl::atomic<TCPC_POLARITY> polarity{TCPC_POLARITY::NONE};
@@ -202,13 +251,18 @@ protected:
     enum DriverTimer {
         PD_CORE_TIMERS,
         CC,
+        LINE_QUIET_TIMER,
+        HR_SEND_TIMER,
         COUNT,
     };
 #if defined(USE_FUSB302_COARSE_TIMER)
     static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 2000};
+    static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 3000};
 #else
     static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 250};
+    static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 1400};
 #endif
+    static constexpr PD_TIMEOUT::Type HR_SEND_TIMEOUT{DriverTimer::HR_SEND_TIMER, 5000}; // tHardResetComplete: 4-5 ms
     Timers<DriverTimer::COUNT> timers;
 
     // Override in an inherited class if needed.

@@ -38,21 +38,29 @@ struct TCPC_FEATURES {
     bool cc_toggling;
     bool rx_goodcrc_send;
     bool tx_goodcrc_wait;
+    // A driver with this feature MUST filter RX duplicates instead of PRL.
     bool tx_retries;
 };
 
-// NOTE: discarding is done at PRL layer.
 enum class TCPC_TRANSMIT_STATUS {
     // No operation
     UNSET = 0,
     // PRL prepared data for PHY
     ENQUEUED = 1,
-    // PHY accepted data and started sending
+    // Driver accepted the request; TX may still be waiting to start
     SENDING = 2,
     // Transmission is completed (and GoodCRC received, if supported)
     SUCCEEDED = 3,
-    // Transmission failed (no GoodCRC received)
+    // Transmission failed.
+    // A discard is also reported as a failure. Its status update is deferred until
+    // RX fetch completes to guarantee eventual consistency for PRL.
     FAILED = 4
+};
+
+enum class FETCH_RX_STATUS {
+    EMPTY,
+    IN_PROGRESS,
+    READY
 };
 
 static inline bool is_tcpc_transmit_in_progress(TCPC_TRANSMIT_STATUS status) {
@@ -122,13 +130,20 @@ public:
     // Actual polarity; TOGGLING ends only when CC data is ready.
     virtual auto get_polarity() const -> TCPC_POLARITY = 0;
 
-    // Always flush TX. Flush pending RX on disable and before enabling from
-    // disabled; preserve it on repeated enable.
+    // Always cancel TX. Disabling cancels RX fetches and flushes RX.
+    // Enabling flushes RX only if it was disabled.
     virtual void req_rx_enable(bool enable) = 0;
     virtual bool is_rx_enable_done() = 0;
 
-    // Fetch pending RX data.
-    virtual bool fetch_rx_data() = 0;
+    // Fetch the next available packet into the internal buffer.
+    // Repeated calls preserve pending work and the buffered packet.
+    virtual auto fetch_rx() -> FETCH_RX_STATUS = 0;
+    // Copy the buffered packet to port.rx_chunk and release the buffer.
+    // Return false without changing port.rx_chunk if none is ready.
+    virtual bool get_rx() = 0;
+
+    // Used to sync rx id from PRL, if driver has own deduplication logic.
+    virtual void reset_rx_id_tracker() = 0;
 
     // Transmit the packet in tx_info
     virtual void req_transmit() = 0;
@@ -140,7 +155,8 @@ public:
     virtual auto get_bist_mode() const -> TCPC_BIST_MODE = 0;
 
     virtual void req_hr_send() = 0;
-    virtual bool is_hr_send_done() = 0;
+    // Complete when HR is sent, sending fails, or the driver times out.
+    virtual bool is_hr_send_done() const = 0;
 
     virtual auto get_features() -> TCPC_FEATURES = 0;
 };

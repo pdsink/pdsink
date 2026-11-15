@@ -25,7 +25,6 @@ namespace PD_TIMER {
         PE_BISTContModeTimer,
 
         // (!) Check PD_TIMERS_RANGE after update
-        PRL_HardResetCompleteTimer,
         PRL_ActiveCcPollingDebounce, // Custom, not PD spec
         PRL_CRCReceive,
         PRL_ChunkSenderResponse,
@@ -40,7 +39,7 @@ struct PD_TIMERS_RANGE {
     using Type = etl::pair<int, int>;
 
     static constexpr Type PE{PD_TIMER::PE_SinkWaitCapTimer, PD_TIMER::PE_BISTContModeTimer};
-    static constexpr Type PRL{PD_TIMER::PRL_HardResetCompleteTimer, PD_TIMER::PRL_ChunkSenderRequest};
+    static constexpr Type PRL{PD_TIMER::PRL_ActiveCcPollingDebounce, PD_TIMER::PRL_ChunkSenderRequest};
 };
 
 // [rev3.2 v1.2] 7.31.19 Time Values and Timers
@@ -72,7 +71,6 @@ public:
     static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500 * ms}; // 450-550 ms
     static constexpr Type tBISTContMode {PD_TIMER::PE_BISTContModeTimer, 45 * ms}; // 30-60 ms
 
-    static constexpr Type tHardResetComplete {PD_TIMER::PRL_HardResetCompleteTimer, 5 * ms}; // 4-5 ms
     static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27 * ms}; // 24-30 ms
     static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, 27 * ms}; // 24-30 ms
 

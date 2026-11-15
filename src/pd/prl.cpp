@@ -1001,10 +1001,13 @@ public:
         auto& port = prl_tx.prl.port;
         prl_tx.log_state();
 
-        // The spec enters Discard on RX even without pending TX. Increment
-        // MessageID only when discarding a message awaiting transmission.
+        // Discard can run without a pending TX. Increment MessageID only for
+        // a discarded TX, including FAILED: this state completes that TX
+        // instead of the error handler that would normally increment MessageID.
+        const auto status = port.tcpc_tx_status.load();
         if (port.prl_tx_flags.test_and_clear(PRL_TX_FLAG::TX_CHUNK_ENQUEUED) ||
-            is_tcpc_transmit_in_progress(port.tcpc_tx_status.load()))
+            is_tcpc_transmit_in_progress(status) ||
+            status == TCPC_TRANSMIT_STATUS::FAILED)
         {
             port.tx_msg_id_counter++;
         }
@@ -1113,13 +1116,20 @@ public:
             return No_State_Change;
         }
 
-        if (!prl.tcpc.fetch_rx_data()) { return No_State_Change; }
+        if (prl.tcpc.fetch_rx() == FETCH_RX_STATUS::READY) {
+            prl.tcpc.get_rx();
 
-        if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
-            return PRL_Rx_Layer_Reset_for_Receive;
+            // Schedule the next fetch after this packet has been processed or ignored.
+            prl.request_wakeup();
+
+            if (port.rx_chunk.is_ctrl_msg(PD_CTRL_MSGT::Soft_Reset)) {
+                return PRL_Rx_Layer_Reset_for_Receive;
+            }
+
+            return PRL_Rx_Send_GoodCRC;
         }
 
-        return PRL_Rx_Send_GoodCRC;
+        return No_State_Change;
     }
 
     static void on_exit_state(PRL_Rx&) {}
@@ -1162,6 +1172,11 @@ public:
     static auto on_enter_state(PRL_Rx& prl_rx) -> state_id_t {
         auto& port = prl_rx.prl.port;
         prl_rx.log_state();
+
+        if (prl_rx.prl.tcpc.get_features().tx_retries) {
+            // Drivers with auto-retries handle duplicates themselves.
+            return PRL_Rx_Store_MessageID;
+        }
 
         if (port.rx_msg_id_stored == port.rx_chunk.header.message_id) {
             // Ignore duplicates
@@ -1318,58 +1333,29 @@ public:
         hr.log_state();
 
         hr.prl.tcpc.req_hr_send();
-        return No_State_Change;
-    }
-
-    static auto on_run_state(PRL_HR& hr) -> state_id_t {
-        auto& prl = hr.prl;
-
-        // Wait for the TCPC call to complete. This does NOT mean the transfer
-        // ended. This means the driver accepted the request and commanded the
-        // chip to send HR. The final result is available via
-        // `port.tcpc_tx_status` (as for an ordinary transfer).
-        if (!prl.tcpc.is_hr_send_done()) { return No_State_Change; }
-
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
     }
 
+    static auto on_run_state(PRL_HR&) -> state_id_t { return No_State_Change; }
     static void on_exit_state(PRL_HR&) {}
 };
 
 class PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State : public afsm::state<PRL_HR, PRL_HR_Wait_for_PHY_Hard_Reset_Complete_State, PRL_HR_Wait_for_PHY_Hard_Reset_Complete> {
 public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
-        auto& port = hr.prl.port;
         hr.log_state();
-
-        port.timers.start(PD_TIMEOUT::tHardResetComplete);
         return No_State_Change;
     }
 
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
-        auto& port = hr.prl.port;
-        auto status = port.tcpc_tx_status.load();
-
-        if ((status == TCPC_TRANSMIT_STATUS::SUCCEEDED) ||
-            (status == TCPC_TRANSMIT_STATUS::FAILED))
-        {
-            if (status == TCPC_TRANSMIT_STATUS::FAILED) {
-                PRL_LOGE("Hard Reset sending failed");
-            }
-            return PRL_HR_PHY_Hard_Reset_Requested;
-        }
-
-        if (port.timers.is_expired(PD_TIMEOUT::tHardResetComplete)) {
-            PRL_LOGE("Hard Reset sending timed out");
+        if (hr.prl.tcpc.is_hr_send_done()) {
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
 
         return No_State_Change;
     }
 
-    static void on_exit_state(PRL_HR& hr) {
-        hr.prl.port.timers.stop(PD_TIMEOUT::tHardResetComplete);
-    }
+    static void on_exit_state(PRL_HR&) {}
 };
 
 class PRL_HR_PHY_Hard_Reset_Requested_State : public afsm::state<PRL_HR, PRL_HR_PHY_Hard_Reset_Requested_State, PRL_HR_PHY_Hard_Reset_Requested> {
@@ -1474,6 +1460,7 @@ void PRL::reinit_for_sr(bool keep_rx_state) {
     // NOTE: negotiated revision stays intact. It's cleared via PE init and
     // hard reset.
     port.rx_msg_id_stored = -1;
+    tcpc.reset_rx_id_tracker();
     port.tx_msg_id_counter = 0;
 
     prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
