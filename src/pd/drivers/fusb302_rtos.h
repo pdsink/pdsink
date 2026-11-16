@@ -128,8 +128,6 @@ protected:
     void task();
     void handle_interrupt();
     void handle_tcpc_calls();
-    void handle_meter();
-    bool meter_tick(bool &retry);
 
     void on_hal_event(HAL_EVENT_TYPE event, bool from_isr);
     void kick_task(uint32_t event_mask, bool from_isr = false);
@@ -242,24 +240,15 @@ protected:
 
     PD_CHUNK enqueued_tx_chunk{};
 
-    enum class MeterState {
-        IDLE,
-        CC_ACTIVE_MEASURE_WAIT,
-    };
-    MeterState meter_state{MeterState::IDLE};
-
     enum DriverTimer {
         PD_CORE_TIMERS,
-        CC,
         LINE_QUIET_TIMER,
         HR_SEND_TIMER,
         COUNT,
     };
 #if defined(USE_FUSB302_COARSE_TIMER)
-    static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 2000};
     static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 3000};
 #else
-    static constexpr PD_TIMEOUT::Type CC_SETTLE{DriverTimer::CC, 250};
     static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 1400};
 #endif
     static constexpr PD_TIMEOUT::Type HR_SEND_TIMEOUT{DriverTimer::HR_SEND_TIMER, 5000}; // tHardResetComplete: 4-5 ms

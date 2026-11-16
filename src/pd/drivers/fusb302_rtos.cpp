@@ -647,87 +647,6 @@ void Fusb302Rtos::rearm(uint32_t deadline_ticks) {
     timers.start_with_deadline(DriverTimer::PD_CORE_TIMERS, deadline_ticks);
 }
 
-// Since FUSB302 does not allow making different measurements in parallel,
-// do them all in one place to avoid collisions. Also, use a simple FSM to
-// implement non-blocking delays.
-bool Fusb302Rtos::meter_tick(bool &repeat) {
-    repeat = false;
-    Status0 status0;
-
-    switch (meter_state) {
-        case MeterState::IDLE: {
-            TCPC_CC_REQ selector;
-            if (sync_fetch_cc.get_job(selector)) {
-                if (selector != TCPC_CC_REQ::ACTIVE_CC) {
-                    DRV_LOGE("Unsupported CC selector: {}", static_cast<int>(selector));
-                    sync_fetch_cc.job_finish();
-                    has_deferred_wakeup = true;
-                    repeat = true;
-                    return true;
-                }
-                DRV_LOGV("Active CC measurement begin");
-                timers.start(CC_SETTLE);
-                meter_state = MeterState::CC_ACTIVE_MEASURE_WAIT;
-                return true;
-            }
-            break;
-        }
-
-        case MeterState::CC_ACTIVE_MEASURE_WAIT:
-            // Cancelled measurements leave the CC cache unchanged.
-            if (sync_fetch_cc.is_idle()) {
-                timers.stop(CC_SETTLE);
-                meter_state = MeterState::IDLE;
-                repeat = true;
-                break;
-            }
-            if (!timers.is_expired(CC_SETTLE)) { break; }
-
-            // Note: CC activity can introduce noise, but since we are waiting
-            // for SinkTxOK, false negatives are acceptable; those will only
-            // cause a small transfer delay.
-            DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
-
-            if (polarity.load() != TCPC_POLARITY::CC1 &&
-                polarity.load() != TCPC_POLARITY::CC2) {
-                DRV_LOGE("Can't measure active CC without polarity set");
-            } else {
-                if (polarity.load() == TCPC_POLARITY::CC1) {
-                    cc1_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
-                } else {
-                    cc2_value.store(static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL));
-                }
-            }
-
-            DRV_LOGV("Active CC measurement end");
-            timers.stop(CC_SETTLE);
-            sync_fetch_cc.job_finish();
-            meter_state = MeterState::IDLE;
-            has_deferred_wakeup = true;
-            repeat = true;
-            break;
-    }
-
-    return true;
-}
-
-void Fusb302Rtos::handle_meter() {
-    bool repeat = false;
-
-    while (1) {
-        if (!meter_tick(repeat)) {
-            timers.stop(CC_SETTLE);
-            if (meter_state == MeterState::CC_ACTIVE_MEASURE_WAIT) {
-                sync_fetch_cc.job_finish();
-            }
-            meter_state = MeterState::IDLE;
-            has_deferred_wakeup = true;
-            repeat = true;
-        }
-        if (!repeat) { break; }
-    }
-}
-
 void Fusb302Rtos::handle_tcpc_calls() {
 
     TCPC_POLARITY _polarity{};
@@ -735,8 +654,6 @@ void Fusb302Rtos::handle_tcpc_calls() {
         // Reset TX status and cancel pending CC operations.
         port.tcpc_tx_status.store(TCPC_TRANSMIT_STATUS::UNSET);
         sync_fetch_cc.reset();
-        timers.stop(CC_SETTLE);
-        meter_state = MeterState::IDLE;
 
         if (_polarity == TCPC_POLARITY::TOGGLING) {
             DRV_LOG_ON_ERROR(fusb_start_toggling());
@@ -744,6 +661,22 @@ void Fusb302Rtos::handle_tcpc_calls() {
             polarity.store(_polarity);
         }
         sync_set_polarity.job_finish();
+        has_deferred_wakeup = true;
+    }
+
+    // In this implementation, only the active CC is measured (TC attach
+    // debounce, PRL SinkTxOK wait), so no settling delay is needed.
+    TCPC_CC_REQ _cc_req{};
+    if (sync_fetch_cc.get_job(_cc_req)) {
+        Status0 status0{};
+        DRV_LOG_ON_ERROR(hal.read_reg(i2c_addr, Status0::reg, status0.raw_value));
+        const auto level = static_cast<TCPC_CC_LEVEL::Type>(status0.BC_LVL);
+        if (polarity.load() == TCPC_POLARITY::CC1) {
+            cc1_value.store(level);
+        } else {
+            cc2_value.store(level);
+        }
+        sync_fetch_cc.job_finish();
         has_deferred_wakeup = true;
     }
 
@@ -835,10 +768,6 @@ void Fusb302Rtos::task() {
                 sync_hr_send.job_finish();
                 has_deferred_wakeup = true;
             }
-
-            // Apply pending polarity changes first: handle_tcpc_calls() may
-            // reset the measurement before it takes another step.
-            handle_meter();
 
             if (event_mask & MSK_WAKEUP) {
                 has_deferred_wakeup = true;
