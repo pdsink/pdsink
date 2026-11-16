@@ -8,11 +8,35 @@ on:
 
 jobs:
   test:
-    name: Run PlatformIO Tests
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Execute tests
+            command: platformio test --environment native
+          - name: Check examples build from root (arduino)
+            command: platformio run --environment example-fusb302_rtos_esp32c3_arduino
+          - name: Check examples build from root (espidf)
+            command: platformio run --environment example-fusb302_rtos_esp32c3_espidf
+          - name: Check standalone example build (arduino)
+            command: platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_arduino
+          - name: Check standalone example build (espidf)
+            command: platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_espidf
 
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/platforms
+            ~/.platformio/packages
+            .cache
+            examples/fusb302_rtos_esp32c3_arduino/.cache
+          key: ${{ runner.os }}-pio-${{ matrix.name }}-${{ hashFiles('**/platformio.ini') }}
 
       - uses: actions/setup-python@v7
         with:
@@ -22,22 +46,5 @@ jobs:
         run: |
           python -m pip install --upgrade platformio
 
-      - name: Execute tests
-        run: |
-          platformio test --environment native
-
-      - name: Check examples build from root (arduino)
-        run: |
-          platformio run --environment example-fusb302_rtos_esp32c3_arduino
-
-      - name: Check examples build from root (espidf)
-        run: |
-          platformio run --environment example-fusb302_rtos_esp32c3_espidf
-
-      - name: Check standalone example build (arduino)
-        run: |
-          platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_arduino
-
-      - name: Check standalone example build (espidf)
-        run: |
-          platformio run --project-dir examples/fusb302_rtos_esp32c3_arduino --environment example-fusb302_rtos_esp32c3_espidf
+      - name: ${{ matrix.name }}
+        run: ${{ matrix.command }}
