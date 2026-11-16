@@ -16,14 +16,16 @@ namespace fusb302 {
 #define DRV_LOG_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
+            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
         } \
     } while (0)
 
 #define DRV_RET_FALSE_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
+            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
             return false; \
         } \
     } while (0)
@@ -31,7 +33,8 @@ namespace fusb302 {
 #define DRV_RET_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
-            DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); \
+            /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
+            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
             return; \
         } \
     } while (0)
