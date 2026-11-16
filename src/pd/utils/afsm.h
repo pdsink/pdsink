@@ -14,7 +14,13 @@ static constexpr state_id_t No_State_Change = etl::ifsm_state::No_State_Change;
 static constexpr state_id_t Self_Transition = etl::ifsm_state::Self_Transition;
 static constexpr state_id_t Uninitialized = etl::integral_limits<etl::fsm_state_id_t>::max;
 
+class fsm_core;
+
 namespace details {
+    using on_enter_fn = state_id_t(*)(fsm_core&);
+    using on_run_fn = state_id_t(*)(fsm_core&);
+    using on_exit_fn = void(*)(fsm_core&);
+
     template<typename...>
     struct first_type;
 
@@ -114,19 +120,22 @@ public:
     static constexpr auto Self_Transition = afsm::Self_Transition;
     static constexpr auto Uninitialized = afsm::Uninitialized;
 
-    static state_id_t _afsm_on_enter_state(FSMType& fsm) {
+    static state_id_t _afsm_on_enter_state(fsm_core& core) {
+        auto& fsm = static_cast<FSMType&>(core);
         using Hooks = typename details::state_hooks<Derived>::type;
         Hooks::enter(fsm);
         return Derived::on_enter_state(fsm);
     }
 
-    static state_id_t _afsm_on_run_state(FSMType& fsm) {
+    static state_id_t _afsm_on_run_state(fsm_core& core) {
+        auto& fsm = static_cast<FSMType&>(core);
         using Hooks = typename details::state_hooks<Derived>::type;
         Hooks::run(fsm);
         return Derived::on_run_state(fsm);
     }
 
-    static void _afsm_on_exit_state(FSMType& fsm) {
+    static void _afsm_on_exit_state(fsm_core& core) {
+        auto& fsm = static_cast<FSMType&>(core);
         Derived::on_exit_state(fsm);
         using Hooks = typename details::state_hooks<Derived>::type;
         Hooks::exit(fsm);
@@ -150,9 +159,9 @@ class pack_base {
 public:
     using FirstElement = typename details::first_type<Elements...>::type;
 
-    using on_enter_fn = state_id_t(*)(typename FirstElement::FSMType&);
-    using on_run_fn = state_id_t(*)(typename FirstElement::FSMType&);
-    using on_exit_fn = void(*)(typename FirstElement::FSMType&);
+    using on_enter_fn = details::on_enter_fn;
+    using on_run_fn = details::on_run_fn;
+    using on_exit_fn = details::on_exit_fn;
 
     static constexpr size_t element_count = sizeof...(Elements);
 
@@ -221,35 +230,28 @@ public:
     }
 };
 
-template<typename FSMImpl>
-class fsm {
-public:
-    using on_enter_fn = state_id_t(*)(FSMImpl&);
-    using on_run_fn = state_id_t(*)(FSMImpl&);
-    using on_exit_fn = void(*)(FSMImpl&);
-
+// Common engine shared by all FSM types. State wrappers restore the concrete type.
+class fsm_core {
 private:
-    const on_enter_fn* enter_table = nullptr;
-    const on_run_fn* run_table = nullptr;
-    const on_exit_fn* exit_table = nullptr;
+    const details::on_enter_fn* enter_table = nullptr;
+    const details::on_run_fn* run_table = nullptr;
+    const details::on_exit_fn* exit_table = nullptr;
 
     size_t state_count{0};
     state_id_t current_state_id{Uninitialized};
     state_id_t previous_state_id{Uninitialized};
     bool is_busy{false};
 
-    FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
-
-public:
-    template<typename StatePack>
-    void set_states(state_id_t initial = Uninitialized) {
-        static_assert(etl::is_same<FSMImpl, typename StatePack::FirstElement::FSMType>::value,
-                    "StatePack FSMType must match fsm FSMImpl type");
-
-        enter_table = StatePack::get_enter_table();
-        run_table = StatePack::get_run_table();
-        exit_table = StatePack::get_exit_table();
-        state_count = StatePack::get_state_count();
+protected:
+    void set_tables(const details::on_enter_fn* enter,
+                    const details::on_run_fn* run,
+                    const details::on_exit_fn* exit,
+                    size_t count,
+                    state_id_t initial) {
+        enter_table = enter;
+        run_table = run;
+        exit_table = exit;
+        state_count = count;
 
         current_state_id = Uninitialized;
         previous_state_id = Uninitialized;
@@ -259,6 +261,7 @@ public:
         }
     }
 
+public:
     bool is_uninitialized() const { return current_state_id == Uninitialized; }
 
     state_id_t get_state_id() const {
@@ -285,7 +288,7 @@ public:
         if (current_state_id >= state_count) { return; }
 
         is_busy = true;
-        auto result = run_table[current_state_id](impl());
+        auto result = run_table[current_state_id](*this);
         is_busy = false;
 
         if (result == Self_Transition) {
@@ -312,7 +315,7 @@ public:
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
                 is_busy = true;
-                exit_table[current_state_id](impl());
+                exit_table[current_state_id](*this);
                 is_busy = false;
             }
             current_state_id = Uninitialized;
@@ -330,7 +333,7 @@ public:
         if (have_current || reenter) { previous_state_id = current_state_id; }
         if (have_current) {
             is_busy = true;
-            exit_table[current_state_id](impl());
+            exit_table[current_state_id](*this);
             is_busy = false;
         }
 
@@ -338,21 +341,21 @@ public:
             current_state_id = next_state_id;
 
             is_busy = true;
-            auto result = enter_table[current_state_id](impl());
+            auto result = enter_table[current_state_id](*this);
             is_busy = false;
 
             if (result == No_State_Change) {
                 next_state_id = current_state_id;
             } else if (result == Uninitialized) {
                 is_busy = true;
-                exit_table[current_state_id](impl());
+                exit_table[current_state_id](*this);
                 is_busy = false;
                 previous_state_id = current_state_id;
                 current_state_id = Uninitialized;
                 return;
             } else if (result < state_count) {
                 is_busy = true;
-                exit_table[current_state_id](impl());
+                exit_table[current_state_id](*this);
                 is_busy = false;
                 previous_state_id = current_state_id;
                 next_state_id = result;
@@ -364,6 +367,26 @@ public:
 
     template<typename E, typename = typename etl::enable_if<!etl::is_same<E, state_id_t>::value>::type>
     void change_state(E e, bool reenter = false) { change_state(static_cast<state_id_t>(e), reenter); }
+};
+
+template<typename FSMImpl>
+class fsm : public fsm_core {
+public:
+    using on_enter_fn = state_id_t(*)(FSMImpl&);
+    using on_run_fn = state_id_t(*)(FSMImpl&);
+    using on_exit_fn = void(*)(FSMImpl&);
+
+    template<typename StatePack>
+    void set_states(state_id_t initial = Uninitialized) {
+        static_assert(etl::is_same<FSMImpl, typename StatePack::FirstElement::FSMType>::value,
+                    "StatePack FSMType must match fsm FSMImpl type");
+
+        set_tables(StatePack::get_enter_table(),
+                   StatePack::get_run_table(),
+                   StatePack::get_exit_table(),
+                   StatePack::get_state_count(),
+                   initial);
+    }
 };
 
 } // namespace afsm
