@@ -4,6 +4,7 @@
 #include <etl/fsm.h>
 #include <etl/type_lookup.h>
 #include <etl/type_traits.h>
+#include <etl/utility.h>
 #include <etl/integral_limits.h>
 #include <stddef.h>
 
@@ -17,9 +18,17 @@ static constexpr state_id_t Uninitialized = etl::integral_limits<etl::fsm_state_
 class fsm_core;
 
 namespace details {
-    using on_enter_fn = state_id_t(*)(fsm_core&);
-    using on_run_fn = state_id_t(*)(fsm_core&);
-    using on_exit_fn = void(*)(fsm_core&);
+    using on_enter_fn = state_id_t(*)(fsm_core&, state_id_t);
+    using on_run_fn = state_id_t(*)(fsm_core&, state_id_t);
+    using on_exit_fn = void(*)(fsm_core&, state_id_t);
+
+    template<size_t Index, typename First, typename... Rest>
+    struct type_at : type_at<Index - 1, Rest...> {};
+
+    template<typename First, typename... Rest>
+    struct type_at<0, First, Rest...> {
+        using type = First;
+    };
 
     template<typename...>
     struct first_type;
@@ -169,20 +178,108 @@ public:
     static_assert(details::check_fsm_types<typename FirstElement::FSMType, Elements...>::value,
                   "All elements must have the same FSMType");
 
-    static const on_enter_fn* get_enter_table() {
-        static const on_enter_fn table[element_count] = { &Elements::_afsm_on_enter_state... };
-        return table;
+    struct enter_op {
+        template<typename S> static state_id_t call(fsm_core& c) { return S::_afsm_on_enter_state(c); }
+        static state_id_t none() { return No_State_Change; }
+    };
+    struct run_op {
+        template<typename S> static state_id_t call(fsm_core& c) { return S::_afsm_on_run_state(c); }
+        static state_id_t none() { return No_State_Change; }
+    };
+    struct exit_op {
+        template<typename S> static void call(fsm_core& c) { S::_afsm_on_exit_state(c); }
+        static void none() {}
+    };
+
+    template<typename Op, size_t I>
+    static auto at(fsm_core& core) {
+        if constexpr (I < element_count) {
+            return Op::template call<typename details::type_at<I, Elements...>::type>(core);
+        } else {
+            return Op::none();
+        }
     }
 
-    static const on_run_fn* get_run_table() {
-        static const on_run_fn table[element_count] = { &Elements::_afsm_on_run_state... };
-        return table;
+    // 64-way switch, chained for larger packs (same idea as boost::mp11::mp_with_index)
+    template<typename Op, size_t Base>
+    static auto dispatch(fsm_core& core, state_id_t id) {
+        switch (id - Base) {
+            case 0: return at<Op, Base + 0>(core);
+            case 1: return at<Op, Base + 1>(core);
+            case 2: return at<Op, Base + 2>(core);
+            case 3: return at<Op, Base + 3>(core);
+            case 4: return at<Op, Base + 4>(core);
+            case 5: return at<Op, Base + 5>(core);
+            case 6: return at<Op, Base + 6>(core);
+            case 7: return at<Op, Base + 7>(core);
+            case 8: return at<Op, Base + 8>(core);
+            case 9: return at<Op, Base + 9>(core);
+            case 10: return at<Op, Base + 10>(core);
+            case 11: return at<Op, Base + 11>(core);
+            case 12: return at<Op, Base + 12>(core);
+            case 13: return at<Op, Base + 13>(core);
+            case 14: return at<Op, Base + 14>(core);
+            case 15: return at<Op, Base + 15>(core);
+            case 16: return at<Op, Base + 16>(core);
+            case 17: return at<Op, Base + 17>(core);
+            case 18: return at<Op, Base + 18>(core);
+            case 19: return at<Op, Base + 19>(core);
+            case 20: return at<Op, Base + 20>(core);
+            case 21: return at<Op, Base + 21>(core);
+            case 22: return at<Op, Base + 22>(core);
+            case 23: return at<Op, Base + 23>(core);
+            case 24: return at<Op, Base + 24>(core);
+            case 25: return at<Op, Base + 25>(core);
+            case 26: return at<Op, Base + 26>(core);
+            case 27: return at<Op, Base + 27>(core);
+            case 28: return at<Op, Base + 28>(core);
+            case 29: return at<Op, Base + 29>(core);
+            case 30: return at<Op, Base + 30>(core);
+            case 31: return at<Op, Base + 31>(core);
+            case 32: return at<Op, Base + 32>(core);
+            case 33: return at<Op, Base + 33>(core);
+            case 34: return at<Op, Base + 34>(core);
+            case 35: return at<Op, Base + 35>(core);
+            case 36: return at<Op, Base + 36>(core);
+            case 37: return at<Op, Base + 37>(core);
+            case 38: return at<Op, Base + 38>(core);
+            case 39: return at<Op, Base + 39>(core);
+            case 40: return at<Op, Base + 40>(core);
+            case 41: return at<Op, Base + 41>(core);
+            case 42: return at<Op, Base + 42>(core);
+            case 43: return at<Op, Base + 43>(core);
+            case 44: return at<Op, Base + 44>(core);
+            case 45: return at<Op, Base + 45>(core);
+            case 46: return at<Op, Base + 46>(core);
+            case 47: return at<Op, Base + 47>(core);
+            case 48: return at<Op, Base + 48>(core);
+            case 49: return at<Op, Base + 49>(core);
+            case 50: return at<Op, Base + 50>(core);
+            case 51: return at<Op, Base + 51>(core);
+            case 52: return at<Op, Base + 52>(core);
+            case 53: return at<Op, Base + 53>(core);
+            case 54: return at<Op, Base + 54>(core);
+            case 55: return at<Op, Base + 55>(core);
+            case 56: return at<Op, Base + 56>(core);
+            case 57: return at<Op, Base + 57>(core);
+            case 58: return at<Op, Base + 58>(core);
+            case 59: return at<Op, Base + 59>(core);
+            case 60: return at<Op, Base + 60>(core);
+            case 61: return at<Op, Base + 61>(core);
+            case 62: return at<Op, Base + 62>(core);
+            case 63: return at<Op, Base + 63>(core);
+            default: break;
+        }
+        if constexpr (Base + 64 < element_count) {
+            return dispatch<Op, Base + 64>(core, id);
+        } else {
+            return Op::none();
+        }
     }
 
-    static const on_exit_fn* get_exit_table() {
-        static const on_exit_fn table[element_count] = { &Elements::_afsm_on_exit_state... };
-        return table;
-    }
+    static state_id_t dispatch_enter(fsm_core& core, state_id_t id) { return dispatch<enter_op, 0>(core, id); }
+    static state_id_t dispatch_run(fsm_core& core, state_id_t id) { return dispatch<run_op, 0>(core, id); }
+    static void dispatch_exit(fsm_core& core, state_id_t id) { dispatch<exit_op, 0>(core, id); }
 
     static constexpr size_t get_element_count() {
         return element_count;
@@ -233,9 +330,9 @@ public:
 // Common engine shared by all FSM types. State wrappers restore the concrete type.
 class fsm_core {
 private:
-    const details::on_enter_fn* enter_table = nullptr;
-    const details::on_run_fn* run_table = nullptr;
-    const details::on_exit_fn* exit_table = nullptr;
+    details::on_enter_fn enter_dispatch = nullptr;
+    details::on_run_fn run_dispatch = nullptr;
+    details::on_exit_fn exit_dispatch = nullptr;
 
     size_t state_count{0};
     state_id_t current_state_id{Uninitialized};
@@ -243,14 +340,15 @@ private:
     bool is_busy{false};
 
 protected:
-    void set_tables(const details::on_enter_fn* enter,
-                    const details::on_run_fn* run,
-                    const details::on_exit_fn* exit,
-                    size_t count,
-                    state_id_t initial) {
-        enter_table = enter;
-        run_table = run;
-        exit_table = exit;
+    void set_dispatchers(details::on_enter_fn enter,
+                         details::on_run_fn run,
+                         details::on_exit_fn exit,
+                         size_t count,
+                         state_id_t initial)
+    {
+        enter_dispatch = enter;
+        run_dispatch = run;
+        exit_dispatch = exit;
         state_count = count;
 
         current_state_id = Uninitialized;
@@ -288,7 +386,7 @@ public:
         if (current_state_id >= state_count) { return; }
 
         is_busy = true;
-        auto result = run_table[current_state_id](*this);
+        auto result = run_dispatch(*this, current_state_id);
         is_busy = false;
 
         if (result == Self_Transition) {
@@ -315,7 +413,7 @@ public:
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
                 is_busy = true;
-                exit_table[current_state_id](*this);
+                exit_dispatch(*this, current_state_id);
                 is_busy = false;
             }
             current_state_id = Uninitialized;
@@ -333,7 +431,7 @@ public:
         if (have_current || reenter) { previous_state_id = current_state_id; }
         if (have_current) {
             is_busy = true;
-            exit_table[current_state_id](*this);
+            exit_dispatch(*this, current_state_id);
             is_busy = false;
         }
 
@@ -341,21 +439,21 @@ public:
             current_state_id = next_state_id;
 
             is_busy = true;
-            auto result = enter_table[current_state_id](*this);
+            auto result = enter_dispatch(*this, current_state_id);
             is_busy = false;
 
             if (result == No_State_Change) {
                 next_state_id = current_state_id;
             } else if (result == Uninitialized) {
                 is_busy = true;
-                exit_table[current_state_id](*this);
+                exit_dispatch(*this, current_state_id);
                 is_busy = false;
                 previous_state_id = current_state_id;
                 current_state_id = Uninitialized;
                 return;
             } else if (result < state_count) {
                 is_busy = true;
-                exit_table[current_state_id](*this);
+                exit_dispatch(*this, current_state_id);
                 is_busy = false;
                 previous_state_id = current_state_id;
                 next_state_id = result;
@@ -381,11 +479,11 @@ public:
         static_assert(etl::is_same<FSMImpl, typename StatePack::FirstElement::FSMType>::value,
                     "StatePack FSMType must match fsm FSMImpl type");
 
-        set_tables(StatePack::get_enter_table(),
-                   StatePack::get_run_table(),
-                   StatePack::get_exit_table(),
-                   StatePack::get_state_count(),
-                   initial);
+        set_dispatchers(&StatePack::dispatch_enter,
+                        &StatePack::dispatch_run,
+                        &StatePack::dispatch_exit,
+                        StatePack::get_state_count(),
+                        initial);
     }
 };
 
