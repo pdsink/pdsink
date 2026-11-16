@@ -53,17 +53,54 @@ namespace details {
             check_state_ids<Expected + 1, Rest...>::value;
     };
 
-    struct interceptor_pack_interface {
-        const void* enter_table;
-        const void* run_table;
-        const void* exit_table;
-        size_t element_count;
+    template<typename FSM, typename... Hooks>
+    struct hook_callbacks;
+
+    template<typename FSM>
+    struct hook_callbacks<FSM> {
+        static void enter(FSM&) {}
+        static void run(FSM&) {}
+        static void exit(FSM&) {}
     };
 
-    struct enter_result {
-        state_id_t next_state;
-        size_t interceptors_executed;
-        bool main_state_executed;
+    template<typename FSM, typename First, typename... Rest>
+    struct hook_callbacks<FSM, First, Rest...> {
+        static_assert(etl::is_same<FSM, typename First::FSMType>::value,
+                      "Hook FSMType must match state FSMType");
+        static_assert(etl::is_same<void, decltype(First::on_enter_state(*static_cast<FSM*>(nullptr)))>::value,
+                      "Hook on_enter_state must return void");
+        static_assert(etl::is_same<void, decltype(First::on_run_state(*static_cast<FSM*>(nullptr)))>::value,
+                      "Hook on_run_state must return void");
+        static_assert(etl::is_same<void, decltype(First::on_exit_state(*static_cast<FSM*>(nullptr)))>::value,
+                      "Hook on_exit_state must return void");
+
+        static void enter(FSM& fsm) {
+            First::on_enter_state(fsm);
+            hook_callbacks<FSM, Rest...>::enter(fsm);
+        }
+
+        static void run(FSM& fsm) {
+            First::on_run_state(fsm);
+            hook_callbacks<FSM, Rest...>::run(fsm);
+        }
+
+        static void exit(FSM& fsm) {
+            hook_callbacks<FSM, Rest...>::exit(fsm);
+            First::on_exit_state(fsm);
+        }
+    };
+
+    template<typename...>
+    using void_t = void;
+
+    template<typename State, typename = void>
+    struct state_hooks {
+        using type = hook_callbacks<typename State::FSMType>;
+    };
+
+    template<typename State>
+    struct state_hooks<State, void_t<typename State::hook_pack_type>> {
+        using type = typename State::hook_pack_type::template callbacks<typename State::FSMType>;
     };
 
 } // namespace details
@@ -78,20 +115,29 @@ public:
     static constexpr auto Uninitialized = afsm::Uninitialized;
 
     static state_id_t _afsm_on_enter_state(FSMType& fsm) {
+        using Hooks = typename details::state_hooks<Derived>::type;
+        Hooks::enter(fsm);
         return Derived::on_enter_state(fsm);
     }
 
     static state_id_t _afsm_on_run_state(FSMType& fsm) {
+        using Hooks = typename details::state_hooks<Derived>::type;
+        Hooks::run(fsm);
         return Derived::on_run_state(fsm);
     }
 
     static void _afsm_on_exit_state(FSMType& fsm) {
         Derived::on_exit_state(fsm);
+        using Hooks = typename details::state_hooks<Derived>::type;
+        Hooks::exit(fsm);
     }
 };
 
 template<typename FSM, typename Derived>
-using interceptor = state_base<FSM, Derived>;
+class hook {
+public:
+    using FSMType = FSM;
+};
 
 template<typename FSM, typename Derived, state_id_t StateID>
 class state : public state_base<FSM, Derived> {
@@ -134,19 +180,27 @@ public:
     }
 };
 
-template<typename... Interceptors>
-class interceptor_pack : public pack_base<Interceptors...> {
+template<typename... Hooks>
+class hook_pack {
 public:
-    using interceptor_pack_type = interceptor_pack<Interceptors...>;
+    using hook_pack_type = hook_pack<Hooks...>;
+    using FirstElement = typename details::first_type<Hooks...>::type;
 
-    static const details::interceptor_pack_interface* get_interface() {
-        static const details::interceptor_pack_interface interface = {
-            pack_base<Interceptors...>::get_enter_table(),
-            pack_base<Interceptors...>::get_run_table(),
-            pack_base<Interceptors...>::get_exit_table(),
-            pack_base<Interceptors...>::element_count
-        };
-        return &interface;
+    using on_enter_fn = void(*)(typename FirstElement::FSMType&);
+    using on_run_fn = void(*)(typename FirstElement::FSMType&);
+    using on_exit_fn = void(*)(typename FirstElement::FSMType&);
+
+    static constexpr size_t element_count = sizeof...(Hooks);
+
+    static_assert(sizeof...(Hooks) > 0, "Pack cannot be empty");
+    static_assert(details::check_fsm_types<typename FirstElement::FSMType, Hooks...>::value,
+                  "All elements must have the same FSMType");
+
+    template<typename FSM>
+    using callbacks = details::hook_callbacks<FSM, Hooks...>;
+
+    static constexpr size_t get_element_count() {
+        return element_count;
     }
 };
 
@@ -160,45 +214,7 @@ public:
     static_assert(!etl::integral_limits<etl::fsm_state_id_t>::is_signed,
                   "fsm_state_id_t must be unsigned");
 
-    using interceptor_pack_ptr = const details::interceptor_pack_interface*;
-
     static constexpr size_t state_count = pack_base<States...>::element_count;
-
-    template<typename State>
-    struct has_interceptors {
-        template<typename T>
-        static auto test(int) -> decltype(typename T::interceptor_pack_type{}, etl::true_type{});
-        template<typename>
-        static etl::false_type test(...);
-
-        static constexpr bool value = decltype(test<State>(0))::value;
-    };
-
-    template<typename State, bool HasInterceptors>
-    struct interceptor_pack_extractor {
-        static constexpr interceptor_pack_ptr extract() {
-            return nullptr;
-        }
-    };
-
-    template<typename State>
-    struct interceptor_pack_extractor<State, true> {
-        static constexpr interceptor_pack_ptr extract() {
-            return State::interceptor_pack_type::get_interface();
-        }
-    };
-
-    template<typename State>
-    static constexpr interceptor_pack_ptr extract_interceptor_pack() {
-        return interceptor_pack_extractor<State, has_interceptors<State>::value>::extract();
-    }
-
-    static const interceptor_pack_ptr* get_interceptor_table() {
-        static const interceptor_pack_ptr table[state_count] = {
-            extract_interceptor_pack<States>()...
-        };
-        return table;
-    }
 
     static constexpr size_t get_state_count() {
         return state_count;
@@ -216,7 +232,6 @@ private:
     const on_enter_fn* enter_table = nullptr;
     const on_run_fn* run_table = nullptr;
     const on_exit_fn* exit_table = nullptr;
-    const details::interceptor_pack_interface* const* interceptor_table = nullptr;
 
     size_t state_count{0};
     state_id_t current_state_id{Uninitialized};
@@ -224,73 +239,6 @@ private:
     bool is_busy{false};
 
     FSMImpl& impl() { return static_cast<FSMImpl&>(*this); }
-
-    details::enter_result execute_enter(state_id_t state_id) {
-        details::enter_result result = {state_id, 0, false};
-
-        if (interceptor_table[state_id]) {
-            const auto& pack = *interceptor_table[state_id];
-            auto enter_table_interceptors = static_cast<const on_enter_fn*>(pack.enter_table);
-
-            for (size_t i = 0; i < pack.element_count; ++i) {
-                auto transition_result = enter_table_interceptors[i](impl());
-                if (transition_result != No_State_Change) {
-                    result.next_state = transition_result;
-                    result.interceptors_executed = i + 1;
-                    return result;
-                }
-            }
-            result.interceptors_executed = pack.element_count;
-        }
-
-        result.next_state = enter_table[state_id](impl());
-        result.main_state_executed = true;
-
-        return result;
-    }
-
-    state_id_t execute_run(state_id_t state_id) {
-        if (interceptor_table[state_id]) {
-            const auto& pack = *interceptor_table[state_id];
-            auto run_table_interceptors = static_cast<const on_run_fn*>(pack.run_table);
-
-            for (size_t i = 0; i < pack.element_count; ++i) {
-                auto result = run_table_interceptors[i](impl());
-                if (result != No_State_Change) {
-                    return result;
-                }
-            }
-        }
-        return run_table[state_id](impl());
-    }
-
-    void execute_exit(state_id_t state_id, const details::enter_result* rollback_info = nullptr) {
-        if (rollback_info) {
-            // If enter "transaction" was incomplete, do symmetric rollback
-            if (rollback_info->main_state_executed) {
-                exit_table[state_id](impl());
-            }
-
-            if (interceptor_table[state_id] && rollback_info->interceptors_executed > 0) {
-                const auto& pack = *interceptor_table[state_id];
-                auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
-
-                for (size_t i = rollback_info->interceptors_executed; i > 0; --i) {
-                    exit_table_interceptors[i-1](impl());
-                }
-            }
-        } else {
-            exit_table[state_id](impl());
-            if (interceptor_table[state_id]) {
-                const auto& pack = *interceptor_table[state_id];
-                auto exit_table_interceptors = static_cast<const on_exit_fn*>(pack.exit_table);
-
-                for (size_t i = pack.element_count; i > 0; --i) {
-                    exit_table_interceptors[i-1](impl());
-                }
-            }
-        }
-    }
 
 public:
     template<typename StatePack>
@@ -301,7 +249,6 @@ public:
         enter_table = StatePack::get_enter_table();
         run_table = StatePack::get_run_table();
         exit_table = StatePack::get_exit_table();
-        interceptor_table = StatePack::get_interceptor_table();
         state_count = StatePack::get_state_count();
 
         current_state_id = Uninitialized;
@@ -338,7 +285,7 @@ public:
         if (current_state_id >= state_count) { return; }
 
         is_busy = true;
-        auto result = execute_run(current_state_id);
+        auto result = run_table[current_state_id](impl());
         is_busy = false;
 
         if (result == Self_Transition) {
@@ -365,7 +312,7 @@ public:
             if (current_state_id < state_count) {
                 previous_state_id = current_state_id;
                 is_busy = true;
-                execute_exit(current_state_id);
+                exit_table[current_state_id](impl());
                 is_busy = false;
             }
             current_state_id = Uninitialized;
@@ -383,7 +330,7 @@ public:
         if (have_current || reenter) { previous_state_id = current_state_id; }
         if (have_current) {
             is_busy = true;
-            execute_exit(current_state_id);
+            exit_table[current_state_id](impl());
             is_busy = false;
         }
 
@@ -391,24 +338,24 @@ public:
             current_state_id = next_state_id;
 
             is_busy = true;
-            auto enter_result = execute_enter(current_state_id);
+            auto result = enter_table[current_state_id](impl());
             is_busy = false;
 
-            if (enter_result.next_state == No_State_Change) {
+            if (result == No_State_Change) {
                 next_state_id = current_state_id;
-            } else if (enter_result.next_state == Uninitialized) {
+            } else if (result == Uninitialized) {
                 is_busy = true;
-                execute_exit(current_state_id, &enter_result);
+                exit_table[current_state_id](impl());
                 is_busy = false;
                 previous_state_id = current_state_id;
                 current_state_id = Uninitialized;
                 return;
-            } else if (enter_result.next_state < state_count) {
+            } else if (result < state_count) {
                 is_busy = true;
-                execute_exit(current_state_id, &enter_result);
+                exit_table[current_state_id](impl());
                 is_busy = false;
                 previous_state_id = current_state_id;
-                next_state_id = enter_result.next_state;
+                next_state_id = result;
             } else {
                 next_state_id = current_state_id;
             }

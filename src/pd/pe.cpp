@@ -88,43 +88,39 @@ namespace {
     }
 } // namespace
 
-class InterceptorForwardErrors : public afsm::interceptor<PE, InterceptorForwardErrors> {
+class HookForwardErrors : public afsm::hook<PE, HookForwardErrors> {
 public:
-    static auto on_enter_state(PE& pe) -> state_id_t {
+    static void on_enter_state(PE& pe) {
         pe.port.pe_flags.set(PE_FLAG::FORWARD_PRL_ERROR);
-        return No_State_Change;
     }
 
-    static auto on_run_state(PE&) -> state_id_t { return No_State_Change; }
+    static void on_run_state(PE&) {}
 
     static void on_exit_state(PE& pe) {
         pe.port.pe_flags.clear(PE_FLAG::FORWARD_PRL_ERROR);
     }
 };
 
-class InterceptorRxWait : public afsm::interceptor<PE, InterceptorRxWait> {
+class HookRxWait : public afsm::hook<PE, HookRxWait> {
 public:
-    static auto on_enter_state(PE& pe) -> state_id_t {
+    static void on_enter_state(PE& pe) {
         pe.port.timers.stop(PD_TIMEOUT::tSenderResponse);
         pe.port.pe_flags.clear(PE_FLAG::RX_WAIT_STARTED);
         // Safety guard: states normally send on entry, which already clears TX_COMPLETE.
         pe.port.pe_flags.clear(PE_FLAG::TX_COMPLETE);
-        return No_State_Change;
     }
 
-    static auto on_run_state(PE& pe) -> state_id_t {
+    static void on_run_state(PE& pe) {
         auto& port = pe.port;
 
         if (port.pe_flags.test(PE_FLAG::TX_COMPLETE) &&
             !port.pe_flags.test(PE_FLAG::RX_WAIT_STARTED))
         {
             // PRL may stop the timer while receiving chunks. Keep the flag set
-            // so the interceptor does not start it again.
+            // so the hook does not start it again.
             port.pe_flags.set(PE_FLAG::RX_WAIT_STARTED);
             port.timers.start(PD_TIMEOUT::tSenderResponse);
         }
-
-        return No_State_Change;
     }
 
     static void on_exit_state(PE& pe) {
@@ -288,7 +284,7 @@ public:
 
 class PE_SNK_Select_Capability_State :
     public afsm::state<PE, PE_SNK_Select_Capability_State, PE_SNK_Select_Capability>,
-    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
+    public afsm::hook_pack<HookRxWait, HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -413,7 +409,7 @@ public:
 class PE_SNK_Transition_Sink_State :
     public afsm::state<PE, PE_SNK_Transition_Sink_State, PE_SNK_Transition_Sink>,
     // Any PRL error at this stage should cause a hard reset.
-    public afsm::interceptor_pack<InterceptorForwardErrors>
+    public afsm::hook_pack<HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -829,7 +825,7 @@ public:
 
 class PE_SNK_EPR_Keep_Alive_State :
     public afsm::state<PE, PE_SNK_EPR_Keep_Alive_State, PE_SNK_EPR_Keep_Alive>,
-    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
+    public afsm::hook_pack<HookRxWait, HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -951,7 +947,7 @@ public:
 // Come here when a Soft Reset is received from the SRC
 class PE_SNK_Soft_Reset_State :
     public afsm::state<PE, PE_SNK_Soft_Reset_State, PE_SNK_Soft_Reset>,
-    public afsm::interceptor_pack<InterceptorForwardErrors>
+    public afsm::hook_pack<HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -992,7 +988,7 @@ public:
 
 class PE_SNK_Send_Soft_Reset_State :
     public afsm::state<PE, PE_SNK_Send_Soft_Reset_State, PE_SNK_Send_Soft_Reset>,
-    public afsm::interceptor_pack<InterceptorRxWait, InterceptorForwardErrors>
+    public afsm::hook_pack<HookRxWait, HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -1029,7 +1025,7 @@ public:
         }
 
         // NOTE: This was the right place for a status check before using
-        // interceptors.
+        // hooks.
 
         // Soft_Reset discarded by incoming message. The spec has no clear
         // rule for this case, so:
@@ -1104,7 +1100,7 @@ public:
 
 class PE_SNK_Send_EPR_Mode_Entry_State :
     public afsm::state<PE, PE_SNK_Send_EPR_Mode_Entry_State, PE_SNK_Send_EPR_Mode_Entry>,
-    public afsm::interceptor_pack<InterceptorRxWait>
+    public afsm::hook_pack<HookRxWait>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
@@ -1342,7 +1338,7 @@ class PE_SRC_Disabled_State :
     public afsm::state<PE, PE_SRC_Disabled_State, PE_SRC_Disabled>,
     // Don't leave state on error. Only allow exit via Hard Reset from
     // partner, if cable stays connected.
-    public afsm::interceptor_pack<InterceptorForwardErrors>
+    public afsm::hook_pack<HookForwardErrors>
 {
 public:
     static auto on_enter_state(PE& pe) -> state_id_t {
