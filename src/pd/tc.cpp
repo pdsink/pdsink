@@ -5,6 +5,7 @@
 #include "port.h"
 #include "tc.h"
 #include "utils/etl_state_pack.h"
+#include "utils/state_names.h"
 
 namespace pd {
 
@@ -23,28 +24,16 @@ enum TC_State {
 };
 
 namespace {
-    constexpr auto tc_state_to_desc(int state) {
-        switch (state) {
-            case TC_UNATTACHED_SNK:
-                return PD_LOG_ASSUME_STATIC_STR("TC_UNATTACHED_SNK");
-            case TC_UNATTACHED_SNK_TOGGLING:
-                return PD_LOG_ASSUME_STATIC_STR("TC_UNATTACHED_SNK_TOGGLING");
-            case TC_UNATTACHED_SNK_CC_DETECT:
-                return PD_LOG_ASSUME_STATIC_STR("TC_UNATTACHED_SNK_CC_DETECT");
-            case TC_ATTACH_WAIT_SNK_SET_POLARITY:
-                return PD_LOG_ASSUME_STATIC_STR("TC_ATTACH_WAIT_SNK_SET_POLARITY");
-            case TC_ATTACH_WAIT_SNK_CC_STABLE:
-                return PD_LOG_ASSUME_STATIC_STR("TC_ATTACH_WAIT_SNK_CC_STABLE");
-            case TC_ATTACH_WAIT_SNK_CC_LOSS:
-                return PD_LOG_ASSUME_STATIC_STR("TC_ATTACH_WAIT_SNK_CC_LOSS");
-            case TC_ATTACH_WAIT_SNK_VBUS_CHECK:
-                return PD_LOG_ASSUME_STATIC_STR("TC_ATTACH_WAIT_SNK_VBUS_CHECK");
-            case TC_ATTACHED_SNK:
-                return PD_LOG_ASSUME_STATIC_STR("TC_ATTACHED_SNK");
-            default:
-                return PD_LOG_ASSUME_STATIC_STR("Unknown TC state");
-        }
-    }
+    PD_DEFINE_STATE_NAMES(tc_state_to_desc, "Unknown TC state",
+        PD_STATE_NAME(TC_UNATTACHED_SNK),
+        PD_STATE_NAME(TC_UNATTACHED_SNK_TOGGLING),
+        PD_STATE_NAME(TC_UNATTACHED_SNK_CC_DETECT),
+        PD_STATE_NAME(TC_ATTACH_WAIT_SNK_SET_POLARITY),
+        PD_STATE_NAME(TC_ATTACH_WAIT_SNK_CC_STABLE),
+        PD_STATE_NAME(TC_ATTACH_WAIT_SNK_CC_LOSS),
+        PD_STATE_NAME(TC_ATTACH_WAIT_SNK_VBUS_CHECK),
+        PD_STATE_NAME(TC_ATTACHED_SNK)
+    );
 
     bool is_cc_nonzero(TCPC_CC_LEVEL::Type level) {
         return level != TCPC_CC_LEVEL::NONE;

@@ -7,6 +7,7 @@
 #include "pe.h"
 #include "port.h"
 #include "utils/dobj_utils.h"
+#include "utils/state_names.h"
 
 namespace pd {
 
@@ -58,34 +59,31 @@ enum PE_State {
 };
 
 namespace {
-    constexpr auto pe_state_to_desc(int state) {
-        switch (state) {
-            case PE_SNK_Startup: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Startup");
-            case PE_SNK_Discovery: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Discovery");
-            case PE_SNK_Wait_for_Capabilities: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Wait_for_Capabilities");
-            case PE_SNK_Evaluate_Capability: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Evaluate_Capability");
-            case PE_SNK_Select_Capability: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Select_Capability");
-            case PE_SNK_Transition_Sink: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Transition_Sink");
-            case PE_SNK_Ready: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Ready");
-            case PE_SNK_Give_Sink_Cap: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Give_Sink_Cap");
-            case PE_SNK_Give_Sink_Cap_Ext: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Give_Sink_Cap_Ext");
-            case PE_SNK_EPR_Keep_Alive: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Keep_Alive");
-            case PE_SNK_Hard_Reset: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Hard_Reset");
-            case PE_SNK_Transition_to_default: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Transition_to_default");
-            case PE_SNK_Soft_Reset: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Soft_Reset");
-            case PE_SNK_Send_Soft_Reset: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Send_Soft_Reset");
-            case PE_SNK_Send_Not_Supported: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Send_Not_Supported");
-            case PE_SNK_Source_Alert_Received: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Source_Alert_Received");
-            case PE_SNK_Send_EPR_Mode_Entry: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_Send_EPR_Mode_Entry");
-            case PE_SNK_EPR_Mode_Entry_Wait_For_Response: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Mode_Entry_Wait_For_Response");
-            case PE_SNK_EPR_Mode_Exit_Received: return PD_LOG_ASSUME_STATIC_STR("PE_SNK_EPR_Mode_Exit_Received");
-            case PE_BIST_Carrier_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Carrier_Mode");
-            case PE_BIST_Test_Mode: return PD_LOG_ASSUME_STATIC_STR("PE_BIST_Test_Mode");
-            case PE_Give_Revision: return PD_LOG_ASSUME_STATIC_STR("PE_Give_Revision");
-            case PE_SRC_Disabled: return PD_LOG_ASSUME_STATIC_STR("PE_SRC_Disabled");
-            default: return PD_LOG_ASSUME_STATIC_STR("Unknown PE state");
-        }
-    }
+    PD_DEFINE_STATE_NAMES(pe_state_to_desc, "Unknown PE state",
+        PD_STATE_NAME(PE_SNK_Startup),
+        PD_STATE_NAME(PE_SNK_Discovery),
+        PD_STATE_NAME(PE_SNK_Wait_for_Capabilities),
+        PD_STATE_NAME(PE_SNK_Evaluate_Capability),
+        PD_STATE_NAME(PE_SNK_Select_Capability),
+        PD_STATE_NAME(PE_SNK_Transition_Sink),
+        PD_STATE_NAME(PE_SNK_Ready),
+        PD_STATE_NAME(PE_SNK_Give_Sink_Cap),
+        PD_STATE_NAME(PE_SNK_Give_Sink_Cap_Ext),
+        PD_STATE_NAME(PE_SNK_EPR_Keep_Alive),
+        PD_STATE_NAME(PE_SNK_Hard_Reset),
+        PD_STATE_NAME(PE_SNK_Transition_to_default),
+        PD_STATE_NAME(PE_SNK_Soft_Reset),
+        PD_STATE_NAME(PE_SNK_Send_Soft_Reset),
+        PD_STATE_NAME(PE_SNK_Send_Not_Supported),
+        PD_STATE_NAME(PE_SNK_Source_Alert_Received),
+        PD_STATE_NAME(PE_SNK_Send_EPR_Mode_Entry),
+        PD_STATE_NAME(PE_SNK_EPR_Mode_Entry_Wait_For_Response),
+        PD_STATE_NAME(PE_SNK_EPR_Mode_Exit_Received),
+        PD_STATE_NAME(PE_BIST_Carrier_Mode),
+        PD_STATE_NAME(PE_BIST_Test_Mode),
+        PD_STATE_NAME(PE_Give_Revision),
+        PD_STATE_NAME(PE_SRC_Disabled)
+    );
 } // namespace
 
 class HookForwardErrors : public afsm::hook<PE, HookForwardErrors> {
