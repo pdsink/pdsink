@@ -1,13 +1,31 @@
 #pragma once
 
-#if defined(PD_USE_JETLOG)
-#include <jetlog/jetlog.hpp>
-#endif
-
 #include "pd_conf.h"
 
+#if defined(PD_LOG_FN) && defined(PD_JETLOG_FN)
+#error "Define only one of PD_LOG_FN and PD_JETLOG_FN"
+#endif
+
+#if defined(PD_JETLOG_FN)
+#include <jetlog/jetlog.hpp>
+
+// Share one options object per enabled tag/level across calls and translation units.
+#define _PD_DECLARE_LOG_OPTIONS(name, tag, lvl) \
+    namespace jetlog_options { \
+        inline constexpr jetlog::PushOptions name{jetlog::static_str(tag), jetlog::level::lvl}; \
+    }
+#define _PD_LOG(name, tag, lvl, ...) PD_JETLOG_FN(::jetlog_options::name, __VA_ARGS__)
+#else
+#define _PD_DECLARE_LOG_OPTIONS(name, tag, lvl)
+#define _PD_LOG(name, tag, lvl, ...) PD_LOG_FN(tag, PD_LOG_FN_LVL_##lvl, __VA_ARGS__)
+#endif
+
 #ifndef PD_LOG_ASSUME_STATIC_STR
-#define PD_LOG_ASSUME_STATIC_STR(s) (s)
+    #if defined(PD_JETLOG_FN)
+        #define PD_LOG_ASSUME_STATIC_STR(s) jetlog::static_str((s))
+    #else
+        #define PD_LOG_ASSUME_STATIC_STR(s) (s)
+    #endif
 #endif
 
 #define _PD_LOG_LVL_NONE   0
@@ -76,25 +94,29 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // PE
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_PE) >= _PD_LOG_LVL_ERROR
-  #define PE_LOGE(...)   PD_LOG_FN("pd.pe", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(pe_error, "pd.pe", error)
+    #define PE_LOGE(...) _PD_LOG(pe_error, "pd.pe", ERROR, __VA_ARGS__)
 #else
   #define PE_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PE) >= _PD_LOG_LVL_INFO
-    #define PE_LOGI(...)  PD_LOG_FN("pd.pe", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(pe_info, "pd.pe", info)
+    #define PE_LOGI(...) _PD_LOG(pe_info, "pd.pe", INFO, __VA_ARGS__)
 #else
     #define PE_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PE) >= _PD_LOG_LVL_DEBUG
-    #define PE_LOGD(...) PD_LOG_FN("pd.pe", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(pe_debug, "pd.pe", debug)
+    #define PE_LOGD(...) _PD_LOG(pe_debug, "pd.pe", DEBUG, __VA_ARGS__)
 #else
     #define PE_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PE) >= _PD_LOG_LVL_VERBOSE
-    #define PE_LOGV(...) PD_LOG_FN("pd.pe", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(pe_verbose, "pd.pe", verbose)
+    #define PE_LOGV(...) _PD_LOG(pe_verbose, "pd.pe", VERBOSE, __VA_ARGS__)
 #else
     #define PE_LOGV(...) ((void)0)
 #endif
@@ -103,25 +125,29 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // PRL
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_PRL) >= _PD_LOG_LVL_ERROR
-    #define PRL_LOGE(...)   PD_LOG_FN("pd.prl", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(prl_error, "pd.prl", error)
+    #define PRL_LOGE(...) _PD_LOG(prl_error, "pd.prl", ERROR, __VA_ARGS__)
 #else
     #define PRL_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PRL) >= _PD_LOG_LVL_INFO
-    #define PRL_LOGI(...)  PD_LOG_FN("pd.prl", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(prl_info, "pd.prl", info)
+    #define PRL_LOGI(...) _PD_LOG(prl_info, "pd.prl", INFO, __VA_ARGS__)
 #else
     #define PRL_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PRL) >= _PD_LOG_LVL_DEBUG
-    #define PRL_LOGD(...) PD_LOG_FN("pd.prl", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(prl_debug, "pd.prl", debug)
+    #define PRL_LOGD(...) _PD_LOG(prl_debug, "pd.prl", DEBUG, __VA_ARGS__)
 #else
     #define PRL_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_PRL) >= _PD_LOG_LVL_VERBOSE
-    #define PRL_LOGV(...) PD_LOG_FN("pd.prl", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(prl_verbose, "pd.prl", verbose)
+    #define PRL_LOGV(...) _PD_LOG(prl_verbose, "pd.prl", VERBOSE, __VA_ARGS__)
 #else
     #define PRL_LOGV(...) ((void)0)
 #endif
@@ -130,25 +156,29 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // TC
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_TC) >= _PD_LOG_LVL_ERROR
-    #define TC_LOGE(...)   PD_LOG_FN("pd.tc", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(tc_error, "pd.tc", error)
+    #define TC_LOGE(...) _PD_LOG(tc_error, "pd.tc", ERROR, __VA_ARGS__)
 #else
     #define TC_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TC) >= _PD_LOG_LVL_INFO
-    #define TC_LOGI(...)  PD_LOG_FN("pd.tc", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(tc_info, "pd.tc", info)
+    #define TC_LOGI(...) _PD_LOG(tc_info, "pd.tc", INFO, __VA_ARGS__)
 #else
     #define TC_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TC) >= _PD_LOG_LVL_DEBUG
-    #define TC_LOGD(...) PD_LOG_FN("pd.tc", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(tc_debug, "pd.tc", debug)
+    #define TC_LOGD(...) _PD_LOG(tc_debug, "pd.tc", DEBUG, __VA_ARGS__)
 #else
     #define TC_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TC) >= _PD_LOG_LVL_VERBOSE
-    #define TC_LOGV(...) PD_LOG_FN("pd.tc", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(tc_verbose, "pd.tc", verbose)
+    #define TC_LOGV(...) _PD_LOG(tc_verbose, "pd.tc", VERBOSE, __VA_ARGS__)
 #else
     #define TC_LOGV(...) ((void)0)
 #endif
@@ -157,25 +187,29 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // DRV
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_DRV) >= _PD_LOG_LVL_ERROR
-    #define DRV_LOGE(...)   PD_LOG_FN("pd.drv", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(drv_error, "pd.drv", error)
+    #define DRV_LOGE(...) _PD_LOG(drv_error, "pd.drv", ERROR, __VA_ARGS__)
 #else
     #define DRV_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DRV) >= _PD_LOG_LVL_INFO
-    #define DRV_LOGI(...)  PD_LOG_FN("pd.drv", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(drv_info, "pd.drv", info)
+    #define DRV_LOGI(...) _PD_LOG(drv_info, "pd.drv", INFO, __VA_ARGS__)
 #else
     #define DRV_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DRV) >= _PD_LOG_LVL_DEBUG
-    #define DRV_LOGD(...) PD_LOG_FN("pd.drv", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(drv_debug, "pd.drv", debug)
+    #define DRV_LOGD(...) _PD_LOG(drv_debug, "pd.drv", DEBUG, __VA_ARGS__)
 #else
     #define DRV_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DRV) >= _PD_LOG_LVL_VERBOSE
-    #define DRV_LOGV(...) PD_LOG_FN("pd.drv", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(drv_verbose, "pd.drv", verbose)
+    #define DRV_LOGV(...) _PD_LOG(drv_verbose, "pd.drv", VERBOSE, __VA_ARGS__)
 #else
     #define DRV_LOGV(...) ((void)0)
 #endif
@@ -184,25 +218,29 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // DPM
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_DPM) >= _PD_LOG_LVL_ERROR
-    #define DPM_LOGE(...)   PD_LOG_FN("pd.dpm", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(dpm_error, "pd.dpm", error)
+    #define DPM_LOGE(...) _PD_LOG(dpm_error, "pd.dpm", ERROR, __VA_ARGS__)
 #else
     #define DPM_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DPM) >= _PD_LOG_LVL_INFO
-    #define DPM_LOGI(...)  PD_LOG_FN("pd.dpm", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(dpm_info, "pd.dpm", info)
+    #define DPM_LOGI(...) _PD_LOG(dpm_info, "pd.dpm", INFO, __VA_ARGS__)
 #else
     #define DPM_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DPM) >= _PD_LOG_LVL_DEBUG
-    #define DPM_LOGD(...) PD_LOG_FN("pd.dpm", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(dpm_debug, "pd.dpm", debug)
+    #define DPM_LOGD(...) _PD_LOG(dpm_debug, "pd.dpm", DEBUG, __VA_ARGS__)
 #else
     #define DPM_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_DPM) >= _PD_LOG_LVL_VERBOSE
-    #define DPM_LOGV(...) PD_LOG_FN("pd.dpm", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(dpm_verbose, "pd.dpm", verbose)
+    #define DPM_LOGV(...) _PD_LOG(dpm_verbose, "pd.dpm", VERBOSE, __VA_ARGS__)
 #else
     #define DPM_LOGV(...) ((void)0)
 #endif
@@ -211,25 +249,31 @@ static_assert(_PD_CHECK_VALID(PD_LOG_TASK),
 // TASK
 //
 #if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_ERROR
-    #define TASK_LOGE(...)   PD_LOG_FN("pd.task", PD_LOG_FN_LVL_ERROR, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(task_error, "pd.task", error)
+    #define TASK_LOGE(...) _PD_LOG(task_error, "pd.task", ERROR, __VA_ARGS__)
 #else
     #define TASK_LOGE(...)   ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_INFO
-    #define TASK_LOGI(...)  PD_LOG_FN("pd.task", PD_LOG_FN_LVL_INFO, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(task_info, "pd.task", info)
+    #define TASK_LOGI(...) _PD_LOG(task_info, "pd.task", INFO, __VA_ARGS__)
 #else
     #define TASK_LOGI(...)  ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_DEBUG
-    #define TASK_LOGD(...) PD_LOG_FN("pd.task", PD_LOG_FN_LVL_DEBUG, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(task_debug, "pd.task", debug)
+    #define TASK_LOGD(...) _PD_LOG(task_debug, "pd.task", DEBUG, __VA_ARGS__)
 #else
     #define TASK_LOGD(...) ((void)0)
 #endif
 
 #if _PD_LOG_LVL_NUM(PD_LOG_TASK) >= _PD_LOG_LVL_VERBOSE
-    #define TASK_LOGV(...) PD_LOG_FN("pd.task", PD_LOG_FN_LVL_VERBOSE, __VA_ARGS__)
+    _PD_DECLARE_LOG_OPTIONS(task_verbose, "pd.task", verbose)
+    #define TASK_LOGV(...) _PD_LOG(task_verbose, "pd.task", VERBOSE, __VA_ARGS__)
 #else
     #define TASK_LOGV(...) ((void)0)
 #endif
+
+#undef _PD_DECLARE_LOG_OPTIONS

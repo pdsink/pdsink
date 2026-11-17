@@ -2,18 +2,12 @@
 
 #include "logger.hpp"
 
-#define PD_LOG_FN(...)          logger.push(__VA_ARGS__)
-#define PD_LOG_FN_LVL_ERROR     jetlog::level::error
-#define PD_LOG_FN_LVL_INFO      jetlog::level::info
-#define PD_LOG_FN_LVL_DEBUG     jetlog::level::debug
-#define PD_LOG_FN_LVL_VERBOSE   jetlog::level::verbose
-
-#define PD_LOG_ASSUME_STATIC_STR(s) jetlog::static_str((s))
+#define PD_JETLOG_FN(...) logger.push(__VA_ARGS__)
 
 // Use for debugging.
 #define PD_LOG_DEFAULT ERROR
 
-// #define PD_LOG_PE INFO
+#define PD_LOG_PE INFO
 // #define PD_LOG_PRL INFO
 // #define PD_LOG_DRV INFO
 // #define PD_LOG_TC INFO

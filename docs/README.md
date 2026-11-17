@@ -94,10 +94,8 @@ operations, use RTOS events to decouple processing.
 By default, logging is disabled. To use it:
 
 - Add `jetlog` to project dependencies.
-- Create a simple wrapper (see examples).
+- Connect your writer via `PD_JETLOG_FN` (see examples).
 - Set configuration variables to enable the desired levels and modules.
-- For PlatformIO, if logging is enabled and you see `jetlog.hpp` include errors,
-  add `-D PD_USE_JETLOG` to the build flags.
 
 See the examples for details.
 
