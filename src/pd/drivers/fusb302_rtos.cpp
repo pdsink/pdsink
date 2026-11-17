@@ -13,11 +13,26 @@ namespace pd {
 
 namespace fusb302 {
 
+// Keep argument packing in one shared call instead of every error branch.
+static void log_driver_error(
+    ETL_MAYBE_UNUSED int line,
+    ETL_MAYBE_UNUSED const char* function_name,
+    ETL_MAYBE_UNUSED size_t length
+) {
+#if defined(PD_JETLOG_FN)
+    DRV_LOGE("FUSB302 driver error at {}:{} in {}",
+        PD_LOG_ASSUME_STATIC_STR(__FILE__), line, jetlog::static_str(function_name, length));
+#else
+    DRV_LOGE("FUSB302 driver error at {}:{} in {}",
+        PD_LOG_ASSUME_STATIC_STR(__FILE__), line, PD_LOG_ASSUME_STATIC_STR(function_name));
+#endif
+}
+
 #define DRV_LOG_ON_ERROR(expr) \
     do { \
         if (!(expr)) { \
             /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
-            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
+            log_driver_error(__LINE__, __func__, sizeof(__func__) - 1); \
         } \
     } while (0)
 
@@ -25,7 +40,7 @@ namespace fusb302 {
     do { \
         if (!(expr)) { \
             /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
-            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
+            log_driver_error(__LINE__, __func__, sizeof(__func__) - 1); \
             return false; \
         } \
     } while (0)
@@ -34,7 +49,7 @@ namespace fusb302 {
     do { \
         if (!(expr)) { \
             /* DRV_LOGE("FUSB302 driver error at {}:{} [{}] in {}", __FILE__, __LINE__, #expr, __func__); */ \
-            DRV_LOGE("FUSB302 driver error at {}:{} in {}", __FILE__, __LINE__, __func__); \
+            log_driver_error(__LINE__, __func__, sizeof(__func__) - 1); \
             return; \
         } \
     } while (0)
