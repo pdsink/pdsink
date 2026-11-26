@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+- Driver: Refactored the API for new and future needs.
+- Timers: Switched to microsecond resolution.
+- TC: Added support for hardware polarity detection.
+- PE: Added support for `Get_Sink_Cap_Extended`.
+- PE: Updated the `Revision` message info to USB PD 3.2 v1.2.
+- PE: Wait for VBUS before starting the Source Capabilities timeout.
+- PE: Relaxed Source Capabilities validation to allow a fixed 28 V PDO in SPR
+  mode (FMchip chargers).
+- PE: Preserve the negotiated PD revision across capability updates
+  and Soft Reset.
+- PE: Omit APDOs from Sink Capabilities sent to PD 2.0 sources.
+- PE: Moved the start of the EPR entry timer from queuing the request to
+- receiving GoodCRC.
+- PE: Send a Soft Reset when EPR mode entry fails.
+- PE: Send a Hard Reset if the source rejects the first `EPR_Request`.
+- PE: Corrected the BIST Carrier Mode duration from 300 ms to 45 ms.
+- PE/PRL: Respect `SinkTxOK` for periodic PPS requests, EPR keepalives and
+  retries after `Wait`.
+- PRL: Skip the `SinkTxOK` wait for PD 2.0 sources.
+- PRL: Fixed a stalled `Accept` reply when a Soft Reset interrupted
+  a sink-initiated exchange.
+- PRL: Fixed MessageID tracking across discarded transmissions and resets.
+- PRL: Fixed padding of outgoing extended message chunks.
+- PRL: Reject truncated or mismatched chunks in extended messages.
+- PRL: Report interrupted Chunk Requests.
+- DPM: Wake the driver task as soon as the application requests a new power level.
+- DPM: Fixed missing voltage and current limits in fixed sink PDOs.
+- DPM: Clear the reserved EPR Mode Capable bit in PD 2.0 power requests.
+- DPM: Fixed a power-to-current conversion that could request zero current for EPR AVS.
+- FUSB302: Refactored the architecture for RX/TX eventual consistency.
+- FUSB302: Switched to asynchronous RX with a single-packet buffer.
+- FUSB302: Replaced periodic timer ticks with a one-shot timer.
+- FUSB302: Use hardware CC toggling to detect cable orientation.
+- FUSB302: Implement packet deduplication and filtering on the driver side.
+- FUSB302: Add extra silence checks before TX to minimize the collision window.
+- Reduced the flash footprint of state machines and logging.
+- Simplified jetlog setup to a single `PD_JETLOG_FN` macro.
+
+
 ## 0.1.2 - 2026-09-08
 
 - Added jetlog v2 optimizations.
