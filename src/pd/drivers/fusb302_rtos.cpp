@@ -800,7 +800,7 @@ void Fusb302Rtos::task() {
         if (has_deferred_wakeup) {
             has_deferred_wakeup = false;
             DRV_LOGD("Waking up port");
-            port.wakeup();
+            port.notify_task(MsgTask_Wakeup{});
         }
         if (has_deferred_timer) {
             has_deferred_timer = false;

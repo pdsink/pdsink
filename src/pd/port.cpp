@@ -23,10 +23,6 @@ void Port::notify_dpm(const etl::imessage& msg) {
     if (dpm_rtr) { dpm_rtr->receive(msg); }
 }
 
-void Port::wakeup() {
-    notify_task(MsgTask_Wakeup{});
-}
-
 bool Port::is_prl_running() {
     // Those defaults will be returned if PRL instance not yet subscribed
     // to the message bus. That's an acceptable behavior.
