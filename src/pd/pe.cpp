@@ -162,12 +162,12 @@ public:
     static auto on_enter_state(PE& pe) -> state_id_t {
         pe.log_state();
 
-        if (pe.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
+        if (pe.port.driver->check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
-        if (pe.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
+        if (pe.port.driver->check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return PE_SNK_Wait_for_Capabilities; }
         return No_State_Change;
     }
 
@@ -289,7 +289,7 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        auto rdo_and_pdo = pe.dpm.get_request_data_object(port.source_caps);
+        auto rdo_and_pdo = port.dpm->get_request_data_object(port.source_caps);
 
         PE_LOGD("Selecting PDO[{}] (counting from 1), RDO is 0x{:08X}",
             RDO_ANY{rdo_and_pdo.first}.obj_position, rdo_and_pdo.first);
@@ -741,7 +741,7 @@ public:
         port.tx_emsg.clear();
 
         // DPM is responsible for providing properly padded sink PDOs.
-        auto caps = pe.dpm.get_sink_pdo_list();
+        auto caps = port.dpm->get_sink_pdo_list();
         size_t len = caps.size();
 
         // For a regular request (non-EPR) only 7 PDOs are allowed
@@ -783,7 +783,7 @@ public:
         auto& port = pe.port;
         pe.log_state();
 
-        const auto skedb = pe.dpm.get_sink_cap_extended();
+        const auto skedb = port.dpm->get_sink_cap_extended();
 
         port.tx_emsg.clear();
         auto& data = port.tx_emsg.get_data();
@@ -1107,7 +1107,7 @@ public:
 
         EPRMDO eprmdo{};
         eprmdo.action = EPR_MODE_ACTION::ENTER;
-        eprmdo.data = pe.dpm.get_epr_watts();
+        eprmdo.data = port.dpm->get_epr_watts();
 
         port.tx_emsg.clear();
         port.tx_emsg.append32(eprmdo.raw_value);
@@ -1249,30 +1249,30 @@ public:
         pe.log_state();
 
         pe.port.timers.stop(PD_TIMEOUT::tBISTContMode);
-        pe.tcpc.req_set_bist(TCPC_BIST_MODE::Carrier);
+        pe.port.driver->req_set_bist(TCPC_BIST_MODE::Carrier);
         return No_State_Change;
     }
 
     static auto on_run_state(PE& pe) -> state_id_t {
         auto& port = pe.port;
 
-        if (!pe.tcpc.is_set_bist_done()) { return No_State_Change; }
+        if (!pe.port.driver->is_set_bist_done()) { return No_State_Change; }
 
         if (port.timers.is_disabled(PD_TIMEOUT::tBISTContMode)) {
             port.timers.start(PD_TIMEOUT::tBISTContMode);
             // Clean up if Carrier activation failed.
-            if (pe.tcpc.get_bist_mode() != TCPC_BIST_MODE::Carrier) {
-                pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
+            if (pe.port.driver->get_bist_mode() != TCPC_BIST_MODE::Carrier) {
+                pe.port.driver->req_set_bist(TCPC_BIST_MODE::Off);
                 return No_State_Change;
             }
         }
 
-        if (pe.tcpc.get_bist_mode() == TCPC_BIST_MODE::Off) {
+        if (pe.port.driver->get_bist_mode() == TCPC_BIST_MODE::Off) {
             return PE_SNK_Transition_to_default;
         }
 
         if (port.timers.is_expired(PD_TIMEOUT::tBISTContMode)) {
-            pe.tcpc.req_set_bist(TCPC_BIST_MODE::Off);
+            pe.port.driver->req_set_bist(TCPC_BIST_MODE::Off);
         }
 
         return No_State_Change;
@@ -1288,7 +1288,7 @@ class PE_BIST_Test_Mode_State : public afsm::state<PE, PE_BIST_Test_Mode_State, 
 public:
     static state_id_t on_enter_state(PE& pe) {
         pe.log_state();
-        pe.tcpc.req_set_bist(TCPC_BIST_MODE::TestData);
+        pe.port.driver->req_set_bist(TCPC_BIST_MODE::TestData);
         return No_State_Change;
     }
 
@@ -1378,8 +1378,8 @@ using PE_STATES = afsm::state_pack<
     PE_SRC_Disabled_State
 >;
 
-PE::PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc)
-    : port{port}, dpm{dpm}, prl{prl}, tcpc{tcpc}, pe_event_listener{*this}
+PE::PE(Port& port)
+    : port{port}, pe_event_listener{*this}
 {
     set_states<PE_STATES>();
 }

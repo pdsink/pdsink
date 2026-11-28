@@ -8,6 +8,7 @@
 
 #include <etl/message_router.h>
 
+#include "idriver.h"
 #include "messages.h"
 #include "utils/afsm.h"
 
@@ -26,7 +27,7 @@ private:
 
 class TC : public afsm::fsm<TC> {
 public:
-    TC(class Port& port, class ITCPC& tcpc);
+    TC(class Port& port);
 
     // Disable unexpected use
     TC() = delete;
@@ -37,7 +38,6 @@ public:
     void setup();
 
     Port& port;
-    ITCPC& tcpc;
 
     // Internal variables, used from state classes
     TCPC_POLARITY detected_polarity{TCPC_POLARITY::NONE};

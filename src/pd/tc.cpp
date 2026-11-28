@@ -49,11 +49,11 @@ namespace {
             timers.is_expired(PD_TIMEOUT::TC_CC_POLL_PERIOD))
         {
             timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
-            tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+            tc.port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
             return false;
         }
 
-        if (!tc.tcpc.is_fetch_cc_done()) {
+        if (!tc.port.driver->is_fetch_cc_done()) {
             return false;
         }
 
@@ -76,13 +76,13 @@ public:
         port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         port.timers.stop(PD_TIMEOUT::tCCDebounce);
         tc.detected_polarity = TCPC_POLARITY::NONE;
-        tc.tcpc.req_set_polarity(TCPC_POLARITY::NONE);
+        tc.port.driver->req_set_polarity(TCPC_POLARITY::NONE);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
-        if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
-        return tc.tcpc.get_features().cc_toggling
+        if (!tc.port.driver->is_set_polarity_done()) { return No_State_Change; }
+        return tc.port.driver->get_features().cc_toggling
             ? TC_UNATTACHED_SNK_TOGGLING
             : TC_UNATTACHED_SNK_CC_DETECT;
     }
@@ -95,14 +95,14 @@ class TC_UNATTACHED_SNK_TOGGLING_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.tcpc.req_set_polarity(TCPC_POLARITY::TOGGLING);
+        tc.port.driver->req_set_polarity(TCPC_POLARITY::TOGGLING);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
-        if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
+        if (!tc.port.driver->is_set_polarity_done()) { return No_State_Change; }
 
-        const auto polarity = tc.tcpc.get_polarity();
+        const auto polarity = tc.port.driver->get_polarity();
         if (polarity != TCPC_POLARITY::CC1 && polarity != TCPC_POLARITY::CC2) {
             return No_State_Change;
         }
@@ -119,7 +119,7 @@ public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
         tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
-        tc.tcpc.req_fetch_cc(TCPC_CC_REQ::CC1CC2);
+        tc.port.driver->req_fetch_cc(TCPC_CC_REQ::CC1CC2);
         return No_State_Change;
     }
 
@@ -129,15 +129,15 @@ public:
         if (!timers.is_disabled(PD_TIMEOUT::TC_CC_POLL_PERIOD)) {
             if (timers.is_expired(PD_TIMEOUT::TC_CC_POLL_PERIOD)) {
                 timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
-                tc.tcpc.req_fetch_cc(TCPC_CC_REQ::CC1CC2);
+                tc.port.driver->req_fetch_cc(TCPC_CC_REQ::CC1CC2);
             }
             return No_State_Change;
         }
 
-        if (!tc.tcpc.is_fetch_cc_done()) { return No_State_Change; }
+        if (!tc.port.driver->is_fetch_cc_done()) { return No_State_Change; }
 
-        const auto cc1 = tc.tcpc.get_cc(TCPC_CC_GET::CC1);
-        const auto cc2 = tc.tcpc.get_cc(TCPC_CC_GET::CC2);
+        const auto cc1 = tc.port.driver->get_cc(TCPC_CC_GET::CC1);
+        const auto cc2 = tc.port.driver->get_cc(TCPC_CC_GET::CC2);
 
         const bool cc1_nonzero = is_cc_nonzero(cc1);
         const bool cc2_nonzero = is_cc_nonzero(cc2);
@@ -160,12 +160,12 @@ class TC_ATTACH_WAIT_SNK_SET_POLARITY_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        tc.tcpc.req_set_polarity(tc.detected_polarity);
+        tc.port.driver->req_set_polarity(tc.detected_polarity);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
-        if (!tc.tcpc.is_set_polarity_done()) { return No_State_Change; }
+        if (!tc.port.driver->is_set_polarity_done()) { return No_State_Change; }
         return TC_ATTACH_WAIT_SNK_CC_STABLE;
     }
 
@@ -179,13 +179,13 @@ public:
         tc.log_state();
         tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.start(PD_TIMEOUT::tCCDebounce);
-        tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+        tc.port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
         if (!poll_active_cc(tc)) { return No_State_Change; }
-        const auto cc_level = tc.tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
+        const auto cc_level = tc.port.driver->get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         if (!is_cc_nonzero(cc_level)) { return TC_ATTACH_WAIT_SNK_CC_LOSS; }
 
@@ -194,7 +194,7 @@ public:
             return No_State_Change;
         }
 
-        return tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)
+        return tc.port.driver->check_vbus(TCPC_VBUS_LEVEL::PRESENT)
             ? TC_ATTACHED_SNK : TC_ATTACH_WAIT_SNK_VBUS_CHECK;
     }
 
@@ -211,13 +211,13 @@ public:
         tc.log_state();
         tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
         tc.port.timers.start(PD_TIMEOUT::tPDDebounce);
-        tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+        tc.port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
         if (!poll_active_cc(tc)) { return No_State_Change; }
-        const auto cc_level = tc.tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
+        const auto cc_level = tc.port.driver->get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         if (is_cc_nonzero(cc_level)) { return TC_ATTACH_WAIT_SNK_CC_STABLE; }
         if (tc.port.timers.is_expired(PD_TIMEOUT::tPDDebounce)) {
@@ -238,16 +238,16 @@ public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
         tc.port.timers.stop(PD_TIMEOUT::TC_CC_POLL_PERIOD);
-        tc.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+        tc.port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
         if (!poll_active_cc(tc)) { return No_State_Change; }
-        const auto cc_level = tc.tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
+        const auto cc_level = tc.port.driver->get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         if (!is_cc_nonzero(cc_level)) { return TC_ATTACH_WAIT_SNK_CC_LOSS; }
-        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return TC_ATTACHED_SNK; }
+        if (tc.port.driver->check_vbus(TCPC_VBUS_LEVEL::PRESENT)) { return TC_ATTACHED_SNK; }
         return No_State_Change;
     }
 
@@ -261,7 +261,7 @@ class TC_ATTACHED_SNK_State :
 public:
     static auto on_enter_state(TC& tc) -> state_id_t {
         tc.log_state();
-        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
+        if (tc.port.driver->check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
 
         tc.port.is_attached = true;
         tc.port.notify_dpm(MsgToDpm_CableAttached{});
@@ -269,7 +269,7 @@ public:
     }
 
     static auto on_run_state(TC& tc) -> state_id_t {
-        if (tc.tcpc.check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
+        if (tc.port.driver->check_vbus(TCPC_VBUS_LEVEL::SINK_DISCONNECTED)) { return TC_UNATTACHED_SNK; }
         return No_State_Change;
     }
 
@@ -287,8 +287,8 @@ using TC_STATES = afsm::state_pack<
     TC_ATTACHED_SNK_State
 >;
 
-TC::TC(Port& port, ITCPC& tcpc)
-    : port{port}, tcpc{tcpc}, tc_event_listener{*this}
+TC::TC(Port& port)
+    : port{port}, tc_event_listener{*this}
 {
     set_states<TC_STATES>();
 }

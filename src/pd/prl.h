@@ -8,7 +8,7 @@
 
 namespace pd {
 
-class Port; class IDriver; class PRL;
+class Port; class PRL;
 
 class PRL_Tx: public afsm::fsm<PRL_Tx> {
 public:
@@ -77,7 +77,7 @@ private:
 
 class PRL {
 public:
-    PRL(Port& port, IDriver& tcpc);
+    PRL(Port& port);
 
     // Disable unexpected use
     PRL() = delete;
@@ -99,7 +99,6 @@ public:
     } local_state{LOCAL_STATE::DISABLED};
 
     Port& port;
-    IDriver& tcpc;
 
     PRL_Tx prl_tx;
     PRL_Rx prl_rx;

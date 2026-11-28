@@ -7,7 +7,7 @@
 
 namespace pd {
 
-class Port; class PE; class IDriver;
+class Port;
 
 class IDPM {
 public:
@@ -20,7 +20,7 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port, IDriver& driver) : port{port}, driver{driver} {};
+    DPM(Port& port) : port{port} {};
 
     // Disable unexpected use
     DPM() = delete;
@@ -82,7 +82,6 @@ public:
 
 protected:
     Port& port;
-    IDriver& driver;
 
     uint32_t trigger_mv{0};
     uint32_t trigger_ma{0};

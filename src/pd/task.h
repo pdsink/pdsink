@@ -27,7 +27,7 @@ private:
 
 class Task {
 public:
-    Task(Port& port, IDriver& driver) : port{port}, driver{driver}, task_event_listener{*this} {}
+    Task(Port& port) : port{port}, task_event_listener{*this} {}
 
     // Disable unexpected use
     Task() = delete;
@@ -44,7 +44,6 @@ public:
 
 protected:
     Port& port;
-    IDriver& driver;
     etl::atomic<uint32_t> event_group{0};
 
     enum class GUARD_FLAGS {

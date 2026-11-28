@@ -12,12 +12,19 @@
 
 namespace pd {
 
+class IDPM;
+class IDriver;
+
 //
 // Shared data storage, message bus and utility helpers.
 //
 
 class Port {
 public:
+    // Non-owning bindings, selected when the stack is started.
+    IDriver* driver{nullptr};
+    IDPM* dpm{nullptr};
+
     Timers<PD_TIMER::PD_TIMER_COUNT> timers{};
 
     bool is_attached{false};

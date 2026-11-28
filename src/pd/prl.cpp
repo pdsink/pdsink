@@ -748,12 +748,12 @@ public:
 
         // This also resets fusb302 FIFO
         PRL_LOGD("Requesting RX enable");
-        prl_tx.prl.tcpc.req_rx_enable(true);
+        prl_tx.prl.port.driver->req_rx_enable(true);
         return No_State_Change;
     }
 
     static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
-        if (!prl_tx.prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
+        if (!prl_tx.prl.port.driver->is_rx_enable_done()) { return No_State_Change; }
 
         prl_tx.prl.request_wakeup();
         return PRL_Tx_Wait_for_Message_Request;
@@ -843,7 +843,7 @@ public:
         port.prl_tx_flags.clear(PRL_TX_FLAG::TX_ERROR);
 
         // Kick driver
-        prl_tx.prl.tcpc.req_transmit();
+        prl_tx.prl.port.driver->req_transmit();
 
         return PRL_Tx_Wait_for_PHY_Response;
     }
@@ -859,7 +859,7 @@ public:
         prl_tx.log_state();
 
         // Timer is only needed when PRL waits for GoodCRC.
-        // if (!prl_tx.prl.tcpc.get_features().tx_goodcrc_wait) {
+        // if (!prl_tx.prl.port.driver->get_features().tx_goodcrc_wait) {
         //    prl_tx.prl.port.timers.start(PD_TIMEOUT::tReceive);
         // }
         return No_State_Change;
@@ -941,7 +941,7 @@ public:
         // Since we are sink-only and do not support unchunked extended messages,
         // no extra checks are needed. Use TCPC retries when available.
 
-        if (prl_tx.prl.tcpc.get_features().tx_retries) {
+        if (prl_tx.prl.port.driver->get_features().tx_retries) {
             // Retry handling is delegated to the TCPC.
             return PRL_Tx_Transmission_Error;
         }
@@ -1039,18 +1039,18 @@ public:
             return PRL_Tx_Layer_Reset_for_Transmit;
         }
 
-        prl_tx.prl.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+        prl_tx.prl.port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         return No_State_Change;
     }
 
     static auto on_run_state(PRL_Tx& prl_tx) -> state_id_t {
         auto& prl = prl_tx.prl;
         auto& port = prl.port;
-        auto& tcpc = prl.tcpc;
+        auto& driver = *port.driver;
 
         // Wait until the active CC cache update completes.
-        if (!tcpc.is_fetch_cc_done()) { return No_State_Change; }
-        const auto cc_level = tcpc.get_cc(TCPC_CC_GET::ACTIVE_CC);
+        if (!driver.is_fetch_cc_done()) { return No_State_Change; }
+        const auto cc_level = driver.get_cc(TCPC_CC_GET::ACTIVE_CC);
 
         // Wait SinkTxOK before sending first AMS message
         if (cc_level == TCPC_CC_LEVEL::SinkTxOK) {
@@ -1065,7 +1065,7 @@ public:
 
         if (port.timers.is_expired(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD)) {
             port.timers.stop(PD_TIMEOUT::PRL_SinkTxOK_POLL_PERIOD);
-            prl.tcpc.req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
+            port.driver->req_fetch_cc(TCPC_CC_REQ::ACTIVE_CC);
         }
 
         return No_State_Change;
@@ -1102,8 +1102,8 @@ public:
             return No_State_Change;
         }
 
-        if (prl.tcpc.fetch_rx() == FETCH_RX_STATUS::READY) {
-            prl.tcpc.get_rx();
+        if (port.driver->fetch_rx() == FETCH_RX_STATUS::READY) {
+            port.driver->get_rx();
 
             // Schedule the next fetch after this packet has been processed or ignored.
             prl.request_wakeup();
@@ -1159,7 +1159,7 @@ public:
         auto& port = prl_rx.prl.port;
         prl_rx.log_state();
 
-        if (prl_rx.prl.tcpc.get_features().tx_retries) {
+        if (prl_rx.prl.port.driver->get_features().tx_retries) {
             // Drivers with auto-retries handle duplicates themselves.
             return PRL_Rx_Store_MessageID;
         }
@@ -1279,7 +1279,7 @@ public:
         hr.prl.port.revision = MaxSupportedRevision;
 
         // Start by disabling the RX path (and clearing the FIFO).
-        hr.prl.tcpc.req_rx_enable(false);
+        hr.prl.port.driver->req_rx_enable(false);
 
         return No_State_Change;
     }
@@ -1288,7 +1288,7 @@ public:
         auto& prl = hr.prl;
 
         // Wait for the TCPC operation to complete
-        if (!prl.tcpc.is_rx_enable_done()) { return No_State_Change; }
+        if (!prl.port.driver->is_rx_enable_done()) { return No_State_Change; }
 
         // Route the state depending on the requested hard reset type
         if (prl.port.prl_hr_flags.test(PRL_HR_FLAG::HARD_RESET_FROM_PARTNER)) {
@@ -1318,7 +1318,7 @@ public:
     static auto on_enter_state(PRL_HR& hr) -> state_id_t {
         hr.log_state();
 
-        hr.prl.tcpc.req_hr_send();
+        hr.prl.port.driver->req_hr_send();
         return PRL_HR_Wait_for_PHY_Hard_Reset_Complete;
     }
 
@@ -1334,7 +1334,7 @@ public:
     }
 
     static auto on_run_state(PRL_HR& hr) -> state_id_t {
-        if (hr.prl.tcpc.is_hr_send_done()) {
+        if (hr.prl.port.driver->is_hr_send_done()) {
             return PRL_HR_PHY_Hard_Reset_Requested;
         }
 
@@ -1400,9 +1400,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-PRL::PRL(Port& port, IDriver& tcpc)
+PRL::PRL(Port& port)
     : port{port},
-    tcpc{tcpc},
     prl_tx{*this},
     prl_rx{*this},
     prl_hr{*this},
@@ -1446,7 +1445,7 @@ void PRL::reinit_for_sr(bool keep_rx_state) {
     // NOTE: negotiated revision stays intact. It's cleared via PE init and
     // hard reset.
     port.rx_msg_id_stored = -1;
-    tcpc.reset_rx_id_tracker();
+    port.driver->reset_rx_id_tracker();
     port.tx_msg_id_counter = 0;
 
     prl_rch.change_state(RCH_Wait_For_Message_From_Protocol_Layer);
@@ -1602,7 +1601,7 @@ void PRL_EventListener::on_receive(const MsgSysUpdate&) {
 
     if (prl.local_state == PRL::LOCAL_STATE::WORKING) {
         if (!prl.port.is_attached) {
-            prl.tcpc.req_rx_enable(false);
+            prl.port.driver->req_rx_enable(false);
             prl.local_state = PRL::LOCAL_STATE::DISABLED;
         } else {
             prl.prl_hr.run();

@@ -246,7 +246,7 @@ void DPM::request_new_power_level() {
     if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
         // Process the request in the driver task.
-        driver.wakeup();
+        port.driver->wakeup();
     }
 }
 
@@ -275,7 +275,7 @@ void DPM::hold_pe_transition_to_default(bool hold) {
         port.pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
     } else {
         port.pe_flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
-        driver.wakeup();
+        port.driver->wakeup();
     }
 }
 

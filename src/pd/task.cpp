@@ -29,7 +29,7 @@ void Task::tick() {
         {
             auto next_deadline{port.timers.get_next_deadline()};
             if (next_deadline) {
-                driver.rearm(*next_deadline);
+                port.driver->rearm(*next_deadline);
             }
         }
     }
@@ -55,20 +55,23 @@ void Task::dispatch() {
 }
 
 void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& drv){
+    port.driver = &drv;
+    port.dpm = &dpm;
+
     tick_guard_flags.set(GUARD_FLAGS::IS_IN_TICK);
 
-    port.timers.set_tick_source(drv.get_tick_source());
+    port.timers.set_tick_source(port.driver->get_tick_source());
     port.task_rtr = &task_event_listener;
-    drv.setup();
+    port.driver->setup();
     prl.setup();
     pe.setup();
-    dpm.setup();
+    port.dpm->setup();
     tc.setup();
 
     tick_guard_flags.clear(GUARD_FLAGS::IS_IN_TICK);
 
     // Bootstrap processing after setup without relying on a periodic tick.
-    drv.wakeup();
+    port.driver->wakeup();
 }
 
 void Task::set_event(uint32_t event_mask) {

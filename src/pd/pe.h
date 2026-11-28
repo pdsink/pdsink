@@ -10,7 +10,7 @@
 
 namespace pd {
 
-class Port; class IDPM; class ITCPC; class PE; class PRL;
+class Port; class PE;
 
 using PE_EventListener_Base = etl::message_router<class PE_EventListener,
     MsgSysUpdate,
@@ -37,7 +37,7 @@ private:
 
 class PE : public afsm::fsm<PE> {
 public:
-    PE(Port& port, IDPM& dpm, PRL& prl, ITCPC& tcpc);
+    PE(Port& port);
 
     // Disable unexpected use
     PE() = delete;
@@ -67,9 +67,6 @@ public:
     } local_state{LOCAL_STATE::DISABLED};
 
     Port& port;
-    IDPM& dpm;
-    PRL& prl;
-    ITCPC& tcpc;
 
     DPM_REQUEST_FLAG active_dpm_request{DPM_REQUEST_FLAG::NONE};
 
