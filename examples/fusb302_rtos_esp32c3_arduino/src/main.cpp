@@ -44,7 +44,10 @@ void initialize() {
     blinker.loop({ {{255,0,0}, 1000}, {{0,255,0}, 1000}, {{0,0,255}, 1000}, {{128,128,128}, 1000} });
 
     // Activate PD stack
-    port.start(driver);
+    if (!port.start(driver)) {
+        APP_LOGE("Failed to start PD stack");
+        return;
+    }
     // Preset desired voltage
     dpm.trigger_any(12000);
 

@@ -24,12 +24,13 @@ void Port::notify_dpm(const etl::imessage& msg) {
     if (dpm_rtr) { dpm_rtr->receive(msg); }
 }
 
-void Port::start(IDriver& drv) {
+bool Port::start(IDriver& drv) {
     driver = &drv;
     timers.set_tick_source(driver->get_tick_source());
-    driver->setup();
+    if (!driver->start()) { return false; }
     is_enabled.store(true);
     wakeup();
+    return true;
 }
 
 void Port::wakeup() {

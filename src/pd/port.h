@@ -88,7 +88,7 @@ public:
     void notify_pe(const etl::imessage& msg);
     void notify_prl(const etl::imessage& msg);
     void notify_dpm(const etl::imessage& msg);
-    void start(IDriver& driver);
+    bool start(IDriver& driver);
     void wakeup();
 
     //

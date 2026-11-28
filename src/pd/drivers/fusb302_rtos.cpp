@@ -69,10 +69,7 @@ namespace TX_TKN {
 }
 
 bool Fusb302Rtos::fusb_setup() {
-    if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { return false; }
-
     DRV_LOGI("FUSB302 setup starting...");
-    flags.set(DRV_FLAG::FUSB_SETUP_FAILED);
 
     // Reset chip
 
@@ -101,11 +98,8 @@ bool Fusb302Rtos::fusb_setup() {
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Mask1::reg, mask.raw_value));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maska::reg, 0xFF));
     DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Maskb::reg, 0xFF));
-    // ...and remove the global interrupt mask
-    Control0 ctl0;
-    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctl0.raw_value));
-    ctl0.INT_MASK = 0;
-    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctl0.raw_value));
+
+    DRV_RET_FALSE_ON_ERROR(fusb_set_global_interrupts(false));
 
     // Sync VBUSOK
     auto delay = pdMS_TO_TICKS(2);
@@ -117,15 +111,20 @@ bool Fusb302Rtos::fusb_setup() {
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_polarity(TCPC_POLARITY::NONE));
     polarity.store(TCPC_POLARITY::NONE);
-    flags.clear(DRV_FLAG::FUSB_SETUP_FAILED);
-    flags.set(DRV_FLAG::FUSB_SETUP_DONE);
 
     DRV_RET_FALSE_ON_ERROR(fusb_set_rxtx_interrupts(true));
 
     // NOTE: We don't touch data/power role bits.
     // - defaults are OK for sink/UFP
     // - the driver API has no appropriate methods.
-    DRV_LOGI("Setup done.");
+    return true;
+}
+
+bool Fusb302Rtos::fusb_set_global_interrupts(bool enable) {
+    Control0 ctl0;
+    DRV_RET_FALSE_ON_ERROR(hal.read_reg(i2c_addr, Control0::reg, ctl0.raw_value));
+    ctl0.INT_MASK = enable ? 0 : 1;
+    DRV_RET_FALSE_ON_ERROR(hal.write_reg(i2c_addr, Control0::reg, ctl0.raw_value));
     return true;
 }
 
@@ -744,23 +743,8 @@ void Fusb302Rtos::handle_tcpc_calls() {
 void Fusb302Rtos::task() {
     uint32_t event_mask{0};
 
-    // Allow setup to complete before continuing. Otherwise, an early VBUS_OK
-    // interrupt can cause kick_task failures. That's not critical, but this
-    // avoids unnecessary errors in the log.
-    xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
-
-    if (!flags.test(DRV_FLAG::FUSB_SETUP_DONE)) {
-        hal.setup();
-        if (fusb_setup()) {
-            // Wake after setup and preserve events consumed by the initial wait.
-            kick_task(event_mask | MSK_WAKEUP);
-        }
-    }
-
     while (true) {
         xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
-
-        if (flags.test(DRV_FLAG::FUSB_SETUP_FAILED)) { continue; }
 
         for (;;) {
             if (event_mask & MSK_TIMER) {
@@ -817,10 +801,7 @@ void Fusb302Rtos::task() {
 }
 
 void Fusb302Rtos::kick_task(uint32_t event_mask, bool from_isr) {
-    if (!started) {
-        DRV_LOGE("Driver not started, can't notify [event mask: {}]", event_mask);
-        return;
-    }
+    if (!started.load()) { return; }
     if (!xWaitingTaskHandle) {
         DRV_LOGE("Driver task handle is null, can't notify");
         return;
@@ -845,12 +826,11 @@ void Fusb302Rtos::kick_task(uint32_t event_mask, bool from_isr) {
     }
 }
 
-void Fusb302Rtos::setup() {
-    if (started) { return; }
+bool Fusb302Rtos::start() {
+    if (started.load()) { return true; }
 
-    hal.set_event_handler(
-        hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
-    );
+    hal.setup();
+    if (!fusb_setup()) { return false; }
 
     auto result = xTaskCreate(
         [](void* params) {
@@ -865,14 +845,25 @@ void Fusb302Rtos::setup() {
 
     if (result != pdPASS) {
         DRV_LOGE("Failed to create Fusb302Rtos task");
-        return;
+        return false;
     }
 
-    started = true;
+    hal.set_event_handler(
+        hal_event_handler_t::create<Fusb302Rtos, &Fusb302Rtos::on_hal_event>(*this)
+    );
 
-    // Activate task
-    kick_task(0);
+    // IRQ can fire before this call returns; keep started false until it succeeds.
+    if (!fusb_set_global_interrupts(true)) {
+        DRV_LOGE("Failed to enable FUSB302 interrupts");
+        DRV_LOG_ON_ERROR(fusb_set_global_interrupts(false));
+        vTaskDelete(xWaitingTaskHandle);
+        xWaitingTaskHandle = nullptr;
+        return false;
+    }
 
+    started.store(true);
+    DRV_LOGI("Setup done.");
+    return true;
 }
 
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {

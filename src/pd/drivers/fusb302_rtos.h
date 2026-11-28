@@ -10,7 +10,6 @@
 #include "../data_objects.h"
 #include "fusb302_regs.h"
 #include "../idriver.h"
-#include "../utils/atomic_enum_bits.h"
 #include "../utils/leapsync.h"
 #include "../timers.h"
 
@@ -42,12 +41,6 @@ public:
     virtual bool is_interrupt_active() = 0;
 };
 
-enum class DRV_FLAG {
-    FUSB_SETUP_DONE,
-    FUSB_SETUP_FAILED,
-    _Count
-};
-
 // This class implements generic FUSB302B logic and relies on FreeRTOS
 // to make I2C calls synchronous.
 class Fusb302Rtos : public IDriver {
@@ -69,7 +62,7 @@ public:
     Fusb302Rtos(Fusb302Rtos&&) = delete;
     Fusb302Rtos& operator=(Fusb302Rtos&&) = delete;
 
-    void setup() override;
+    bool start() override;
     void wakeup() override { kick_task(MSK_WAKEUP); };
 
 
@@ -122,8 +115,6 @@ public:
     TickSource get_tick_source() const override { return tick_source; };
     void rearm(uint32_t deadline_ticks) override;
 
-    AtomicEnumBits<DRV_FLAG> flags{};
-
 protected:
     void task();
     void handle_interrupt();
@@ -133,6 +124,7 @@ protected:
     void kick_task(uint32_t event_mask, bool from_isr = false);
 
     bool fusb_setup();
+    bool fusb_set_global_interrupts(bool enable);
     bool fusb_set_rxtx_interrupts(bool enable);
     bool fusb_set_activity_interrupt(bool enable);
     bool fusb_set_auto_goodcrc(bool enable);
@@ -157,7 +149,7 @@ protected:
     Port& port;
     IFusb302RtosHal& hal;
     TickSource tick_source;
-    bool started{false};
+    etl::atomic<bool> started{false};
     TaskHandle_t xWaitingTaskHandle{nullptr};
 
     // The worker fills this buffer; synchronous port callbacks consume it.
