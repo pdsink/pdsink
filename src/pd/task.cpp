@@ -26,8 +26,9 @@ void Task::tick() {
         port.notify_pe(MsgSysUpdate{});
         port.notify_prl(MsgSysUpdate{});
 
-        if (port.timers.timers_changed.exchange(false) ||
-            (e_group & Task::EVENT_TIMER_MSK))
+        if (port.is_enabled.load() &&
+            (port.timers.timers_changed.exchange(false) ||
+             (e_group & Task::EVENT_TIMER_MSK)))
         {
             auto next_deadline{port.timers.get_next_deadline()};
             if (next_deadline) {

@@ -33,6 +33,12 @@ bool Port::start(IDriver& drv) {
     return true;
 }
 
+void Port::stop() {
+    is_enabled.store(false);
+    if (driver) { driver->stop(); }
+    notify_task(MsgTask_Wakeup{});
+}
+
 void Port::wakeup() {
     if (is_enabled.load() && driver) { driver->wakeup(); }
 }

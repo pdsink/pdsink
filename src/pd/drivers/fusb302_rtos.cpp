@@ -747,6 +747,8 @@ void Fusb302Rtos::task() {
         xTaskNotifyWait(0, UINT32_MAX, &event_mask, portMAX_DELAY);
 
         for (;;) {
+            if (event_mask & MSK_EXIT) { break; }
+
             if (event_mask & MSK_TIMER) {
                 timers.cleanup();
                 has_deferred_timer = true;
@@ -781,6 +783,8 @@ void Fusb302Rtos::task() {
             DRV_LOGI("Fusb302Rtos task: New event detected, repeat processing...");
         }
 
+        if (event_mask & MSK_EXIT) { break; }
+
         if (has_deferred_wakeup) {
             has_deferred_wakeup = false;
             DRV_LOGD("Waking up port");
@@ -798,6 +802,23 @@ void Fusb302Rtos::task() {
             }
         }
     }
+
+    hal.set_event_handler({});
+    DRV_LOG_ON_ERROR(fusb_setup());
+
+    sync_fetch_cc.reset();
+    sync_set_polarity.reset();
+    sync_rx_enable.reset();
+    sync_set_bist.reset();
+    sync_hr_send.reset();
+    timers.stop_range({0, DriverTimer::COUNT - 1});
+    timers.timers_changed.store(false);
+    has_deferred_wakeup = false;
+    has_deferred_timer = false;
+
+    xWaitingTaskHandle = nullptr;
+    started.store(false);
+    vTaskDelete(nullptr);
 }
 
 void Fusb302Rtos::kick_task(uint32_t event_mask, bool from_isr) {
@@ -855,6 +876,7 @@ bool Fusb302Rtos::start() {
     // IRQ can fire before this call returns; keep started false until it succeeds.
     if (!fusb_set_global_interrupts(true)) {
         DRV_LOGE("Failed to enable FUSB302 interrupts");
+        hal.set_event_handler({});
         DRV_LOG_ON_ERROR(fusb_set_global_interrupts(false));
         vTaskDelete(xWaitingTaskHandle);
         xWaitingTaskHandle = nullptr;
@@ -864,6 +886,16 @@ bool Fusb302Rtos::start() {
     started.store(true);
     DRV_LOGI("Setup done.");
     return true;
+}
+
+void Fusb302Rtos::stop() {
+    if (!started.load()) { return; }
+
+    kick_task(MSK_EXIT);
+    auto delay = pdMS_TO_TICKS(10);
+    while (started.load()) {
+        vTaskDelay(delay ? delay : 1);
+    }
 }
 
 void Fusb302Rtos::on_hal_event(HAL_EVENT_TYPE event, bool from_isr) {

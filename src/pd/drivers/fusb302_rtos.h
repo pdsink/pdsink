@@ -48,6 +48,7 @@ class Fusb302Rtos : public IDriver {
     static constexpr uint32_t MSK_TIMER = (1u << 1);
     static constexpr uint32_t MSK_API_CALL = (1u << 2);
     static constexpr uint32_t MSK_WAKEUP = (1u << 3);
+    static constexpr uint32_t MSK_EXIT = (1u << 4);
 
 public:
     Fusb302Rtos(Port& port, IFusb302RtosHal& hal)
@@ -63,6 +64,7 @@ public:
     Fusb302Rtos& operator=(Fusb302Rtos&&) = delete;
 
     bool start() override;
+    void stop() override;
     void wakeup() override { kick_task(MSK_WAKEUP); };
 
 

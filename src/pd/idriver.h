@@ -164,6 +164,7 @@ public:
 class IDriver: public ITCPC, public ITimer {
 public:
     virtual bool start() = 0;
+    virtual void stop() = 0;
 
     // Wake up the PD event loop, ensuring it runs in the appropriate execution
     // context. Use this to signal the PD event loop from application code through

@@ -73,8 +73,8 @@ void Fusb302RtosHalEsp32::init_timer() {
         this,
         [](TimerHandle_t timer) {
             auto* self = static_cast<Fusb302RtosHalEsp32*>(pvTimerGetTimerID(timer));
-            if (self->event_cb) {
-                self->event_cb(HAL_EVENT_TYPE::Timer, false);
+            if (auto callback = self->event_cb.load()) {
+                callback(HAL_EVENT_TYPE::Timer, false);
             }
         }
     );
@@ -92,8 +92,8 @@ void Fusb302RtosHalEsp32::init_timer() {
     gptimer_event_callbacks_t callbacks = {
         .on_alarm = [](gptimer_handle_t, const gptimer_alarm_event_data_t*, void* arg) {
             auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-            if (self->event_cb) {
-                self->event_cb(HAL_EVENT_TYPE::Timer, true);
+            if (auto callback = self->event_cb.load()) {
+                callback(HAL_EVENT_TYPE::Timer, true);
             }
             return false;
         },
@@ -125,8 +125,8 @@ void Fusb302RtosHalEsp32::init_timer() {
         TIMER_0,
         [](void* arg) {
             auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-            if (self->event_cb) {
-                self->event_cb(HAL_EVENT_TYPE::Timer, true);
+            if (auto callback = self->event_cb.load()) {
+                callback(HAL_EVENT_TYPE::Timer, true);
             }
             return false;
         },
@@ -149,8 +149,8 @@ void Fusb302RtosHalEsp32::init_fusb_interrupt() {
 
     auto handler = [](void* arg) -> void {
         auto* self = static_cast<Fusb302RtosHalEsp32*>(arg);
-        if (self->event_cb) {
-            self->event_cb(HAL_EVENT_TYPE::FUSB302_Interrupt, true);
+        if (auto callback = self->event_cb.load()) {
+            callback(HAL_EVENT_TYPE::FUSB302_Interrupt, true);
         }
     };
 
@@ -277,8 +277,10 @@ void Fusb302RtosHalEsp32::rearm(uint32_t deadline_ticks) {
 #endif
 #endif
 
-    if (static_cast<int32_t>(deadline_ticks - get_ticks()) <= 0 && event_cb) {
-        event_cb(HAL_EVENT_TYPE::Timer, false);
+    if (static_cast<int32_t>(deadline_ticks - get_ticks()) <= 0) {
+        if (auto callback = event_cb.load()) {
+            callback(HAL_EVENT_TYPE::Timer, false);
+        }
     }
 }
 

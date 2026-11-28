@@ -2,6 +2,7 @@
 
 #include "fusb302_rtos.h"
 
+#include <etl/atomic.h>
 #include <driver/gpio.h>
 #include <esp_idf_version.h>
 #include <freertos/FreeRTOS.h>
@@ -24,7 +25,7 @@ namespace fusb302 {
 
 class Fusb302RtosHalEsp32 : public IFusb302RtosHal {
 public:
-    void set_event_handler(const hal_event_handler_t& handler) override { event_cb = handler; }
+    void set_event_handler(const hal_event_handler_t& handler) override { event_cb.store(handler); }
     void setup() override;
     ITimer::TickSource get_tick_source() const override;
     void rearm(uint32_t deadline_ticks) override;
@@ -55,7 +56,7 @@ protected:
     i2c_port_t i2c_num{I2C_NUM_0};
     uint32_t i2c_freq{400000}; // 400kHz
 
-    hal_event_handler_t event_cb;
+    etl::atomic<hal_event_handler_t> event_cb{hal_event_handler_t{}};
 #if defined(USE_FUSB302_COARSE_TIMER)
     TimerHandle_t timer_handle{nullptr};
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
