@@ -95,8 +95,9 @@ class ITimer {
 public:
     using TickSource = etl::delegate<uint32_t()>;
 
-    // Source of cyclic 32-bit microsecond ticks. Deadline comparisons are valid
-    // while the distance to or past a deadline is less than 2^31 microseconds.
+    // Source of cyclic 32-bit ticks, each PD_TIMER_TICK_US microseconds long.
+    // Deadline comparisons are valid while the distance to or past a deadline
+    // is less than 2^31 ticks.
     virtual TickSource get_tick_source() const = 0;
 
     // Arm a one-shot wakeup at an absolute tick value. A deadline that is

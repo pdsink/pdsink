@@ -8,8 +8,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-// Define USE_FUSB302_COARSE_TIMER for an RTOS timer instead of the default 1 MHz timer.
-#if defined(USE_FUSB302_COARSE_TIMER)
+#define _PD_HAL_USE_RTOS_TICKS (PD_TIMER_TICK_US == 1000)
+
+#if _PD_HAL_USE_RTOS_TICKS
 #include <freertos/timers.h>
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #include <driver/gptimer.h>
@@ -57,7 +58,7 @@ protected:
     uint32_t i2c_freq{400000}; // 400kHz
 
     etl::atomic<hal_event_handler_t> event_cb{hal_event_handler_t{}};
-#if defined(USE_FUSB302_COARSE_TIMER)
+#if _PD_HAL_USE_RTOS_TICKS
     TimerHandle_t timer_handle{nullptr};
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     gptimer_handle_t timer_handle{nullptr};

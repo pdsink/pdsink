@@ -11,7 +11,7 @@
 #error "ESP‑IDF ≥ 4.4.0 required"
 #endif
 
-#if !defined(USE_FUSB302_COARSE_TIMER)
+#if !_PD_HAL_USE_RTOS_TICKS
 #include <soc/soc_caps.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #include <driver/gptimer.h>
@@ -28,15 +28,13 @@ namespace fusb302 {
 Fusb302RtosHalEsp32::Fusb302RtosHalEsp32() {
 }
 
-#if defined(USE_FUSB302_COARSE_TIMER)
-static_assert(configTICK_RATE_HZ >= 1000,
-              "Coarse FUSB302 timer requires a FreeRTOS tick rate of at least 1000Hz");
-
-static uint32_t rtos_ticks_to_us(TickType_t ticks) {
-    return static_cast<uint32_t>(
-        static_cast<uint64_t>(ticks) * 1000000ULL / configTICK_RATE_HZ
-    );
-}
+#if _PD_HAL_USE_RTOS_TICKS
+static_assert(configTICK_RATE_HZ == 1000,
+              "1 ms PD timer ticks require a 1000 Hz FreeRTOS tick rate");
+#else
+static_assert(1000000 % PD_TIMER_TICK_US == 0,
+              "Hardware timer frequency (1000000 / PD_TIMER_TICK_US) must be an integer number of Hz");
+static constexpr uint32_t TIMER_RESOLUTION_HZ = 1000000 / PD_TIMER_TICK_US;
 #endif
 
 void Fusb302RtosHalEsp32::init_i2c() {
@@ -65,7 +63,7 @@ void Fusb302RtosHalEsp32::init_i2c() {
 }
 
 void Fusb302RtosHalEsp32::init_timer() {
-#if defined(USE_FUSB302_COARSE_TIMER)
+#if _PD_HAL_USE_RTOS_TICKS
     timer_handle = xTimerCreate(
         "Fusb302Timer",
         1,
@@ -83,11 +81,14 @@ void Fusb302RtosHalEsp32::init_timer() {
     gptimer_config_t config = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000,
+        .resolution_hz = TIMER_RESOLUTION_HZ,
         .intr_priority = 0,
         .flags = {},
     };
     ESP_ERROR_CHECK(gptimer_new_timer(&config, &timer_handle));
+    uint32_t resolution_hz = 0;
+    ESP_ERROR_CHECK(gptimer_get_resolution(timer_handle, &resolution_hz));
+    configASSERT(resolution_hz == TIMER_RESOLUTION_HZ);
 
     gptimer_event_callbacks_t callbacks = {
         .on_alarm = [](gptimer_handle_t, const gptimer_alarm_event_data_t*, void* arg) {
@@ -106,14 +107,16 @@ void Fusb302RtosHalEsp32::init_timer() {
     // Legacy support for PlatformIO's Arduino build only. Keep timer selection
     // fixed instead of adding legacy-specific options to the public HAL API.
     // For custom high-resolution timing on Arduino, override the HAL timer
-    // methods together; otherwise define USE_FUSB302_COARSE_TIMER.
+    // methods together.
+    static_assert(TIMER_BASE_CLK % TIMER_RESOLUTION_HZ == 0,
+                  "PD timer frequency is not exactly representable");
     timer_config_t config = {
         .alarm_en = TIMER_ALARM_DIS,
         .counter_en = TIMER_PAUSE,
         .intr_type = TIMER_INTR_LEVEL,
         .counter_dir = TIMER_COUNT_UP,
         .auto_reload = TIMER_AUTORELOAD_DIS,
-        .divider = TIMER_BASE_CLK / 1000000,
+        .divider = TIMER_BASE_CLK / TIMER_RESOLUTION_HZ,
 #if SOC_TIMER_GROUP_SUPPORT_XTAL
         .clk_src = TIMER_SRC_CLK_APB,
 #endif
@@ -178,7 +181,7 @@ void Fusb302RtosHalEsp32::setup() {
 // This will not be actually used, object expected to be static.
 Fusb302RtosHalEsp32::~Fusb302RtosHalEsp32() {
     if (started) {
-#if defined(USE_FUSB302_COARSE_TIMER)
+#if _PD_HAL_USE_RTOS_TICKS
         xTimerDelete(timer_handle, portMAX_DELAY);
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
         ESP_ERROR_CHECK(gptimer_stop(timer_handle));
@@ -200,9 +203,9 @@ auto Fusb302RtosHalEsp32::get_tick_source() const -> ITimer::TickSource {
 }
 
 uint32_t Fusb302RtosHalEsp32::get_ticks() const {
-#if defined(USE_FUSB302_COARSE_TIMER)
+#if _PD_HAL_USE_RTOS_TICKS
     TickType_t ticks = xPortInIsrContext() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
-    return rtos_ticks_to_us(ticks);
+    return static_cast<uint32_t>(ticks);
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     if (!started) { return 0; }
 
@@ -219,18 +222,11 @@ uint32_t Fusb302RtosHalEsp32::get_ticks() const {
 }
 
 void Fusb302RtosHalEsp32::rearm(uint32_t deadline_ticks) {
-#if defined(USE_FUSB302_COARSE_TIMER)
+#if _PD_HAL_USE_RTOS_TICKS
     TickType_t anchor_ticks = xTaskGetTickCount();
     int32_t delta = static_cast<int32_t>(
-        deadline_ticks - rtos_ticks_to_us(anchor_ticks)
-    );
-    TickType_t delay_ticks = 1;
-    if (delta > 0) {
-        delay_ticks = static_cast<TickType_t>(
-            (static_cast<uint64_t>(delta) * configTICK_RATE_HZ + 999999ULL) / 1000000ULL
-        );
-        if (delay_ticks == 0) { delay_ticks = 1; }
-    }
+        deadline_ticks - static_cast<uint32_t>(anchor_ticks));
+    TickType_t delay_ticks = delta > 0 ? static_cast<TickType_t>(delta) : 1;
 
     BaseType_t result = xTimerChangePeriod(timer_handle, delay_ticks, portMAX_DELAY);
     configASSERT(result == pdPASS);

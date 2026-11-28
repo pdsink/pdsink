@@ -43,7 +43,7 @@ struct PD_TIMERS_RANGE {
 };
 
 // [rev3.2 v1.2] 7.31.19 Time Values and Timers
-// {Timer ID, Timeout in us}
+// {Timer ID, Timeout in timer ticks}
 //
 // Some timeouts can reuse the same timer. PD components operate with
 // PD_TIMEOUT values to hide those details.
@@ -55,30 +55,30 @@ public:
     using Type = etl::pair<int, uint32_t>;
 
     // [USB Type-C 2.5] Table 4-34 and 4-3.
-    static constexpr Type tCCDebounce {PD_TIMER::TC_DEBOUNCE, 100 * ms}; // 100-200 ms
-    static constexpr Type tPDDebounce {PD_TIMER::TC_DEBOUNCE, 10 * ms}; // 10-20 ms
+    static constexpr Type tCCDebounce {PD_TIMER::TC_DEBOUNCE, PD_US_TO_TICKS(100 * ms)}; // 100-200 ms
+    static constexpr Type tPDDebounce {PD_TIMER::TC_DEBOUNCE, PD_US_TO_TICKS(10 * ms)}; // 10-20 ms
 
-    static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, 465 * ms}; // 310-620 ms
-    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, 30 * ms}; // 27-50 ms
-    static constexpr Type tSinkRequest {PD_TIMER::PE_SinkRequestTimer, 100 * ms}; // 100 ms before repeat
+    static constexpr Type tTypeCSinkWaitCap {PD_TIMER::PE_SinkWaitCapTimer, PD_US_TO_TICKS(465 * ms)}; // 310-620 ms
+    static constexpr Type tSenderResponse {PD_TIMER::PE_SenderResponseTimer, PD_US_TO_TICKS(30 * ms)}; // 27-50 ms
+    static constexpr Type tSinkRequest {PD_TIMER::PE_SinkRequestTimer, PD_US_TO_TICKS(100 * ms)}; // 100 ms before repeat
     // 10s max in [rev3.2 v1.1] Table 6.68; [rev3.2 v1.2] Table 7.9 omits this value.
-    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, 5000 * ms};
+    static constexpr Type tPPSRequest {PD_TIMER::PE_SinkPPSPeriodicTimer, PD_US_TO_TICKS(5000 * ms)};
     // PS Transition timeout depends on mode
-    static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, 500 * ms}; // 450-550 ms
-    static constexpr Type tPSTransition_EPR {PD_TIMER::PE_PSTransitionTimer, 925 * ms}; // 830-1020 ms
-    static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, 375 * ms}; // 250-500 ms
-    static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, 500 * ms}; // 450-550 ms
-    static constexpr Type tBISTContMode {PD_TIMER::PE_BISTContModeTimer, 45 * ms}; // 30-60 ms
+    static constexpr Type tPSTransition_SPR {PD_TIMER::PE_PSTransitionTimer, PD_US_TO_TICKS(500 * ms)}; // 450-550 ms
+    static constexpr Type tPSTransition_EPR {PD_TIMER::PE_PSTransitionTimer, PD_US_TO_TICKS(925 * ms)}; // 830-1020 ms
+    static constexpr Type tSinkEPRKeepAlive {PD_TIMER::PE_SinkEPRKeepAliveTimer, PD_US_TO_TICKS(375 * ms)}; // 250-500 ms
+    static constexpr Type tEnterEPR {PD_TIMER::PE_SinkEPREnterTimer, PD_US_TO_TICKS(500 * ms)}; // 450-550 ms
+    static constexpr Type tBISTContMode {PD_TIMER::PE_BISTContModeTimer, PD_US_TO_TICKS(45 * ms)}; // 30-60 ms
 
-    static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, 27 * ms}; // 24-30 ms
-    static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, 27 * ms}; // 24-30 ms
+    static constexpr Type tChunkSenderResponse {PD_TIMER::PRL_ChunkSenderResponse, PD_US_TO_TICKS(27 * ms)}; // 24-30 ms
+    static constexpr Type tChunkSenderRequest {PD_TIMER::PRL_ChunkSenderRequest, PD_US_TO_TICKS(27 * ms)}; // 24-30 ms
 
-    static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, 1 * ms}; // 0.9-1.1 ms
+    static constexpr Type tReceive {PD_TIMER::PRL_CRCReceive, PD_US_TO_TICKS(1 * ms)}; // 0.9-1.1 ms
 
     // Custom timeouts, only for manual CC polling, when BMC filtering is not
     // available and transfers can add noise.
-    static constexpr Type TC_CC_POLL_PERIOD {PD_TIMER::TC_CC_POLL_PERIOD, 1 * ms};
-    static constexpr Type PRL_SinkTxOK_POLL_PERIOD {PD_TIMER::PRL_SinkTxOK_POLL_PERIOD, 20 * ms};
+    static constexpr Type TC_CC_POLL_PERIOD {PD_TIMER::TC_CC_POLL_PERIOD, PD_US_TO_TICKS(1 * ms)};
+    static constexpr Type PRL_SinkTxOK_POLL_PERIOD {PD_TIMER::PRL_SinkTxOK_POLL_PERIOD, PD_US_TO_TICKS(20 * ms)};
 };
 
 template<size_t TIMER_COUNT>

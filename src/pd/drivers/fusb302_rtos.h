@@ -240,12 +240,8 @@ protected:
         HR_SEND_TIMER,
         COUNT,
     };
-#if defined(USE_FUSB302_COARSE_TIMER)
-    static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 3000};
-#else
-    static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, 1400};
-#endif
-    static constexpr PD_TIMEOUT::Type HR_SEND_TIMEOUT{DriverTimer::HR_SEND_TIMER, 5000}; // tHardResetComplete: 4-5 ms
+    static constexpr PD_TIMEOUT::Type LINE_QUIET_TIME{DriverTimer::LINE_QUIET_TIMER, PD_US_TO_TICKS(1400)};
+    static constexpr PD_TIMEOUT::Type HR_SEND_TIMEOUT{DriverTimer::HR_SEND_TIMER, PD_US_TO_TICKS(5000)}; // tHardResetComplete: 4-5 ms
     Timers<DriverTimer::COUNT> timers;
 
     // Override in an inherited class if needed.

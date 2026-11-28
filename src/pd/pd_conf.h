@@ -12,3 +12,16 @@
 #elif defined(PD_USE_CONFIG_FILE)
     #include "pd_config.h"
 #endif
+
+#ifndef PD_TIMER_TICK_US
+#define PD_TIMER_TICK_US 50
+#endif
+
+#if PD_TIMER_TICK_US < 1 || PD_TIMER_TICK_US > 1000
+#error "PD_TIMER_TICK_US must be between 1 and 1000 microseconds"
+#endif
+
+// Round up and add one tick to avoid expiring before the requested delay.
+#define PD_US_TO_TICKS(us) \
+    ((static_cast<unsigned long long>(us) + PD_TIMER_TICK_US - 1ULL) / \
+     PD_TIMER_TICK_US + 1ULL)
