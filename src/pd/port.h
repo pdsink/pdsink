@@ -1,5 +1,6 @@
 #pragma once
 
+#include <etl/atomic.h>
 #include <etl/message_router.h>
 #include <etl/cyclic_value.h>
 
@@ -21,9 +22,9 @@ class IDriver;
 
 class Port {
 public:
-    // Non-owning bindings, selected when the stack is started.
     IDriver* driver{nullptr};
     IDPM* dpm{nullptr};
+    etl::atomic<bool> is_enabled{false};
 
     Timers<PD_TIMER::PD_TIMER_COUNT> timers{};
 
@@ -87,6 +88,8 @@ public:
     void notify_pe(const etl::imessage& msg);
     void notify_prl(const etl::imessage& msg);
     void notify_dpm(const etl::imessage& msg);
+    void start(IDriver& driver);
+    void wakeup();
 
     //
     // Helpers

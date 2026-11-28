@@ -1408,9 +1408,7 @@ PRL::PRL(Port& port)
     prl_rch{*this},
     prl_tch{*this},
     prl_event_listener{*this}
-{}
-
-void PRL::setup() {
+{
     port.prl_rtr = &prl_event_listener;
 }
 
@@ -1580,6 +1578,11 @@ void PRL_HR::log_state() const {
 
 
 void PRL_EventListener::on_receive(const MsgSysUpdate&) {
+    if (!prl.port.is_enabled.load()) {
+        prl.local_state = PRL::LOCAL_STATE::DISABLED;
+        return;
+    }
+
     switch (prl.local_state) {
         case PRL::LOCAL_STATE::DISABLED:
             if (!prl.port.is_attached) { break; }

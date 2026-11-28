@@ -35,7 +35,6 @@ public:
     TC& operator=(const TC&) = delete;
 
     void log_state() const;
-    void setup();
 
     Port& port;
 

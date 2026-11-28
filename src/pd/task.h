@@ -9,7 +9,7 @@
 
 namespace pd {
 
-class Port; class Task; class TC; class IDPM; class PE; class PRL; class IDriver;
+class Port; class Task;
 
 using Task_EventListener_Base = etl::message_router<class Task_EventListener,
     MsgTask_Wakeup,
@@ -27,14 +27,13 @@ private:
 
 class Task {
 public:
-    Task(Port& port) : port{port}, task_event_listener{*this} {}
+    Task(Port& port);
 
     // Disable unexpected use
     Task() = delete;
     Task(const Task&) = delete;
     Task& operator=(const Task&) = delete;
 
-    virtual void start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& driver);
     virtual void set_event(uint32_t event_mask);
     virtual void dispatch();
     virtual void tick();

@@ -11,7 +11,6 @@ class Port;
 
 class IDPM {
 public:
-    virtual void setup() = 0;
     virtual etl::pair<uint32_t, uint32_t> get_request_data_object(const etl::ivector<uint32_t>& src_caps) = 0;
     virtual PDO_LIST get_sink_pdo_list() = 0;
     virtual uint32_t get_epr_watts() = 0;
@@ -20,17 +19,12 @@ public:
 
 class DPM : public IDPM {
 public:
-    DPM(Port& port) : port{port} {};
+    DPM(Port& port);
 
     // Disable unexpected use
     DPM() = delete;
     DPM(const DPM&) = delete;
     DPM& operator=(const DPM&) = delete;
-
-    // You can override this method in an inherited class to listen to events
-    virtual void setup() override {
-        //port.msgbus.subscribe(dpm_event_listener);
-    }
 
     //
     // Methods below provide a default implementation of DPM logic

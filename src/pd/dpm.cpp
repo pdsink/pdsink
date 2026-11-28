@@ -1,7 +1,6 @@
 #include <etl/algorithm.h>
 
 #include "dpm.h"
-#include "idriver.h"
 #include "pd_log.h"
 #include "port.h"
 #include "utils/dobj_utils.h"
@@ -9,6 +8,10 @@
 namespace pd {
 
 using namespace dobj_utils;
+
+DPM::DPM(Port& port) : port{port} {
+    port.dpm = this;
+}
 
 //
 // Custom handlers. You are expected to override these in your application.
@@ -246,7 +249,7 @@ void DPM::request_new_power_level() {
     if (port.pe_flags.test(PE_FLAG::SPR_MODE_CONTRACTED)) {
         port.dpm_requests.set(DPM_REQUEST_FLAG::NEW_POWER_LEVEL);
         // Process the request in the driver task.
-        port.driver->wakeup();
+        port.wakeup();
     }
 }
 
@@ -275,7 +278,7 @@ void DPM::hold_pe_transition_to_default(bool hold) {
         port.pe_flags.set(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
     } else {
         port.pe_flags.clear(PE_FLAG::WAIT_DPM_TRANSIT_TO_DEFAULT);
-        port.driver->wakeup();
+        port.wakeup();
     }
 }
 

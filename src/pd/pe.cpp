@@ -1382,6 +1382,7 @@ PE::PE(Port& port)
     : port{port}, pe_event_listener{*this}
 {
     set_states<PE_STATES>();
+    port.pe_rtr = &pe_event_listener;
 }
 
 void PE::log_state() const {
@@ -1431,10 +1432,6 @@ void PE::log_source_caps() const {
             PE_LOGI("  PDO[{}]: 0x{:08X} <!!!UNHANDLED!!!>", i+1, pdo);
         }
     }
-}
-
-void PE::setup() {
-    port.pe_rtr = &pe_event_listener;
 }
 
 void PE::init() {
@@ -1603,6 +1600,11 @@ bool PE::check_source_caps_need_hard_reset(
 }
 
 void PE_EventListener::on_receive(const MsgSysUpdate&) {
+    if (!pe.port.is_enabled.load()) {
+        pe.local_state = PE::LOCAL_STATE::DISABLED;
+        return;
+    }
+
     switch (pe.local_state) {
         case PE::LOCAL_STATE::DISABLED:
             if (!pe.port.is_attached) { break; }

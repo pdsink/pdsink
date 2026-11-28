@@ -84,7 +84,6 @@ public:
     PRL(const PRL&) = delete;
     PRL& operator=(const PRL&) = delete;
 
-    void setup();
     void init();
     void reinit_for_sr(bool keep_rx_state);
     void request_wakeup() { has_deferred_wakeup_request = true; };

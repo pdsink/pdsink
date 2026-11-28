@@ -1,4 +1,5 @@
 #include "messages.h"
+#include "idriver.h"
 #include "port.h"
 
 namespace pd {
@@ -21,6 +22,18 @@ void Port::notify_prl(const etl::imessage& msg) {
 
 void Port::notify_dpm(const etl::imessage& msg) {
     if (dpm_rtr) { dpm_rtr->receive(msg); }
+}
+
+void Port::start(IDriver& drv) {
+    driver = &drv;
+    timers.set_tick_source(driver->get_tick_source());
+    driver->setup();
+    is_enabled.store(true);
+    wakeup();
+}
+
+void Port::wakeup() {
+    if (is_enabled.load() && driver) { driver->wakeup(); }
 }
 
 bool Port::is_prl_running() {

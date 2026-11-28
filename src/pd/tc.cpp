@@ -291,18 +291,23 @@ TC::TC(Port& port)
     : port{port}, tc_event_listener{*this}
 {
     set_states<TC_STATES>();
+    port.tc_rtr = &tc_event_listener;
 }
 
 void TC::log_state() const {
     TC_LOGI("TC state => {}", tc_state_to_desc(get_state_id()));
 }
 
-void TC::setup() {
-    port.tc_rtr = &tc_event_listener;
-    change_state(TC_UNATTACHED_SNK, true);
-}
-
 void TC_EventListener::on_receive(const MsgSysUpdate&) {
+    if (!tc.port.is_enabled.load()) {
+        tc.change_state(afsm::Uninitialized);
+        return;
+    }
+
+    if (tc.is_uninitialized()) {
+        tc.change_state(TC_UNATTACHED_SNK);
+    }
+
     tc.run();
 }
 

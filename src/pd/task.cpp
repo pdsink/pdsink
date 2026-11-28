@@ -1,13 +1,15 @@
-#include "dpm.h"
 #include "idriver.h"
 #include "pd_log.h"
-#include "pe.h"
 #include "port.h"
-#include "prl.h"
 #include "task.h"
-#include "tc.h"
 
 namespace pd {
+
+Task::Task(Port& port)
+    : port{port}, task_event_listener{*this}
+{
+    port.task_rtr = &task_event_listener;
+}
 
 void Task::tick() {
     auto e_group = event_group.exchange(0);
@@ -52,26 +54,6 @@ void Task::dispatch() {
 
         tick_guard_flags.clear(GUARD_FLAGS::IS_IN_TICK);
     } while (tick_guard_flags.test_and_clear(GUARD_FLAGS::HAS_DEFERRED_CALL));
-}
-
-void Task::start(TC& tc, IDPM& dpm, PE& pe, PRL& prl, IDriver& drv){
-    port.driver = &drv;
-    port.dpm = &dpm;
-
-    tick_guard_flags.set(GUARD_FLAGS::IS_IN_TICK);
-
-    port.timers.set_tick_source(port.driver->get_tick_source());
-    port.task_rtr = &task_event_listener;
-    port.driver->setup();
-    prl.setup();
-    pe.setup();
-    port.dpm->setup();
-    tc.setup();
-
-    tick_guard_flags.clear(GUARD_FLAGS::IS_IN_TICK);
-
-    // Bootstrap processing after setup without relying on a periodic tick.
-    port.driver->wakeup();
 }
 
 void Task::set_event(uint32_t event_mask) {
